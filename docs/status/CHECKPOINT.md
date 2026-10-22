@@ -27,12 +27,12 @@ Owner-approved first delivery increment. Implemented and locally validated; the 
 ## Validation evidence
 
 - PostgreSQL suite: 36 tests, 127 assertions, including a race between two separate worker processes: exactly one allocation wins, the other returns 409.
-- Frontend: 23 tests; production typecheck/build and lint pass.
-- Browser E2E with real API/PostgreSQL: create/confirm order, 11% margin lock, independent Supervisor approval, dispatch, CSRF rejection and logout. Responsive 1440 / 820 / 390, timezone Asia/Bangkok. Latest run includes original logo; screenshots in [qa](qa/).
+- Frontend: 24 tests; production typecheck/build and lint pass.
+- Browser E2E with real API/PostgreSQL: create/confirm order, 11% margin lock, independent Supervisor approval, dispatch, CSRF rejection, logout and login ulang dengan sesi baru. Responsive 1440 / 820 / 390, timezone Asia/Bangkok. Latest run includes original logo; screenshots in [qa](qa/).
 - Original logo copy checksum matches; no favicon declared.
 - Saved runtime build executed successfully with host trust bundle and existing proxy, without disabling TLS verification. Composer strict validation passes.
 - Fresh isolated Compose PostgreSQL/API: migrations succeed; health endpoint returns OK; anonymous order access returns 401; repeat migration is a no-op. Verification containers are stopped after checks; their local volume is preserved.
-- CI workflow is authored; GitHub runner results must be checked separately and are not inferred from local checks.
+- GitHub CI for checkpoint `0fbed8b` passed both backend and frontend. The final session regression is locally verified; inspect the PR checks for the latest commit rather than inferring a remote result from local tests.
 
 ## Scope boundaries for next increment
 

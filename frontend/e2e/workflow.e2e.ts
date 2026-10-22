@@ -185,4 +185,17 @@ test("real order, margin approval, dispatch, responsive navigation and CSRF boun
   await expect(
     page.getByRole("button", { name: "Masuk", exact: true }),
   ).toBeVisible();
+  await page.getByLabel("Tenant", { exact: true }).fill(tenant);
+  await page
+    .getByLabel("Email", { exact: true })
+    .fill("dispatcher@optideli.test");
+  await page.getByLabel("Kata sandi").fill(password);
+  await page.getByRole("button", { name: "Masuk", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Board alokasi & persetujuan" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Keluar", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Masuk", exact: true }),
+  ).toBeVisible();
 });

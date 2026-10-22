@@ -45,7 +45,10 @@ export async function api<T>(
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) {
+    if (path === "auth/logout") csrfToken = undefined;
+    return undefined as T;
+  }
   const data = (await res.json().catch(() => ({}))) as {
     message?: string;
     errors?: Record<string, string[]>;

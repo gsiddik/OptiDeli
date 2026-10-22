@@ -2,12 +2,13 @@ name: OptiDeli checks
 on:
   pull_request:
   push:
-    branches: [main, feat/tms-foundation]
+    branches: [main]
 permissions:
   contents: read
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:18-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
@@ -25,20 +26,21 @@ jobs:
       DB_USERNAME: optideli
       DB_PASSWORD: ci-test-only
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - run: docker build -t optideli-dev-php -f docker/php.Dockerfile docker
       - run: ./scripts/composer install --no-interaction --prefer-dist
       - run: ./scripts/composer validate --strict
       - run: ./scripts/php vendor/bin/pint --test
       - run: ./scripts/php vendor/bin/phpunit
   frontend:
-    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
           cache: npm

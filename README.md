@@ -70,7 +70,7 @@ Browser E2E memerlukan API, Vite, database lokal dan akun demo aktif. Gunakan Ch
 OPTIDELI_E2E_PASSWORD=... OPTIDELI_E2E_TENANT=demo npm run test:e2e
 ```
 
-E2E menggunakan API/database nyata, menambah data berlabel E2E pada tenant demo, dan memeriksa order → konfirmasi → margin lock → persetujuan Supervisor → dispatch, CSRF, logout dan viewport 1440/820/390. Gunakan tenant demo/disposable saja. Tidak memakai mock API; screenshot ditulis ke direktori ignored `frontend/test-results`. Workflow CI memverifikasi backend PostgreSQL dan frontend; browser E2E dijalankan terpisah dan tidak diklaim telah berjalan di GitHub sebelum hasil runner tersedia.
+Beri jeda sekurangnya 60 detik antara pengulangan suite penuh agar tetap menghormati rate limit user; jangan menonaktifkan throttle untuk membuat pengujian lulus. E2E menggunakan API/database nyata, menambah data berlabel E2E pada tenant demo, dan memeriksa order → konfirmasi → margin lock → persetujuan Supervisor → dispatch, CSRF, logout dan viewport 1440/820/390. Gunakan tenant demo/disposable saja. Tidak memakai mock API; screenshot ditulis ke direktori ignored `frontend/test-results`. Workflow CI memverifikasi backend PostgreSQL dan frontend; browser E2E dijalankan terpisah dan tidak diklaim telah berjalan di GitHub sebelum hasil runner tersedia.
 
 ## Aturan komersial dan operasional
 

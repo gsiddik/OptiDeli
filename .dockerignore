@@ -1,0 +1,7 @@
+.git
+.local
+**/vendor
+**/node_modules
+**/dist
+**/.env
+**/test-results

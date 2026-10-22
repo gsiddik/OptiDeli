@@ -1,0 +1,315 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useData } from "./api";
+import { useSession } from "./App";
+import { Badge, Empty, ErrorBox, Loading, Pagination } from "./components";
+import { dateTime } from "./commercial";
+import type { Page } from "./types";
+export function Dashboard() {
+  const s = useSession();
+  const policy = useData<{ data: { minimum_margin_bps: number } }>(
+    "commercial/policy",
+  );
+  const state = useData<{
+    data: {
+      orders: { status: string; total: number }[];
+      approval_pending: number;
+      fleet_available: number;
+      outbox_pending: number;
+    };
+  }>("dashboard");
+  const d = state.data?.data;
+  const count = (status: string) =>
+    Number(d?.orders.find((x) => x.status === status)?.total ?? 0);
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">RUANG OPERASIONAL</span>
+          <h1 tabIndex={-1}>Ringkasan transportasi</h1>
+          <p>
+            Selamat datang, {s.name}. Berikut posisi order dan kesiapan tenant
+            Anda.
+          </p>
+        </div>
+        {s.role !== "viewer" && (
+          <Link className="button primary" to="/orders/new">
+            + Buat order
+          </Link>
+        )}
+      </div>
+      <ErrorBox error={state.error} />
+      {state.error && <button onClick={state.refresh}>Coba lagi</button>}
+      {state.loading ? (
+        <Loading />
+      ) : (
+        d && (
+          <>
+            <div className="metrics">
+              {[
+                {
+                  label: "Draft order",
+                  value: count("DRAFT"),
+                  hint: "Perlu pemeriksaan",
+                  color: "cyan",
+                  to: "/orders?status=DRAFT",
+                },
+                {
+                  label: "Siap direncanakan",
+                  value: count("CONFIRMED"),
+                  hint: "Order terkonfirmasi",
+                  color: "blue",
+                  to: "/dispatch",
+                },
+                {
+                  label: "Menunggu persetujuan",
+                  value: d.approval_pending,
+                  hint: "Margin di bawah threshold",
+                  color: "orange",
+                  to: "/dispatch",
+                },
+                {
+                  label: "Telah dispatch",
+                  value: count("DISPATCHED"),
+                  hint: "Armada telah dialokasikan",
+                  color: "green",
+                  to: "/orders?status=DISPATCHED",
+                },
+              ].map((m) => (
+                <Link to={m.to} className={`metric ${m.color}`} key={m.label}>
+                  <span>{m.label}</span>
+                  <strong>{m.value}</strong>
+                  <small>{m.hint}</small>
+                </Link>
+              ))}
+            </div>
+            <div className="dashboard-grid">
+              <section className="card">
+                <div className="section-heading">
+                  <h2>Alur operasional</h2>
+                  <Badge value="TAHAP 1" />
+                </div>
+                <div className="workflow">
+                  {[
+                    {
+                      n: "01",
+                      title: "Tangkap order",
+                      text: "Catat pelanggan, rute, rincian muatan dan komponen harga jual.",
+                      to: "/orders",
+                    },
+                    {
+                      n: "02",
+                      title: "Periksa kesiapan",
+                      text: "Validasi status kendaraan, dokumen dan kelayakan pengemudi.",
+                      to: "/fleet",
+                    },
+                    {
+                      n: "03",
+                      title: "Lindungi margin",
+                      text: "Ajukan persetujuan berjenjang bila margin di bawah kebijakan.",
+                      to: "/dispatch",
+                    },
+                    {
+                      n: "04",
+                      title: "Konfirmasi dispatch",
+                      text: "Sistem memeriksa ulang dan mengunci alokasi dalam satu transaksi.",
+                      to: "/dispatch",
+                    },
+                  ].map((w) => (
+                    <Link to={w.to} key={w.n}>
+                      <span className="step">{w.n}</span>
+                      <div>
+                        <strong>{w.title}</strong>
+                        <p>{w.text}</p>
+                      </div>
+                      <span>↗</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+              <div className="stack">
+                <section className="card policy-card">
+                  <span className="eyebrow">KONTROL KOMERSIAL</span>
+                  <h2>Margin guardrail</h2>
+                  <strong className="policy-number">
+                    {(policy.data?.data.minimum_margin_bps ??
+                      s.tenant.minimum_margin_bps) / 100}
+                    %
+                  </strong>
+                  <p>Threshold dasar tenant</p>
+                  <div className="policy-tiers">
+                    <span>
+                      10–&lt;15% <b>Supervisor</b>
+                    </span>
+                    <span>
+                      5–&lt;10% <b>Head of Logistics</b>
+                    </span>
+                    <span>
+                      &lt;5% <b>CFO / Owner</b>
+                    </span>
+                  </div>
+                  <small>
+                    Jika di bawah threshold tahap: reason code wajib, otorisasi
+                    sesuai tingkat margin aktual.
+                  </small>
+                </section>
+                <section className="card">
+                  <h2>Kesiapan & integrasi</h2>
+                  <dl className="details">
+                    <dt>Armada status tersedia</dt>
+                    <dd>{d.fleet_available}</dd>
+                    <dt>Event outbox belum dikirim</dt>
+                    <dd>{d.outbox_pending}</dd>
+                    <dt>Mode deployment</dt>
+                    <dd>{s.deployment_mode}</dd>
+                  </dl>
+                  <p className="muted">
+                    Jumlah armada belum memperhitungkan dokumen dan alokasi.
+                    Kesiapan akhir divalidasi saat dispatch. Relay integrasi
+                    belum aktif.
+                  </p>
+                  <Link to="/roadmap">Lihat cakupan tahap pengembangan →</Link>
+                </section>
+              </div>
+            </div>
+          </>
+        )
+      )}
+    </>
+  );
+}
+export function AuditPage() {
+  const [page, setPage] = useState(1);
+  const state = useData<
+    Page<{
+      id: string;
+      action: string;
+      subject_id: string;
+      actor_id: number;
+      created_at: string;
+      metadata: string;
+    }>
+  >(`audit?page=${page}`);
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">GOVERNANCE</span>
+          <h1 tabIndex={-1}>Jejak audit</h1>
+          <p>
+            Riwayat perubahan tenant ini. Catatan dibuat server bersama
+            transaksi bisnis.
+          </p>
+        </div>
+        <button onClick={state.refresh}>Muat ulang</button>
+      </div>
+      <section className="card">
+        <ErrorBox error={state.error} />
+        {state.loading ? (
+          <Loading />
+        ) : (
+          state.data && (
+            <>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Waktu</th>
+                      <th>Aktivitas</th>
+                      <th>Actor ID</th>
+                      <th>Objek</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {state.data.data.map((e) => (
+                      <tr key={e.id}>
+                        <td>{dateTime(e.created_at)}</td>
+                        <td>
+                          <strong>{e.action}</strong>
+                        </td>
+                        <td>{e.actor_id}</td>
+                        <td>
+                          <code>{e.subject_id}</code>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!state.data.data.length && (
+                <Empty>Belum ada aktivitas yang tercatat.</Empty>
+              )}
+              <Pagination page={state.data} onPage={setPage} />
+            </>
+          )
+        )}
+      </section>
+    </>
+  );
+}
+export function Roadmap() {
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">CAKUPAN PRODUK</span>
+          <h1 tabIndex={-1}>Pengiriman bertahap</h1>
+          <p>
+            Status kemampuan sesuai tahapan yang disepakati. Fitur lanjutan
+            belum aktif.
+          </p>
+        </div>
+      </div>
+      <section className="card">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Tahap</th>
+                <th>Cakupan</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1 · Fondasi</td>
+                <td>
+                  Tenant, sesi lokal, role, order, register armada/pengemudi,
+                  dispatch dan persetujuan margin, audit/outbox
+                </td>
+                <td>
+                  <Badge value="IMPLEMENTED" />
+                </td>
+              </tr>
+              <tr>
+                <td>2 · Eksekusi & settlement</td>
+                <td>
+                  Dock/yard, vendor/rate card, waterfall/broadcast tender, trip
+                  legs, ePOD, aksesorial, sengketa dan 3-way freight audit
+                </td>
+                <td>
+                  <Badge value="PLANNED" />
+                </td>
+              </tr>
+              <tr>
+                <td>3 · Optimasi & ekosistem</td>
+                <td>
+                  3D packing/axle/hazmat, telematika/control tower, ETA, ESG,
+                  EDI, OptiNexus, OptiFleet, OptiRadar dan OptiEntry
+                </td>
+                <td>
+                  <Badge value="PLANNED" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="alert info">
+          Integrasi identitas OptiNexus dan lisensi produksi belum tersedia pada
+          tahap ini. Mode identitas yang belum didukung menolak akses dan tidak
+          beralih diam-diam ke akun lokal.
+        </div>
+      </section>
+    </>
+  );
+}

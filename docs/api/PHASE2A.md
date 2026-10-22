@@ -4,7 +4,7 @@ Baseline: merged main `4d1cdf4697b460dc368cf5cbc878689484cfe0ec` (PR #1). Routes
 
 ## Execution and evidence
 
-- `GET trips`, `GET trips/{id}`: tenant-scoped list/detail with order, plan, legs, POD and claims.
+- `GET trips?q=<ID-or-contract>`, `GET trips/{id}`: tenant-scoped list/detail with order, plan, legs, POD and claims.
 - `POST trips/{id}/vendor`: vendor_id + contract_reference; only ASSIGNED and before a live invoice exists.
 - `POST trips/{id}/legs`: origin, destination, planned_eta with explicit timezone. Legs must connect and ETA must increase; editable only before departure.
 - `POST trips/{id}/transition`: action start/complete/cancel; cancel requires reason and ASSIGNED. Start rechecks resource readiness. Complete requires all legs ARRIVED, verified full DELIVERED ePOD with intact private file and no vehicle still in yard.

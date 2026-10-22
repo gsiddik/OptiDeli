@@ -19,6 +19,8 @@ class PolicyController extends Controller
     {
         abort_unless($request->attributes->get('role') === 'cfo', 403, 'Hanya CFO / Owner yang dapat mengubah kebijakan margin.');
         $data = $request->validate(['minimum_margin_bps' => 'required|integer|min:0|max:10000', 'stage_margin_bps' => 'present|array:FIRST_MILE,MIDDLE_MILE,LAST_MILE,E2E', 'stage_margin_bps.*' => 'integer|min:0|max:10000', 'reason' => 'required|string|min:20|max:2000']);
+        $data['minimum_margin_bps'] = (int) $data['minimum_margin_bps'];
+        $data['stage_margin_bps'] = array_map(fn ($value) => (int) $value, $data['stage_margin_bps']);
         $s = OrderController::storeFor($request);
         DB::transaction(function () use ($s, $data) {
             $tenant = DB::table('tenants')->where('id', $s->tenantId)->lockForUpdate()->firstOrFail();

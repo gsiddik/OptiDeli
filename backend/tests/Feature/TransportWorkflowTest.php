@@ -260,4 +260,16 @@ class TransportWorkflowTest extends TestCase
         $data['stage_margin_bps']['LAST_MILE'] = 10001;
         $this->putJson('/api/v1/commercial/policy', $data)->assertUnprocessable();
     }
+
+    public function test_numeric_string_thresholds_are_normalized_and_do_not_block_dispatch(): void
+    {
+        $this->actingAs($this->member('cfo'));
+        $this->putJson('/api/v1/commercial/policy', [
+            'minimum_margin_bps' => '1500',
+            'stage_margin_bps' => ['FIRST_MILE' => '1500'],
+            'reason' => 'Kebijakan margin yang dimasukkan melalui API mitra.',
+        ])->assertOk()->assertJsonPath('data.stage_margin_bps.FIRST_MILE', 1500);
+        $id = $this->plan($this->planData($this->order()))->assertCreated()->json('data.id');
+        $this->postJson('/api/v1/dispatch/plans/'.$id.'/confirm')->assertOk();
+    }
 }

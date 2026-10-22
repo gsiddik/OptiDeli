@@ -88,6 +88,6 @@ Dock/yard, tender/vendor/rate card, ePOD, aksesorial pasca-dispatch/payment hold
 
 Threshold dinamis per tahap sudah tersedia; penyesuaian otomatis berbasis OTIF menunggu definisi metrik, jendela waktu dan angka policy yang disetujui. Daftar ini tetap menjadi backlog sesuai tahap pemilik.
 
-Aset asli `backend/Logo OptiDeli - 1.jpg` yang diunggah pemilik digunakan pada `frontend/public/brand/Logo OptiDeli - 1.jpg`; checksum keduanya identik. CSS hanya membatasi tampilan whitespace gambar, tanpa menggambar ulang atau memodifikasi aset. Favicon sengaja tidak disediakan. Jangan menggambar ulang logo atau mengambil aset pihak lain sebagai pengganti.
+Aset asli `backend/Logo OptiDeli - 1.jpg` yang diunggah pemilik digunakan pada `frontend/public/brand/Logo OptiDeli - 1.jpg`; checksum keduanya identik. CSS hanya membatasi tampilan whitespace gambar, tanpa menggambar ulang atau memodifikasi aset. Favicon memakai aset asli `backend/Favicon OptiDeli - 1.jpg` sesuai instruksi pemilik terbaru. Jangan menggambar ulang logo atau mengambil aset pihak lain sebagai pengganti.
 
 Tidak ada lisensi distribusi open-source yang diberikan; kepemilikan dan ketentuan distribusi menunggu keputusan pemilik repository.

@@ -47,3 +47,10 @@ Capacity checks/manual attestation are not a 3D or HOS safety certification. Saa
 ## Resume instructions
 
 Read README and docs/api/PHASE1.md, inspect git status/remote changes, then continue on the existing review branch. Preserve user commits and local configuration. Use the dedicated `optideli_test` database for migration/reset tests. Keep checkpoint/commit/push updates; never merge the PR without owner request. A usage-limit pause requires platform/session resumption; repository checkpoints preserve work but do not create an autonomous quota-reset scheduler.
+
+## Review PR #1 — owner authorized merge and phase two
+
+- Inspected tenant/auth boundaries, commercial approval snapshots, resource locking, idempotency and UI session handling against the current source and existing tests.
+- Found and fixed a numeric-type regression: Laravel integer validation accepts numeric strings, while dispatch policy snapshots compare types strictly. Policy input is now normalized to integers, with a regression test covering policy update → plan → dispatch.
+- Integrated the owner's uploaded `Favicon OptiDeli - 1.jpg` without modifying the original file. This supersedes the earlier instruction to leave the favicon empty.
+- Merge must use the reviewed PR head after CI passes; phase two starts from the merged `main`, on a new branch.

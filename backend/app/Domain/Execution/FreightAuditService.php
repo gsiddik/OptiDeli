@@ -44,8 +44,7 @@ final class FreightAuditService
             $reason = 'DELIVERY_EVIDENCE_REQUIRED';
         } elseif ($pending || $extra !== $verified) {
             $reason = 'UNVERIFIED_ACCESSORIAL';
-        } elseif ($tier === 'POLICY_REQUIRED') {
-            $reason = 'BOUNDARY_POLICY_REQUIRED';
+
         } else {
             if ($tier === 'CFO' && ! $s->query('freight_disputes')->where('invoice_id', $id)->where('system_key', 'cfo:'.$i->version)->exists()) {
                 DB::table('freight_disputes')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $s->tenantId, 'invoice_id' => $id, 'message' => 'Eskalasi CFO: selisih besar atau margin di bawah 5%. Tinjau bukti sebelum persetujuan.', 'system_key' => 'cfo:'.$i->version, 'status' => 'OPEN', 'created_by' => $s->actorId, 'created_at' => now(), 'updated_at' => now()]);
@@ -81,6 +80,7 @@ final class FreightAuditService
             $authority = match (true) {
                 $i->approval_tier === 'FINANCE' && in_array($role, ['finance', 'finance_supervisor'], true) => 'FINANCE',$i->approval_tier === 'DUAL' && $role === 'finance_supervisor' => 'FINANCE_SUPERVISOR',$i->approval_tier === 'DUAL' && in_array($role, ['supervisor', 'head_of_logistics'], true) => 'LOGISTICS_MANAGER',$i->approval_tier === 'CFO' && $role === 'cfo' => 'CFO',default => abort(403, 'Otoritas tidak sesuai tingkat eskalasi tagihan.')
             };
+            abort_if($s->query('invoice_approvals')->where('invoice_id', $id)->where('version', $i->version)->where(fn ($q) => $q->where('actor_id', $s->actorId)->orWhere('authority', $authority))->exists(), 409, 'Approver atau otoritas ini sudah menyetujui versi invoice tersebut.');
             DB::table('invoice_approvals')->insert(['tenant_id' => $s->tenantId, 'invoice_id' => $id, 'version' => $i->version, 'actor_id' => $s->actorId, 'authority' => $authority, 'note' => $note, 'created_at' => now()]);
             $s->event('freight.approved', $id, ['authority' => $authority, 'version' => $i->version, 'note' => $note]);
 

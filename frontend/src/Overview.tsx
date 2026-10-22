@@ -1,3 +1,4 @@
+import { canOperate } from "./opsTypes";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "./api";
@@ -32,7 +33,7 @@ export function Dashboard() {
             Anda.
           </p>
         </div>
-        {s.role !== "viewer" && (
+        {canOperate(s.role) && (
           <Link className="button primary" to="/orders/new">
             + Buat order
           </Link>
@@ -284,11 +285,12 @@ export function Roadmap() {
               <tr>
                 <td>2 · Eksekusi & settlement</td>
                 <td>
-                  Dock/yard, vendor/rate card, waterfall/broadcast tender, trip
-                  legs, ePOD, aksesorial, sengketa dan 3-way freight audit
+                  Eksekusi multi-leg, dock/yard, ePOD, vendor portal,
+                  aksesorial, sengketa dan 3-way freight audit. Rate card/tender
+                  mengikuti increment terpisah.
                 </td>
                 <td>
-                  <Badge value="PLANNED" />
+                  <Badge value="INCREMENT 2A" />
                 </td>
               </tr>
               <tr>

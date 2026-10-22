@@ -67,7 +67,7 @@ class ExecutionFreightTest extends TestCase
             $this->postJson('/api/v1/trips/'.$trip.'/transition', ['action' => 'start'])->assertOk();
             $this->postJson('/api/v1/legs/'.$leg.'/transition', ['action' => 'depart'])->assertOk();
             $this->postJson('/api/v1/legs/'.$leg.'/transition', ['action' => 'arrive'])->assertOk();
-            $pod = $this->post('/api/v1/trips/'.$trip.'/pods', ['receiver_name' => 'Receiver', 'delivered_units' => 1, 'outcome' => 'DELIVERED', 'file' => $this->file()], ['Accept' => 'application/json', 'Idempotency-Key' => (string) Str::uuid()])->assertCreated()->json('data.id');
+            $pod = $this->post('/api/v1/trips/'.$trip.'/pods', ['receiver_name' => 'Receiver', 'delivered_units' => '1', 'outcome' => 'DELIVERED', 'file' => $this->file()], ['Accept' => 'application/json', 'Idempotency-Key' => (string) Str::uuid()])->assertCreated()->json('data.id');
             $this->asRole('supervisor');
             $this->postJson('/api/v1/pods/'.$pod.'/verify', ['decision' => 'verify', 'note' => 'Delivery evidence checked independently.'])->assertOk();
             $this->asRole('dispatcher');
@@ -241,8 +241,47 @@ class ExecutionFreightTest extends TestCase
     {
         $f = $this->fixture();
         $this->asRole('finance');
-        $this->postJson('/api/v1/trips/'.$f['trip'].'/transition',['action' => 'cancel', 'reason' => 'Finance cannot act as dispatcher.'])->assertForbidden();
+        $this->postJson('/api/v1/trips/'.$f['trip'].'/transition', ['action' => 'cancel', 'reason' => 'Finance cannot act as dispatcher.'])->assertForbidden();
         $this->asRole('viewer');
-        $this->create('freight/claims',['trip_id' => $f['trip']])->assertForbidden();
+        $this->create('freight/claims', ['trip_id' => $f['trip']])->assertForbidden();
+    }
+
+    public function test_vendor_binding_is_locked_after_invoice_capture(): void
+    {
+        $f = $this->fixture();
+        $this->invoice($f)->assertCreated();
+        $this->asRole('dispatcher');
+        $this->postJson('/api/v1/trips/'.$f['trip'].'/vendor', ['vendor_id' => $f['vendor'], 'contract_reference' => 'Different contract ref'])->assertConflict();
+    }
+
+    public function test_tampered_invoice_evidence_blocks_finance_approval(): void
+    {
+        $f = $this->fixture(true);
+        $id = $this->invoice($f, 1600000000, 0, 100)->assertCreated()->json('data.id');
+        $record = DB::table('freight_invoices')->where('id', $id)->first();
+        Storage::disk('local')->put($record->path, 'tampered');
+        $this->asRole('finance_supervisor');
+        $this->postJson('/api/v1/freight/invoices/'.$id.'/approve', ['version' => 1, 'note' => 'Cannot approve missing or modified evidence.'])->assertConflict();
+        $this->assertDatabaseHas('freight_invoices', ['id' => $id, 'status' => 'ON_HOLD']);
+    }
+
+    public function test_cross_tenant_trip_and_dock_mutations_are_not_found(): void
+    {
+        $f = $this->fixture();
+        $other = (string) Str::uuid();
+        DB::table('tenants')->insert(['id' => $other, 'name' => 'Other', 'slug' => 'other']);
+        $u = User::factory()->create();
+        DB::table('memberships')->insert(['tenant_id' => $other, 'user_id' => $u->id, 'role' => 'dispatcher', 'active' => true]);
+        $this->actingAs($u)->withSession(['tenant_id' => $other]);
+        $this->getJson('/api/v1/trips/'.$f['trip'])->assertNotFound();
+        $this->postJson('/api/v1/trips/'.$f['trip'].'/transition', ['action' => 'cancel', 'reason' => 'Attempt cross tenant trip cancellation.'])->assertNotFound();
+    }
+
+    public function test_trip_picker_search_finds_contract_and_id_without_wildcard_expansion(): void
+    {
+        $f = $this->fixture();
+        $this->getJson('/api/v1/trips?q='.urlencode($f['trip']))->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $f['trip']);
+        $this->getJson('/api/v1/trips?q=CONTRACT-TEST')->assertOk()->assertJsonPath('total', 1);
+        $this->getJson('/api/v1/trips?q=%25')->assertOk()->assertJsonPath('total', 0);
     }
 }

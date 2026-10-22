@@ -22,7 +22,9 @@ class FreightController extends Controller
 
     public function index(Request $r)
     {
-        return response()->json(OrderController::storeFor($r)->query('freight_invoices')->orderByDesc('created_at')->paginate(25)->through(function ($i) {
+        $filters = $r->validate(['status' => ['nullable', Rule::in(['ON_HOLD', 'READY_FOR_PAYMENT', 'VOID'])]]);
+
+        return response()->json(OrderController::storeFor($r)->query('freight_invoices')->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))->orderByDesc('created_at')->paginate(25)->through(function ($i) {
             unset($i->path);
 
             return $i;

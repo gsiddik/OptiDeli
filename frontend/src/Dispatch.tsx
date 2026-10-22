@@ -1,3 +1,4 @@
+import { canOperate } from "./opsTypes";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, useData } from "./api";
@@ -106,7 +107,7 @@ export function DispatchBoard() {
           {notice}
         </div>
       )}
-      {session.role !== "viewer" && (
+      {canOperate(session.role) && (
         <Form
           label={
             level > 0 ? "Ajukan persetujuan margin" : "Simpan rencana dispatch"
@@ -422,7 +423,7 @@ export function DispatchBoard() {
                                   </button>
                                 )}
                               {["READY", "APPROVED"].includes(p.status) &&
-                                session.role !== "viewer" && (
+                                canOperate(session.role) && (
                                   <button
                                     className="primary"
                                     onClick={() =>

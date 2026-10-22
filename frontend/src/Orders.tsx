@@ -1,3 +1,4 @@
+import { canOperate } from "./opsTypes";
 import { useState } from "react";
 import {
   Link,
@@ -37,7 +38,7 @@ export function OrderList() {
           <h1 tabIndex={-1}>Pesanan transportasi</h1>
           <p>Kelola permintaan pengiriman dari draft hingga dispatch.</p>
         </div>
-        {session.role !== "viewer" && (
+        {canOperate(session.role) && (
           <Link className="button primary" to="/orders/new">
             + Buat order
           </Link>
@@ -165,7 +166,7 @@ export function OrderCreate() {
   } catch {
     /* Preview remains empty until values are valid. */
   }
-  if (session.role === "viewer")
+  if (!canOperate(session.role))
     return <ErrorBox error="Akun Anda memiliki akses hanya baca." />;
   return (
     <>
@@ -486,7 +487,7 @@ export function OrderDetail() {
             Setelah konfirmasi, rincian order dikunci untuk menjaga konsistensi
             komersial dan dispatch.
           </p>
-          {session.role !== "viewer" && (
+          {canOperate(session.role) && (
             <div className="stack">
               {o.status === "DRAFT" && (
                 <button

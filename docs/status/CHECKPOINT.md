@@ -1,8 +1,8 @@
 # OptiDeli development checkpoint
 
-## Current state — CP1, foundation/order/dispatch
+## Current state — CP2A, execution and freight audit
 
-Owner-approved first delivery increment. Implemented and locally validated; the complete enterprise product remains staged. Development branch: `feat/tms-foundation`; PR targets `main`, with no merge authorization.
+PR #1 was reviewed and merged with owner authorization. Increment 2A is on `feat/tms-execution-yard-pod`, created directly from merged main. The complete enterprise product remains staged. Historical CP1 evidence is retained below.
 
 ## Confirmed owner decisions
 
@@ -64,3 +64,12 @@ Owner confirmed Finance and Finance Supervisor roles, independent financial revi
 Backend increment: multi-leg execution, controlled cancellation and allocation release, dock bookings/movement, private hashed ePOD/invoice files, separate Finance authority, accessorial evidence review and immediate re-hold, independent/versioned financial approvals, vendor-scoped dispute/correction portal. Initial PostgreSQL verification: 58 tests / 364 assertions passed. Frontend and end-to-end validation still in progress.
 
 Rate cards, tender automation and advanced delivery-exception/claims resolution remain separate follow-on increments; no optimizer, external accounting transfer or automated detention tariff is claimed. Settlement readiness here is an audited internal status, not execution of a bank payment.
+
+## CP2A frontend and review checkpoint
+
+- Responsive trip/yard/vendor/freight workspaces and a vendor-only portal are implemented. The original owner favicon remains byte-identical. Finance roles cannot mutate order/dispatch operations.
+- Review added invoice-vendor binding protection, private document integrity checks, multipart numeric normalization, tenant denial regressions, and bounded trip search for older records in yard/invoice forms.
+- PostgreSQL: 61 tests / 396 assertions passed before final search/approval guard refinements; rerun final checks and record CI at the reviewed head. Frontend: 26 tests passed before the additional malformed-server-response regression.
+- Real Chromium/API/PostgreSQL E2E passed: dock reservation and all gate events → leg execution → private multipart ePOD → independent verification → completion/release → CFO portal provisioning → vendor base-rate dispute/response/correction → immediate late-accessorial re-hold → Finance evidence review → independent Finance Supervisor and Head approvals. Private file access and mobile vendor overflow checks passed. Screenshots remain in ignored frontend/test-results.
+- A stale local PHP development server returned an HTML error with status 200 after checkout. Restarting the API restored the server; the client now rejects malformed JSON explicitly rather than rendering an invalid session.
+- Rate cards/tender automation remain the next increment. Do not claim full phase two or production readiness. Review PR #2 and current checks before merge.

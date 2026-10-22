@@ -20,7 +20,16 @@ class ExecutionController extends Controller
     {
         $s = OrderController::storeFor($r);
 
-        return response()->json($s->query('trips')->orderByDesc('created_at')->paginate(25));
+        $d = $r->validate(['q' => 'nullable|string|max:100']);
+        $q = $s->query('trips');
+        if (! empty($d['q'])) {
+            $term = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $d['q']).'%';
+            $q->where(function ($query) use ($term) {
+                $query->whereRaw('CAST(id AS TEXT) LIKE ?', [$term])->orWhere('contract_reference', 'like', $term);
+            });
+        }
+
+        return response()->json($q->orderByDesc('created_at')->paginate(25));
     }
 
     public function show(Request $r, string $id)
@@ -73,6 +82,7 @@ class ExecutionController extends Controller
             DB::table('tenants')->where('id', $s->tenantId)->lockForUpdate()->firstOrFail();
             $trip = $s->find('trips', $id, true);
             abort_unless($trip->status === 'ASSIGNED', 409, 'Vendor/kontrak dikunci setelah trip berangkat.');
+            abort_if($s->query('freight_invoices')->where('trip_id', $id)->where('status', '<>', 'VOID')->exists(), 409, 'Vendor dikunci setelah invoice tercatat.');
             $v = $s->find('vendors', $d['vendor_id']);
             abort_unless($v->active, 422);
             $s->query('trips')->where('id', $id)->update([...$d, 'updated_at' => now()]);
@@ -134,7 +144,7 @@ class ExecutionController extends Controller
                 $trip = $s->find('trips', $id, true);
                 abort_unless($trip->status === 'ARRIVED', 409, 'ePOD hanya dapat diunggah setelah semua leg tiba.');
                 $expected = (int) $s->query('order_items')->where('order_id', $trip->order_id)->sum('quantity');
-                abort_if($d['delivered_units'] > $expected || ($d['outcome'] === 'DELIVERED' && $d['delivered_units'] !== $expected), 422, 'Jumlah terkirim tidak sesuai order; gunakan exception bila tidak lengkap.');
+                abort_if($d['delivered_units'] > $expected || ($d['outcome'] === 'DELIVERED' && (int) $d['delivered_units'] !== $expected), 422, 'Jumlah terkirim tidak sesuai order; gunakan exception bila tidak lengkap.');
                 abort_unless(Storage::disk('local')->put($path, file_get_contents($file->getRealPath())), 500, 'Penyimpanan bukti gagal.');
                 DB::table('proofs_of_delivery')->insert([...$d, 'id' => $podId, 'tenant_id' => $s->tenantId, 'trip_id' => $id, 'path' => $path, 'mime' => $file->getMimeType(), 'status' => 'SUBMITTED', 'submitted_by' => $s->actorId, 'created_at' => now(), 'updated_at' => now()]);
                 $s->event('pod.submitted', $podId, ['trip_id' => $id, 'sha256' => $d['sha256']]);
@@ -178,7 +188,7 @@ class ExecutionController extends Controller
         $record = $s->find($table, $id);
         if ($r->attributes->get('role') === 'vendor') {
             $trip = $s->find('trips', $record->trip_id);
-            abort_unless($trip->vendor_id === $r->attributes->get('vendor_id'), 404);
+            abort_unless(($kind === 'invoices' ? $record->vendor_id : $trip->vendor_id) === $r->attributes->get('vendor_id'), 404);
         }
         abort_unless(Storage::disk('local')->exists($record->path), 404);
 

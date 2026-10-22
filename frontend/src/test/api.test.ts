@@ -35,3 +35,40 @@ it("clears the old CSRF token on logout so the next login fetches a new one", as
     "new-session-token",
   );
 });
+
+it("uses browser-generated multipart boundaries for private evidence uploads", async () => {
+  vi.resetModules();
+  const { api: uploadApi } = await import("../api");
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ token: "upload-token" }), { status: 200 }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: { id: "proof" } }), { status: 201 }),
+    );
+  vi.stubGlobal("fetch", fetcher);
+  const form = new FormData();
+  form.append("receiver_name", "Receiver");
+  form.append(
+    "file",
+    new File(["%PDF-1.4"], "proof.pdf", { type: "application/pdf" }),
+  );
+  await uploadApi("trips/example/pods", "POST", form, "upload-idempotency-key");
+  const options = fetcher.mock.calls[1][1];
+  expect(options.body).toBe(form);
+  expect(options.headers["Content-Type"]).toBeUndefined();
+  expect(options.headers["X-CSRF-TOKEN"]).toBe("upload-token");
+});
+
+it("rejects a successful HTML error page instead of treating it as session data", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response("<html>server error</html>", { status: 200 }),
+      ),
+  );
+  await expect(api("auth/me")).rejects.toThrow("Respons server tidak valid");
+});

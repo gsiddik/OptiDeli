@@ -24,3 +24,12 @@ Owner confirmed the Laravel/PostgreSQL/React stack, both deployment modes and ph
 Implemented: same-origin local session authentication, membership-bound tenant context, standalone tenant binding, viewer write protection, order intake/confirmation/cancellation, fleet/driver register, local readiness checks, immutable dispatch plans, independent tiered approval, confirm-time revalidation, per-tenant idempotency, resource allocation constraints, atomic audit/outbox. OptiNexus mode fails closed until its adapter is implemented and verified.
 
 Initial SQLite feature/unit validation: 30 tests, 100 assertions passed. PostgreSQL validation and concurrent allocation checks are in progress. No completion claim for the remaining product modules.
+
+## CP1b — Working frontend and integration validation
+
+- Implemented React shell consistent with OptiFleet's layout patterns, using navy/cyan/orange brand colors: responsive collapsible sidebar/groups, menu search, breadcrumbs, back navigation and accessible labelled controls.
+- UI uses live APIs for orders, dispatch/approval, fleet/driver register, audit and commercial policy. CFO/Owner can configure exact stage thresholds with reason and audit; suggestions are not auto-enabled.
+- PostgreSQL: 36 tests / 127 assertions passed, including separate-process contention (one dispatch succeeds, one returns 409; exactly one allocation).
+- Frontend: production build, lint and 23 tests passed. Browser end-to-end against the real PostgreSQL/API passed: create/confirm order, 11% margin request, independent supervisor approval, dispatch, CSRF rejection, logout and 1440/820/390 layouts.
+- No external integration is mocked as live. Outbox events are durable but unpublished until a later relay implementation.
+- Logo source file remains outstanding; the UI falls back to plain product text. Favicon intentionally omitted, including removal of the framework favicon.

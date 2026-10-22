@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Domain\Commercial;
 
 final class Margin
@@ -9,13 +10,23 @@ final class Margin
             throw new \InvalidArgumentException('Invalid commercial amount or threshold.');
         }
         $contribution = ($sell - $cost) * 10000;
-        if ($contribution >= $sell * $thresholdBps) { return 0; }
-        if ($contribution >= $sell * 1000) { return 1; }
-        if ($contribution >= $sell * 500) { return 2; }
+        if ($contribution >= $sell * $thresholdBps) {
+            return 0;
+        }
+        if ($contribution >= $sell * 1000) {
+            return 1;
+        }
+        if ($contribution >= $sell * 500) {
+            return 2;
+        }
+
         return 3;
     }
+
     public static function roleLevel(string $role): int
     {
-        return match ($role) { 'supervisor' => 1, 'head_of_logistics' => 2, 'cfo' => 3, default => 0 };
+        return match ($role) {
+            'supervisor' => 1, 'head_of_logistics' => 2, 'cfo' => 3, default => 0
+        };
     }
 }

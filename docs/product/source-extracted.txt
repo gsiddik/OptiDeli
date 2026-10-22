@@ -1,0 +1,243 @@
+Blueprint Arsitektur Sistem dan Spesifikasi Produk TMS Enterprise OptiDeli
+OptiDeli adalah platform Transport Management System (TMS) kelas enterprise yang dirancang untuk mengorkestrasi seluruh rantai pasok transportasi darat: First Mile (penjemputan pabrik/pemasok), Middle Mile / Linehaul (transfer antar-hub & cross-docking), hingga Last Mile (distribusi konsumen akhir)1. Sistem ini dapat dideploy secara Multi-Tenant SaaS (Cloud) maupun Single-Tenant Standalone (On-Premise / Private Cloud)1.
+1. Arsitektur Sistem & Opsi Penggelaran (Software Architecture)
+1.1 Dual-Deployment Architecture & Abstraction Strategy
+Sistem OptiDeli dibangun dengan pendekatan Modular Monolith / Microservices Ready menggunakan Hexagonal Architecture (Ports and Adapters). Pola ini mengisolasi core business logic dari infrastructure layer, sehingga platform dapat dikemas menjadi aplikasi SaaS berkinerja tinggi atau sistem Standalone yang self-contained1.
+
+Komponen Arsitektur
+Multi-Tenant Cloud SaaS Model
+Single-Tenant Standalone Model
+Strategi Abstraksi & Pola Desain (Architectural Pattern)
+Infrastruktur & Container
+Kubernetes Cluster (EKS/GCP) multi-zone, auto-scaling1
+Docker Compose / Single-node K8s (MicroK8s/K3s)1
+Cloud-Native Deployment Helm Charts & Docker Containers.
+Database Isolation
+Shared Database dengan Tenant Discriminator Column atau Schema-per-Tenant
+[cite: 1]
+Dedicated Physical Database Instance (PostgreSQL/MySQL)
+Multi-Tenancy JPA/ORMapping Interceptor & Dynamic DataSource Routing.
+Identity & Access Management
+Federated SSO via OptiNexus Cloud OAuth2 / SAML 2.01
+Local OptiNexus Instance / Enterprise Keycloak / Active Directory / LDAP
+Security Auth Adapter (OIDC Provider Switcher via Config).
+Message Broker & Event Bus
+Apache Kafka / AWS SQS for high-throughput event streaming1
+RabbitMQ / NATS Embedded Broker1
+Event Publisher Abstraction Layer (Publish-Subscribe Pattern).
+Object Storage (Docs/ePOD)
+Cloud Object Storage (AWS S3 / Google Cloud Storage)1
+On-Premise MinIO / Local Network Attached Storage (NAS)
+S3-Compatible Blob Storage Interface Driver.
+Inter-Platform Integration
+REST API Gateway + Webhook Cloud Endpoints1
+Direct Internal REST / Local gRPC / EDI Middleware (EDI 204, 214, 210)1
+Enterprise Integration Patterns (EIP) & Configurable API Connectors.
+2. Breakdown Modul Fungsional & Analytic Domain Contexts (System Analysis)
+Sesuai standar industri (Gartner TMS Critical Capabilities & CSCMP), OptiDeli membagi batas domain (bounded contexts) ke dalam tujuh modul fungsional1.
+Modul 1: Identity, Governance & Dual-Deployment Configuration
+Tenant & Licensing Engine: Memvalidasi lisensi berbasis skema Pay-As-You-Go / Subscription (SaaS) atau License Key Expiration / Node Binding (Standalone)1.
+RBAC & Security Boundary: Mengatur perizinan pengguna granular (Admin, Dispatcher, Yard Master, Vendor, Driver, Customer) dengan dukungan Multi-Factor Authentication (MFA)1.
+Modul 2: Order Capture & 3D Load Building
+Multi-Stage Order Intake: Merekam kargo untuk skenario First Mile, Middle Mile, Last Mile, atau End-to-End1.
+3D Bin-Packing Optimization Engine: Mengkalkulasi penataan barang secara otomatis berbasis volume kubikasi (), limitasi tonase (kg), distribusi beban per as roda (axle weight distribution), orientasi tumpukan (stackability), dan isolasi kargo berbahaya (Hazmat compatibility)1.
+Modul 3: Dispatching, Dock Slotting & Yard Management
+Asset Availability Lock (OptiFleet Integration): Memeriksa ketersediaan kendaraan secara real-time. Jika aset sedang dalam perawatan di OptiFleet (atau sistem servis lokal pada mode Standalone), aset terkunci dari penugasan5.
+Dock Appointment & Yard Management: Penjadwalan pintu docking untuk bongkar muat kargo dan visibilitas pergerakan trailer di area yard/hub untuk mencegah kemacetan antrean truk1.
+Modul 4: Real-time Telematics, Control Tower & Exception Management
+GIS Control Tower & IoT Feed: Streaming data posisi GPS, sensor suhu reefer, status pintu box, dan konsumsi BBM dari OptiRadar atau sistem telematika pihak ketiga via WebSockets/gRPC1.
+Dynamic ETA & Exception Alert: Kalkulasi ulang estimasi tiba secara otomatis. Memicu peringatan jika terjadi deviasi rute atau waktu berhenti tidak terencana1.
+Modul 5: Vendor Self-Service Portal, Rate Card & Automated Tendering
+Vendor Portal (Self-Service Fleet & Driver Mgmt): Vendor mendaftarkan unit kendaraan, mengelola dokumen STNK/KIR, serta menetapkan driver internal secara mandiri1.
+Multi-Variable Rate Card Builder: Konfigurasi daftar tarif vendor berbasis tipe armada, zona asal-tujuan, jarak tempuh (km), dan biaya tambahan kustom1.
+Waterfall & Broadcast Tendering: Distribusi order otomatis ke vendor berdasarkan peringkat kinerja (waterfall) atau secara terbuka (broadcast)1.
+Modul 6: Financial Settlement, 3-Way Freight Audit & Accessorials
+Automated 3-Way Freight Audit: Pencocokan otomatis antara PO/Kontrak, ePOD/Hasil Kirim, dan Tagihan Vendor1.
+Accessorial & Dispute Management: Pengelolaan biaya tambahan (detention, demurrage, loading fee) serta klaim sengketa barang rusak/hilang1.
+Modul 7: Analytics, ESG Carbon Tracking & Audit Trail
+Scope 1, 2, 3 Carbon Calculator: Menghitung emisi gas rumah kaca berbasis rumus ton-kilometer dan standar ISO/GLEC Framework1.
+System Audit Log: Merekam jejak aktivitas transaksi dan penyesuaian tarif untuk verifikasi audit internal1.
+3. Spesifikasi Backend & Skema Data (Backend Engineering)
+3.1 Skema Data Utama (Entity Relationship Model)
+
+
+
+[Tenants] 1 --- * [Orders] 1 --- * [OrderItems]   |                 |   | 1               | 1   *                 *[Vendors] 1 --- * [Trips] 1 --- * [TripLegs]   |                 |               |   | 1               | 1             | 1   *                 *               *[VendorDrivers]   [Vehicles]     [ProofOfDeliveries]
+Entity Details:
+tenants: tenant_id (PK, UUID), name, deployment_mode (ENUM: 'SAAS', 'STANDALONE'), license_key, created_at.
+orders: order_id (PK, UUID), tenant_id (FK), order_number, stage_scope (ENUM: 'FIRST_MILE', 'MIDDLE_MILE', 'LAST_MILE', 'E2E'), sell_price (DECIMAL), currency, status, created_at.
+trips: trip_id (PK, UUID), tenant_id (FK), order_id (FK), vendor_id (FK, Nullable), vehicle_id (FK), driver_id (FK), purchase_cost (DECIMAL), calculated_margin (DECIMAL), status.
+trip_legs: leg_id (PK, UUID), trip_id (FK), sequence, origin_hub_id, destination_hub_id, planned_eta, actual_ata.
+vendor_rate_cards: rate_card_id (PK, UUID), vendor_id (FK), vehicle_type_id, zone_origin, zone_destination, base_rate, rate_per_km, min_distance_km.
+3.2 Alur Komunikasi REST API & EDI Event
+Inbound Order (EDI 204 / REST): Enterprise ERP memasukkan data pesanan pengiriman.
+Outbound Status (EDI 214 / Webhook): OptiDeli memancarkan peristiwa perubahan status (Dispatched, En-Route, Arrived, Delivered).
+Freight Invoice Sync (EDI 210 / REST): Setelah ePOD terverifikasi, OptiDeli mengirimkan jurnalisme piutang/utang dagang ke OptiEntry atau ERP lokal1.
+4. Spesifikasi Frontend Component & UI/UX Breakdown (Frontend Engineering)
+4.1 Arsitektur Micro-Frontend Component
+LoadOptimizationViewer3D: Komponen visualisasi 3D berbasis Canvas/Three.js untuk simulasi keterisian kargo di dalam box truk.
+GISControlTowerMap: Komponen peta interaktif (Mapbox GL/Leaflet) yang memanfaatkan koneksi WebSocket wss:// untuk rendering posisi armada secara real-time.
+TenderWaterfallBoard: Antarmuka Kanban-style untuk memantau status penerimaan order oleh vendor secara berurutan.
+RateCardDynamicGrid: Antarmuka tabel interaktif untuk pengaturan matriks tarif variabel vendor.
+4.2 UI/UX Navigation Matrix & Action Triggers
+
+Menu & Sub-Menu Path
+Page Name & Screen Layout
+Pop-Up / Modal / Drawer Details
+Function & Action User
+Backend & API Gateway Event Triggers
+Pemesanan > Buat Order
+Form Pembuatan Order
+
+Layout: Split-screen (Kiri: Form Input Customer, Cargo & Stage Scope; Kanan: Map Routing & Costing Preview)
+Pop-Up: Margin Calculator & Accessorials
+
+Detail harga jual, estimasi biaya vendor, biaya tambahan aksesorial, dan persentase margin1.
+Action: Select Supply Chain Stage, Submit Order, Calculate Rate, Save as Draft.
+Trigger: POST /api/v1/orders/create
+
+Integrasi: Memanggil Tarif Engine, Geocoding & EDI 204 Intake1.
+Pemesanan > Load Optimizer
+3D Load Building Console
+
+Layout: Interactive 3D Vehicle Cargo Container Viewer & Order Bin Allocation List1
+Modal: Hazmat & Axle Limit Settings
+
+Aturan pemisahan kargo berbahaya dan toleransi beban per as roda1.
+Action: Auto-Consolidate Orders, Simulate 3D Load, Lock Cargo Configuration.
+Trigger: POST /api/v1/load-optimization/build
+
+Integrasi: Algoritma 3D Bin-Packing Optimization1.
+Dispatch > Board Alokasi
+Interactive Dispatch Board
+
+Layout: Dual Panel (Panel Atas: Unassigned Orders; Panel Bawah: Available Fleet & Driver List)
+Modal: Penugasan Armada & Pengemudi
+
+Pilihan armada sendiri/vendor, validasi tipe kendaraan, SIM, HOS Driver, & Status Servis OptiFleet/Fleet System Lokal1.
+Action: Drag-and-Drop Assignment, Auto-Allocate, Confirm Dispatch.
+Trigger: POST /api/v1/dispatch/assign
+
+Integrasi: GET /api/v1/fleet/assets/check-availability5.
+Dispatch > Dock & Yard
+Dock Scheduling & Yard Management
+
+Layout: Gantt Chart Pintu Dock & Grid Map Lokasi Trailer di Yard1
+Modal: Reservasi Slot Dock
+
+Pendaftaran jam kedatangan armada, alokasi pintu loading dock, dan estimasi waktu bongkar1.
+Action: Book Dock Slot, Update Trailer Yard Status, Log Gate-In/Gate-Out.
+Trigger: POST /api/v1/yard/dock-appointments
+
+Integrasi: Sensor Gate Barrier & WMS Dock Sync1.
+Pelacakan > Control Tower
+Live GIS Radar Map
+
+Layout: Full-Screen Interactive Map dengan Sidebar Status Ringkasan Armada & Stage Filter
+Drawer: Telematics Diagnostics Drawer
+
+Kecepatan real-time, suhu kargo reefer, level BBM, dan Odometer1.
+Action: Filter Fleet By Stage Scope, Focus Vehicle GPS, Send Driver Alert.
+Trigger: WebSocket streaming /ws/v1/telematics
+
+Integrasi: Feed telematika dari OptiRadar / GPS API Pihak Ketiga1.
+Vendor > Tendering
+Automated Tender Console
+
+Layout: Live Waterfall & Broadcast Tendering Board1
+Pop-Up: Konfigurasi Aturan Waterfall
+
+Pengaturan alokasi order otomatis berdasarkan urutan peringkat skor vendor1.
+Action: Trigger Waterfall Tender, Broadcast Order, Accept/Reject Tender (Vendor).
+Trigger: POST /api/v1/tenders/waterfall/start
+
+Integrasi: Notification Gateway & EDI 204 Outbound1.
+Keuangan > Freight Audit
+Automated 3-Way Freight Audit
+
+Layout: Table Matching Order vs ePOD vs Vendor Invoice1
+Modal: Audit Discrepancy & Dispute
+
+Pengajuan penyesuaian biaya tambahan (detention, klaim kerusakan)1.
+Action: Approve 3-Way Match, Adjust Accessorial Fee, Reject Invoice.
+Trigger: POST /api/v1/freight-audit/verify
+
+Integrasi: Sinkronisasi draf utang dengan OptiEntry / Enterprise ERP1.
+5. Mesin Komersial & Proteksi Margin (Business Logic)
+Mesin komersial OptiDeli menghitung profitabilitas transaksi secara otomatis1.
+Formula Penentuan Harga & Margin:
+Harga Jual Ke Pelanggan ():
+Biaya Beli Vendor ():
+Persentase Margin Operasional ():
+Margin Guardrail Rule: Jika  (misal: ), sistem secara otomatis memblokir dispatch dan memicu modal persetujuan khusus (Management Override)1.
+6. Alur Terintegrasi API & EDI Lintas Sistem
+
+
+
+[Customer ERP] --(EDI 204)--> [OptiDeli Core] --(API)--> [OptiFleet / Service] (Check Servis)                                   |                                 (API)                                   v                             [OptiRadar Map] <--(WebSocket)-- [GPS / Sensor Feed]                                   |                                 (ePOD)                                   v[Customer ERP] <--(EDI 210)-- [OptiEntry / ERP] <--(3-Way Audit)-- [OptiDeli Settlement]
+
+Tahapan Operasional
+Platform Inisiator
+Platform Penerima
+Endpoint API / Protokol EDI
+Payload Utama
+Autentikasi User
+OptiDeli UI / Vendor
+OptiNexus / Local IAM
+POST /oauth/v2/token (HTTPS/REST)1
+client_id, client_secret, grant_token
+Order Intake
+ERP Customer
+OptiDeli Core
+EDI 204 / POST /api/v1/orders/inbound
+[cite: 1, 2]
+shipment_id, cargo_specs, origin_dest
+Waterfall Tender
+OptiDeli Core
+Vendor Portal
+POST /api/v1/tenders/waterfall (HTTPS/REST)1
+order_id, vendor_rank_list, timeout_mins
+Cek Servis Armada
+OptiDeli Dispatch
+OptiFleet / Local Fleet
+GET /api/v1/assets/status (HTTPS/REST)3
+vehicle_id, dispatch_date
+Dock Appointment
+OptiDeli Core
+Yard / WMS
+POST /api/v1/yard/dock-appointments
+[cite: 1, 5]
+vehicle_id, hub_id, dock_slot_time
+Streaming Tracking
+OptiRadar / 3rd GPS
+OptiDeli UI
+wss://stream.optiradar.com/v1/live (WebSocket)1
+lat, long, speed, fuel_level, temp
+[cite: 1]
+Status Outbound
+OptiDeli Core
+Customer ERP
+EDI 214 / Webhook Outbound1
+shipment_id, status_code, timestamp, eta
+3-Way Audit Sync
+OptiDeli Core
+OptiEntry / ERP
+EDI 210 / POST /api/v1/finance/journals
+[cite: 1, 2, 3, 5, 9]
+order_id, customer_ar, vendor_ap, accessorials
+7. Rekomendasi Implikasi Strategis & Nilai Bisnis
+Fleksibilitas Penggelaran Komersial: Arsitektur ganda memungkinkan OptiDeli dijual dengan model SaaS Pay-As-You-Go untuk mempercepat akuisisi pasar, sekaligus opsi Enterprise Standalone On-Premise untuk korporasi besar atau instansi pemerintah yang mensyaratkan kedaulatan data privat1.
+Optimasi Biaya & Produktivitas: Fitur 3D Load Packing meningkatkan pemanfaatan muatan hingga 18%, sementara 3-Way Freight Audit meminimalisir kesalahan pembayaran tagihan vendor1.
+Kepatuhan Lingkungan (ESG): Pelaporan otomatis emisi karbon Scope 1, 2, dan 3 sesuai standar ISO/GLEC memberikan keunggulan kompetitif bagi entitas logistik dalam memenuhi audit keberlanjutan1.
+Works cited
+43 Essential Features of a Modern TMS (2026), https://www.neurored.com/blog/essential-tms-features/
+Must-Have Transport Management System Features - Transvirtual, https://www.transvirtual.com/blog/must-have-transport-management-system-features/
+Key Modules and Features of a Transportation Management System, https://www.manh.com/our-insights/resources/articles/key-modules-and-features-transportation-management-system
+Best Transportation Management Systems Reviews 2026 - Gartner, https://www.gartner.com/reviews/market/transportation-management-systems
+5 must-have modules in a transportation management system - Zoho, https://www.zoho.com/creator/decode/5-must-have-modules-in-a-transportation-management-system
+Critical Capabilities for Transportation Management Systems - Gartner, https://www.gartner.com/en/documents/5305963
+Magic Quadrant for Transportation Management Systems, https://info.manh.com/rs/260-QSQ-562/images/2023-Gartner-Magic-Quadrant-TMS.pdf?utm_campaign=23-09-noam-all-transportation-assetconsumption-GartnerCriticalCapabilities&utm_content=Analyst-report-Gartner-MQ&utm_source=marketo&utm_medium=organic-email&utm_term=download-gartner-tms-mq&mkt_tok=MjYwLVFTUS01NjIAAAGPIRIsodcSrHKbHT0kOfc5-2JnK89Dn5pyh21WcldsTNb98PENr4yY9FJ0MF5nLkh7TyTyNmKwrr5rm_OTEFMl1ar2n_ltZ4l7ja1sAgDIuI4kGg
+Integration Toolkit REST API | TMT, https://developer.trimble.com/docs/tmt/tools/api/
+Dashdoc – Fleet Management - Integrations, https://www.dashdoc.com/en-us/integrations/fleet-management
+Fleet Telematics API Integration for TMS and ERP - Safety Track, https://www.safetytrack.com/blog/integrating-fleet-telematics-apis-with-custom-tms-erp-and-dispatch-systems/
+Fleet Management Software Integrations & APIs - Fleetrock, https://www.fleetrock.com/blog/fleet-management-software-integrations

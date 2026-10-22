@@ -28,5 +28,5 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
     Route::post('fleet/vehicles', [FleetController::class, 'vehicle']);
     Route::post('fleet/vehicles/{id}/readiness', [FleetController::class, 'readiness'])->whereUuid('id');
     Route::post('fleet/drivers', [FleetController::class, 'driver']);
-    Route::get('audit',[FleetController::class, 'audit']);
+    Route::get('audit', [FleetController::class, 'audit']);
 });

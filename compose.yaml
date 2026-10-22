@@ -1,7 +1,7 @@
 name: optideli
 services:
   db:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
     environment:
       POSTGRES_DB: optideli
       POSTGRES_USER: optideli
@@ -37,7 +37,7 @@ services:
       OPTIDELI_DEPLOYMENT_MODE: ${OPTIDELI_DEPLOYMENT_MODE:-standalone}
       OPTIDELI_STANDALONE_TENANT: ${OPTIDELI_STANDALONE_TENANT:-demo}
       OPTIDELI_IDENTITY_MODE: local
-    ports: ["127.0.0.1:8300:8300"]
+    ports: ["127.0.0.1:${API_PORT:-8300}:8300"]
     depends_on:
       db: {condition: service_healthy}
     command: [php, artisan, serve, --host=0.0.0.0, --port=8300, --no-reload]

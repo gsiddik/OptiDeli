@@ -1,0 +1,47 @@
+name: OptiDeli checks
+on:
+  pull_request:
+  push:
+    branches: [main, feat/tms-foundation]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
+        env:
+          POSTGRES_DB: optideli_test
+          POSTGRES_USER: optideli
+          POSTGRES_PASSWORD: ci-test-only
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U optideli -d optideli_test" --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: optideli_test
+      DB_USERNAME: optideli
+      DB_PASSWORD: ci-test-only
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: docker build -t optideli-dev-php -f docker/php.Dockerfile docker
+      - run: ./scripts/composer install --no-interaction --prefer-dist
+      - run: ./scripts/composer validate --strict
+      - run: ./scripts/php vendor/bin/pint --test
+      - run: ./scripts/php vendor/bin/phpunit
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run format:check && npm run lint && npm test && npm run build

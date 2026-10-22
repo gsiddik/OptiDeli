@@ -99,12 +99,12 @@ final class DispatchService
             $box = [$vehicle->length_mm, $vehicle->width_mm, $vehicle->height_mm];
             sort($box);
             foreach ($dimensions as $i => $dimension) {
-                abort_if($dimension > $box[$i],422,'Dimensi barang melampaui box kendaraan.');
+                abort_if($dimension > $box[$i], 422, 'Dimensi barang melampaui box kendaraan.');
             }
             $weight += $item->quantity * $item->unit_weight_g;
             $volume += $item->quantity * $item->length_mm * $item->width_mm * $item->height_mm;
         }
-        abort_if($weight > $vehicle->capacity_g,422,'Berat muatan melebihi kapasitas kendaraan.');
-        abort_if($volume > $vehicle->length_mm * $vehicle->width_mm * $vehicle->height_mm,422,'Volume muatan melebihi box kendaraan.');
+        abort_if($weight > $vehicle->capacity_g, 422, 'Berat muatan melebihi kapasitas kendaraan.');
+        abort_if($volume > $vehicle->length_mm * $vehicle->width_mm * $vehicle->height_mm, 422, 'Volume muatan melebihi box kendaraan.');
     }
 }

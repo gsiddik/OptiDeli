@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ApiResponseHeaders;
 use App\Http\Middleware\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
@@ -11,7 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(web: __DIR__.'/../routes/web.php', commands: __DIR__.'/../routes/console.php', health: '/up')
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['tenant' => TenantContext::class]);
-        $middleware->web(append: [\App\Http\Middleware\ApiResponseHeaders::class]);
+        $middleware->web(append: [ApiResponseHeaders::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn (Request $request) => $request->is('api/*') || $request->expectsJson());

@@ -106,7 +106,7 @@ class OrderController extends Controller
             $store->query('orders')->where('id', $id)->update(['status' => $status, 'updated_at' => now()]);
             $store->event('order.'.strtolower($status), $id);
 
-            return $store->find('orders',$id);
+            return $store->find('orders', $id);
         }, 3);
 
         return response()->json(['data' => $order]);

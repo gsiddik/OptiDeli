@@ -4,7 +4,7 @@
 
 The document is an enterprise blueprint, not a complete executable contract. CP1 is a working vertical slice: tenant-bound local sessions, role authorization, order capture, confirmation, local fleet/driver readiness, guarded dispatch, audit and transactional outbox. The remaining domains stay on the product backlog. No simulated integration is labelled live.
 
-Laravel 13 / PostgreSQL / React 19 + TypeScript follows the existing Opti ecosystem. This is a provisional, reversible implementation choice pending owner feedback. Modular monolith boundaries are Identity, Orders, Dispatch, Commercial and Integration; domain arithmetic is independent of HTTP and persistence. Services own transactions and invariants. Ports describe external availability adapters; CP1 supports a local register only. Shared-database SaaS uses tenant discriminators plus composite foreign keys; standalone additionally binds to a configured tenant slug. No arbitrary tenant header determines authority.
+Laravel 13 / PostgreSQL / React 19 + TypeScript follows the existing Opti ecosystem. The owner confirmed this stack and staged delivery during implementation. Modular monolith boundaries are Identity, Orders, Dispatch, Commercial and Integration; domain arithmetic is independent of HTTP and persistence. Services own transactions and invariants. Ports describe external availability adapters; CP1 supports a local register only. Shared-database SaaS uses tenant discriminators plus composite foreign keys; standalone additionally binds to a configured tenant slug. No arbitrary tenant header determines authority.
 
 ## Cross-functional design review
 
@@ -15,7 +15,7 @@ These are design perspectives applied to the specification, not claims of extern
 | Product | Seven modules exceed one verifiable initial increment | Track acceptance by checkpoint; surface future capabilities as planned, not functioning dashboards |
 | Transport operator | Dispatch of maintenance-blocked, already allocated or expired-document assets | Recheck within the dispatch transaction, lock shared resources, enforce active-resource uniqueness |
 | Logistics operations | Cubic volume alone does not prove cargo fits or axle safety | Capacity checks are prerequisites only; CP1 rejects hazmat and oversized items, and requires manual load-safety attestation; no optimizer claim |
-| Commercial owner | Below-margin dispatch can silently destroy contribution | Exact integer arithmetic, missing policy blocks dispatch, explicit approval workflow deferred until authority is confirmed |
+| Commercial owner | Below-margin dispatch can silently destroy contribution | Exact integer arithmetic, owner-approved 15% default, mandatory reason code and independent tiered approval |
 | Architecture | Spoofed tenant IDs or cross-tenant resource references | Membership-derived context; tenant-qualified queries and DB relationships; isolation tests |
 | Backend | Double click / retries allocate twice | Idempotency keys, request fingerprints, DB transaction, per-tenant uniqueness, row locks, outbox atomicity |
 | Frontend | Happy-path mock data conceals failures | Real API only, visible empty/error/loading states, labelled units, server-side validation, retry-safe form submissions |
@@ -28,9 +28,9 @@ Visual inspection of the DOCX's transparent embedded images recovered:
 - Customer sell = customer base rate(stage) + fuel surcharge + customer accessorials.
 - Vendor cost = vendor base rate(stage,type,zone,distance) + approved vendor accessorials.
 - Margin = (sell − vendor cost) / sell × 100%.
-- The illustrated **15% is an example**, not an approved tenant policy.
+- The original illustration used **15% as an example**; the owner subsequently explicitly approved it as the platform default.
 
-Amounts are integers in currency minor units with an explicit ISO currency, never binary floats. The first increment supports IDR only; the UI labels rupiah and the API uses IDR minor units (1/100 rupiah). Approval compares integers by cross multiplication, avoiding rounding a failing margin into a passing one. Margin policy remains null until configured through an authorized administrative process after owner approval; no silent 15% production default. Dispatch costs are total approved vendor estimate, including accessorials. No tax/FX engine is invented.
+Amounts are integers in currency minor units with an explicit ISO currency, never binary floats. The first increment supports IDR only; the UI labels rupiah and the API uses IDR minor units (1/100 rupiah). Approval compares integers by cross multiplication, avoiding rounding a failing margin into a passing one. The owner subsequently approved a 15% default and exact tiers at 10% and 5%. CFO/Owner can configure per-stage thresholds through the audited policy API; the supplied suggested ranges/OTIF examples are not activated as exact policies. Dispatch costs are total approved vendor estimate, including accessorials. No tax/FX engine is invented.
 
 ## Security and operational contracts
 

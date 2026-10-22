@@ -1,33 +1,569 @@
-import { useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, useData } from './api'
-import { useSession } from './App'
-import { Badge, Confirm, Empty, ErrorBox, Field, Form, Loading, Pagination } from './components'
-import { dateTime, minor, money } from './commercial'
-import type { Item, Order, Page } from './types'
-import { stages } from './types'
-export function OrderList(){
- const [params]=useSearchParams();const [page,setPage]=useState(1);const [status,setStatus]=useState(params.get('status')??'');const [search,setSearch]=useState('');const session=useSession()
- const state=useData<Page<Order>>(`orders?page=${page}&status=${status}&q=${encodeURIComponent(search)}`)
- return <><div className="page-heading"><div><span className="eyebrow">PEMESANAN</span><h1 tabIndex={-1}>Pesanan transportasi</h1><p>Kelola permintaan pengiriman dari draft hingga dispatch.</p></div>{session.role!=='viewer'&&<Link className="button primary" to="/orders/new">+ Buat order</Link>}</div><section className="card"><div className="filters"><Field label="Cari order atau pelanggan"><input type="search" placeholder="Nomor order / nama pelanggan" value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}}/></Field><Field label="Status"><select value={status} onChange={e=>{setStatus(e.target.value);setPage(1)}}><option value="">Semua status</option>{['DRAFT','CONFIRMED','DISPATCHED','CANCELLED'].map(s=><option key={s}>{s}</option>)}</select></Field></div><ErrorBox error={state.error}/>{state.error&&<button onClick={state.refresh}>Coba lagi</button>}{state.loading?<Loading/>:state.data&&<><div className="table-scroll"><table><thead><tr><th>Order / pelanggan</th><th>Tahap</th><th>Rute</th><th>Harga jual</th><th>Status</th></tr></thead><tbody>{state.data.data.map(o=><tr key={o.id}><td><Link className="record-link" to={`/orders/${o.id}`}>{o.number}</Link><small>{o.customer_name}</small></td><td>{stages[o.stage]}</td><td>{o.origin}<span className="route-arrow"> → </span>{o.destination}</td><td className="nowrap">{money(o.sell_minor)}</td><td><Badge value={o.status}/></td></tr>)}</tbody></table></div>{!state.data.data.length&&<Empty>Belum ada order yang sesuai. Buat order atau ubah filter pencarian.</Empty>}<Pagination page={state.data} onPage={setPage}/></>}</section></>
+import { useState } from "react";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import { api, useData } from "./api";
+import { useSession } from "./App";
+import {
+  Badge,
+  Confirm,
+  Empty,
+  ErrorBox,
+  Field,
+  Form,
+  Loading,
+  Pagination,
+} from "./components";
+import { dateTime, minor, money } from "./commercial";
+import type { Item, Order, Page } from "./types";
+import { stages } from "./types";
+export function OrderList() {
+  const [params] = useSearchParams();
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState(params.get("status") ?? "");
+  const [search, setSearch] = useState("");
+  const session = useSession();
+  const state = useData<Page<Order>>(
+    `orders?page=${page}&status=${status}&q=${encodeURIComponent(search)}`,
+  );
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">PEMESANAN</span>
+          <h1 tabIndex={-1}>Pesanan transportasi</h1>
+          <p>Kelola permintaan pengiriman dari draft hingga dispatch.</p>
+        </div>
+        {session.role !== "viewer" && (
+          <Link className="button primary" to="/orders/new">
+            + Buat order
+          </Link>
+        )}
+      </div>
+      <section className="card">
+        <div className="filters">
+          <Field label="Cari order atau pelanggan">
+            <input
+              type="search"
+              placeholder="Nomor order / nama pelanggan"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+          </Field>
+          <Field label="Status">
+            <select
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">Semua status</option>
+              {["DRAFT", "CONFIRMED", "DISPATCHED", "CANCELLED"].map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <ErrorBox error={state.error} />
+        {state.error && <button onClick={state.refresh}>Coba lagi</button>}
+        {state.loading ? (
+          <Loading />
+        ) : (
+          state.data && (
+            <>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Order / pelanggan</th>
+                      <th>Tahap</th>
+                      <th>Rute</th>
+                      <th>Harga jual</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {state.data.data.map((o) => (
+                      <tr key={o.id}>
+                        <td>
+                          <Link className="record-link" to={`/orders/${o.id}`}>
+                            {o.number}
+                          </Link>
+                          <small>{o.customer_name}</small>
+                        </td>
+                        <td>{stages[o.stage]}</td>
+                        <td>
+                          {o.origin}
+                          <span className="route-arrow"> → </span>
+                          {o.destination}
+                        </td>
+                        <td className="nowrap">{money(o.sell_minor)}</td>
+                        <td>
+                          <Badge value={o.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!state.data.data.length && (
+                <Empty>
+                  Belum ada order yang sesuai. Buat order atau ubah filter
+                  pencarian.
+                </Empty>
+              )}
+              <Pagination page={state.data} onPage={setPage} />
+            </>
+          )
+        )}
+      </section>
+    </>
+  );
 }
-const blankItem=():Item=>({description:'',quantity:1,unit_weight_g:1000,length_mm:100,width_mm:100,height_mm:100,stackable:false})
-export function OrderCreate(){
- const navigate=useNavigate();const session=useSession();const [key,setKey]=useState(()=>crypto.randomUUID())
- const [customer,setCustomer]=useState('');const [reference,setReference]=useState('');const [stage,setStage]=useState('FIRST_MILE');const [origin,setOrigin]=useState('');const [destination,setDestination]=useState('')
- const [base,setBase]=useState('');const [surcharge,setSurcharge]=useState('0');const [accessorial,setAccessorial]=useState('0');const [items,setItems]=useState<Item[]>([blankItem()])
- function update(index:number,field:keyof Item,value:string|number|boolean){setItems(old=>old.map((item,i)=>i===index?{...item,[field]:value}:item));setKey(crypto.randomUUID())}
- let total=0;try{total=minor(base)+minor(surcharge)+minor(accessorial)}catch{/* Preview remains empty until values are valid. */}
- if(session.role==='viewer')return <ErrorBox error="Akun Anda memiliki akses hanya baca."/>
- return <><div className="page-heading"><div><span className="eyebrow">PEMESANAN / BARU</span><h1 tabIndex={-1}>Buat order pengiriman</h1><p>Simpan draft, periksa muatan dan harga, lalu konfirmasi sebelum penugasan.</p></div></div><Form label="Simpan draft order" onSubmit={async()=>{
-  const data={customer_name:customer,reference:reference||null,stage,origin,destination,currency:'IDR',base_price_minor:minor(base),surcharge_minor:minor(surcharge),accessorial_minor:minor(accessorial),items}
-  const result=await api<{data:Order}>('orders','POST',data,key);navigate(`/orders/${result.data.id}`)
- }}><div className="split"><div className="stack"><section className="card"><h2>Informasi pengiriman</h2><div className="form-grid"><Field label="Nama pelanggan"><input required maxLength={200} value={customer} onChange={e=>{setCustomer(e.target.value);setKey(crypto.randomUUID())}}/></Field><Field label="Referensi pelanggan (opsional)"><input maxLength={100} value={reference} onChange={e=>{setReference(e.target.value);setKey(crypto.randomUUID())}}/></Field><Field label="Tahap rantai pasok"><select value={stage} onChange={e=>{setStage(e.target.value);setKey(crypto.randomUUID())}}>{Object.entries(stages).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field><Field label="Mata uang"><input value="IDR — Rupiah Indonesia" readOnly/></Field><Field label="Alamat / hub asal"><textarea required maxLength={300} value={origin} onChange={e=>{setOrigin(e.target.value);setKey(crypto.randomUUID())}}/></Field><Field label="Alamat / hub tujuan"><textarea required maxLength={300} value={destination} onChange={e=>{setDestination(e.target.value);setKey(crypto.randomUUID())}}/></Field></div></section><section className="card"><div className="section-heading"><h2>Rincian muatan</h2><button type="button" disabled={items.length>=100} onClick={()=>{setItems(v=>[...v,blankItem()]);setKey(crypto.randomUUID())}}>+ Tambah barang</button></div><p className="muted">Berat per unit dalam gram; dimensi per unit dalam milimeter. Pemeriksaan ini belum merupakan optimasi 3D atau validasi beban as.</p>{items.map((item,index)=><fieldset className="cargo" key={index}><legend>Barang {index+1}</legend><div className="form-grid"><Field label="Deskripsi barang"><input required maxLength={200} value={item.description} onChange={e=>update(index,'description',e.target.value)}/></Field><Field label="Jumlah unit"><input type="number" min={1} max={1000} step={1} required value={item.quantity} onChange={e=>update(index,'quantity',e.target.valueAsNumber)}/></Field>{(['unit_weight_g','length_mm','width_mm','height_mm'] as const).map((field,i)=><Field key={field} label={['Berat per unit (g)','Panjang (mm)','Lebar (mm)','Tinggi (mm)'][i]}><input required type="number" min={1} max={field==='unit_weight_g'?100000000:20000} step={1} value={item[field]} onChange={e=>update(index,field,e.target.valueAsNumber)}/></Field>)}</div><div className="actions"><label className="check"><input type="checkbox" checked={item.stackable} onChange={e=>update(index,'stackable',e.target.checked)}/> Boleh ditumpuk</label><button type="button" disabled={items.length===1} onClick={()=>{setItems(v=>v.filter((_,i)=>i!==index));setKey(crypto.randomUUID())}}>Hapus barang {index+1}</button></div></fieldset>)}</section></div><aside className="card costing"><span className="eyebrow">KOMERSIAL</span><h2>Harga jual pelanggan</h2><Field label="Tarif dasar (Rp)"><input required inputMode="decimal" placeholder="0,00" value={base} onChange={e=>{setBase(e.target.value);setKey(crypto.randomUUID())}}/></Field><Field label="Surcharge fuel / tol (Rp)"><input required inputMode="decimal" value={surcharge} onChange={e=>{setSurcharge(e.target.value);setKey(crypto.randomUUID())}}/></Field><Field label="Aksesorial pelanggan (Rp)"><input required inputMode="decimal" value={accessorial} onChange={e=>{setAccessorial(e.target.value);setKey(crypto.randomUUID())}}/></Field><div className="cost-total"><span>Total harga jual</span><strong>{total?money(total):'—'}</strong></div><p className="muted">Harga dimasukkan sesuai kesepakatan pelanggan. Biaya vendor dan persetujuan margin ditentukan pada rencana dispatch.</p><div className="alert info">Draft tidak mengalokasikan kendaraan atau pengemudi.</div></aside></div></Form></>
+const blankItem = (): Item => ({
+  description: "",
+  quantity: 1,
+  unit_weight_g: 1000,
+  length_mm: 100,
+  width_mm: 100,
+  height_mm: 100,
+  stackable: false,
+});
+export function OrderCreate() {
+  const navigate = useNavigate();
+  const session = useSession();
+  const [key, setKey] = useState(() => crypto.randomUUID());
+  const [customer, setCustomer] = useState("");
+  const [reference, setReference] = useState("");
+  const [stage, setStage] = useState("FIRST_MILE");
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [base, setBase] = useState("");
+  const [surcharge, setSurcharge] = useState("0");
+  const [accessorial, setAccessorial] = useState("0");
+  const [items, setItems] = useState<Item[]>([blankItem()]);
+  function update(
+    index: number,
+    field: keyof Item,
+    value: string | number | boolean,
+  ) {
+    setItems((old) =>
+      old.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
+    );
+    setKey(crypto.randomUUID());
+  }
+  let total = 0;
+  try {
+    total = minor(base) + minor(surcharge) + minor(accessorial);
+  } catch {
+    /* Preview remains empty until values are valid. */
+  }
+  if (session.role === "viewer")
+    return <ErrorBox error="Akun Anda memiliki akses hanya baca." />;
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">PEMESANAN / BARU</span>
+          <h1 tabIndex={-1}>Buat order pengiriman</h1>
+          <p>
+            Simpan draft, periksa muatan dan harga, lalu konfirmasi sebelum
+            penugasan.
+          </p>
+        </div>
+      </div>
+      <Form
+        label="Simpan draft order"
+        onSubmit={async () => {
+          const data = {
+            customer_name: customer,
+            reference: reference || null,
+            stage,
+            origin,
+            destination,
+            currency: "IDR",
+            base_price_minor: minor(base),
+            surcharge_minor: minor(surcharge),
+            accessorial_minor: minor(accessorial),
+            items,
+          };
+          const result = await api<{ data: Order }>(
+            "orders",
+            "POST",
+            data,
+            key,
+          );
+          navigate(`/orders/${result.data.id}`);
+        }}
+      >
+        <div className="split">
+          <div className="stack">
+            <section className="card">
+              <h2>Informasi pengiriman</h2>
+              <div className="form-grid">
+                <Field label="Nama pelanggan">
+                  <input
+                    required
+                    maxLength={200}
+                    value={customer}
+                    onChange={(e) => {
+                      setCustomer(e.target.value);
+                      setKey(crypto.randomUUID());
+                    }}
+                  />
+                </Field>
+                <Field label="Referensi pelanggan (opsional)">
+                  <input
+                    maxLength={100}
+                    value={reference}
+                    onChange={(e) => {
+                      setReference(e.target.value);
+                      setKey(crypto.randomUUID());
+                    }}
+                  />
+                </Field>
+                <Field label="Tahap rantai pasok">
+                  <select
+                    value={stage}
+                    onChange={(e) => {
+                      setStage(e.target.value);
+                      setKey(crypto.randomUUID());
+                    }}
+                  >
+                    {Object.entries(stages).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Mata uang">
+                  <input value="IDR — Rupiah Indonesia" readOnly />
+                </Field>
+                <Field label="Alamat / hub asal">
+                  <textarea
+                    required
+                    maxLength={300}
+                    value={origin}
+                    onChange={(e) => {
+                      setOrigin(e.target.value);
+                      setKey(crypto.randomUUID());
+                    }}
+                  />
+                </Field>
+                <Field label="Alamat / hub tujuan">
+                  <textarea
+                    required
+                    maxLength={300}
+                    value={destination}
+                    onChange={(e) => {
+                      setDestination(e.target.value);
+                      setKey(crypto.randomUUID());
+                    }}
+                  />
+                </Field>
+              </div>
+            </section>
+            <section className="card">
+              <div className="section-heading">
+                <h2>Rincian muatan</h2>
+                <button
+                  type="button"
+                  disabled={items.length >= 100}
+                  onClick={() => {
+                    setItems((v) => [...v, blankItem()]);
+                    setKey(crypto.randomUUID());
+                  }}
+                >
+                  + Tambah barang
+                </button>
+              </div>
+              <p className="muted">
+                Berat per unit dalam gram; dimensi per unit dalam milimeter.
+                Pemeriksaan ini belum merupakan optimasi 3D atau validasi beban
+                as.
+              </p>
+              {items.map((item, index) => (
+                <fieldset className="cargo" key={index}>
+                  <legend>Barang {index + 1}</legend>
+                  <div className="form-grid">
+                    <Field label="Deskripsi barang">
+                      <input
+                        required
+                        maxLength={200}
+                        value={item.description}
+                        onChange={(e) =>
+                          update(index, "description", e.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label="Jumlah unit">
+                      <input
+                        type="number"
+                        min={1}
+                        max={1000}
+                        step={1}
+                        required
+                        value={item.quantity}
+                        onChange={(e) =>
+                          update(index, "quantity", e.target.valueAsNumber)
+                        }
+                      />
+                    </Field>
+                    {(
+                      [
+                        "unit_weight_g",
+                        "length_mm",
+                        "width_mm",
+                        "height_mm",
+                      ] as const
+                    ).map((field, i) => (
+                      <Field
+                        key={field}
+                        label={
+                          [
+                            "Berat per unit (g)",
+                            "Panjang (mm)",
+                            "Lebar (mm)",
+                            "Tinggi (mm)",
+                          ][i]
+                        }
+                      >
+                        <input
+                          required
+                          type="number"
+                          min={1}
+                          max={field === "unit_weight_g" ? 100000000 : 20000}
+                          step={1}
+                          value={item[field]}
+                          onChange={(e) =>
+                            update(index, field, e.target.valueAsNumber)
+                          }
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                  <div className="actions">
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={item.stackable}
+                        onChange={(e) =>
+                          update(index, "stackable", e.target.checked)
+                        }
+                      />{" "}
+                      Boleh ditumpuk
+                    </label>
+                    <button
+                      type="button"
+                      disabled={items.length === 1}
+                      onClick={() => {
+                        setItems((v) => v.filter((_, i) => i !== index));
+                        setKey(crypto.randomUUID());
+                      }}
+                    >
+                      Hapus barang {index + 1}
+                    </button>
+                  </div>
+                </fieldset>
+              ))}
+            </section>
+          </div>
+          <aside className="card costing">
+            <span className="eyebrow">KOMERSIAL</span>
+            <h2>Harga jual pelanggan</h2>
+            <Field label="Tarif dasar (Rp)">
+              <input
+                required
+                inputMode="decimal"
+                placeholder="0,00"
+                value={base}
+                onChange={(e) => {
+                  setBase(e.target.value);
+                  setKey(crypto.randomUUID());
+                }}
+              />
+            </Field>
+            <Field label="Surcharge fuel / tol (Rp)">
+              <input
+                required
+                inputMode="decimal"
+                value={surcharge}
+                onChange={(e) => {
+                  setSurcharge(e.target.value);
+                  setKey(crypto.randomUUID());
+                }}
+              />
+            </Field>
+            <Field label="Aksesorial pelanggan (Rp)">
+              <input
+                required
+                inputMode="decimal"
+                value={accessorial}
+                onChange={(e) => {
+                  setAccessorial(e.target.value);
+                  setKey(crypto.randomUUID());
+                }}
+              />
+            </Field>
+            <div className="cost-total">
+              <span>Total harga jual</span>
+              <strong>{total ? money(total) : "—"}</strong>
+            </div>
+            <p className="muted">
+              Harga dimasukkan sesuai kesepakatan pelanggan. Biaya vendor dan
+              persetujuan margin ditentukan pada rencana dispatch.
+            </p>
+            <div className="alert info">
+              Draft tidak mengalokasikan kendaraan atau pengemudi.
+            </div>
+          </aside>
+        </div>
+      </Form>
+    </>
+  );
 }
-export function OrderDetail(){
- const {id}=useParams();const state=useData<{data:Order}>(`orders/${id}`);const session=useSession();const [action,setAction]=useState<'confirm'|'cancel'>()
- if(state.loading)return <Loading/>
- if(state.error)return <><ErrorBox error={state.error}/><button onClick={state.refresh}>Coba lagi</button></>
- const o=state.data!.data
- return <><div className="page-heading"><div><span className="eyebrow">DETAIL ORDER</span><h1 tabIndex={-1}>{o.number}</h1><p>{o.customer_name} {o.reference&&`· ${o.reference}`}</p></div><Badge value={o.status}/></div><div className="split"><section className="card"><h2>Informasi pengiriman</h2><dl className="details"><dt>Tahap</dt><dd>{stages[o.stage]}</dd><dt>Asal</dt><dd>{o.origin}</dd><dt>Tujuan</dt><dd>{o.destination}</dd><dt>Dibuat</dt><dd>{dateTime(o.created_at)}</dd><dt>Tarif dasar</dt><dd>{money(o.base_price_minor)}</dd><dt>Surcharge</dt><dd>{money(o.surcharge_minor)}</dd><dt>Aksesorial pelanggan</dt><dd>{money(o.accessorial_minor)}</dd><dt>Harga jual total</dt><dd><strong>{money(o.sell_minor)}</strong></dd></dl></section><section className="card"><h2>Aksi order</h2><p className="muted">Setelah konfirmasi, rincian order dikunci untuk menjaga konsistensi komersial dan dispatch.</p>{session.role!=='viewer'&&<div className="stack">{o.status==='DRAFT'&&<button className="primary" onClick={()=>setAction('confirm')}>Konfirmasi order</button>}{o.status==='CONFIRMED'&&<Link className="button primary" to={`/dispatch?order=${o.id}`}>Buat rencana dispatch</Link>}{['DRAFT','CONFIRMED'].includes(o.status)&&<button className="danger-button" onClick={()=>setAction('cancel')}>Batalkan order</button>}</div>}{o.status==='DISPATCHED'&&<div className="alert success">Order telah dialokasikan. Detail rencana tersedia pada board dispatch.</div>}</section></div><section className="card block"><h2>Muatan</h2><div className="table-scroll"><table><thead><tr><th>Barang</th><th>Jumlah</th><th>Berat / unit</th><th>Dimensi / unit</th><th>Penumpukan</th></tr></thead><tbody>{o.items?.map(i=><tr key={i.id}><td>{i.description}</td><td>{i.quantity}</td><td>{(i.unit_weight_g/1000).toLocaleString('id-ID')} kg</td><td>{i.length_mm} × {i.width_mm} × {i.height_mm} mm</td><td>{i.stackable?'Diizinkan':'Tidak'}</td></tr>)}</tbody></table></div></section>{action&&<Confirm title={action==='confirm'?'Konfirmasi order?':'Batalkan order?'} onClose={()=>setAction(undefined)} onConfirm={async()=>{await api(`orders/${id}/transition`,'POST',{action});state.refresh()}}><p>{action==='confirm'?'Pastikan alamat, muatan dan harga sudah benar. Rincian dikunci setelah konfirmasi.':'Order yang dibatalkan tidak dapat dikonfirmasi atau ditugaskan.'}</p></Confirm>}</>
+export function OrderDetail() {
+  const { id } = useParams();
+  const state = useData<{ data: Order }>(`orders/${id}`);
+  const session = useSession();
+  const [action, setAction] = useState<"confirm" | "cancel">();
+  if (state.loading) return <Loading />;
+  if (state.error)
+    return (
+      <>
+        <ErrorBox error={state.error} />
+        <button onClick={state.refresh}>Coba lagi</button>
+      </>
+    );
+  const o = state.data!.data;
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">DETAIL ORDER</span>
+          <h1 tabIndex={-1}>{o.number}</h1>
+          <p>
+            {o.customer_name} {o.reference && `· ${o.reference}`}
+          </p>
+        </div>
+        <Badge value={o.status} />
+      </div>
+      <div className="split">
+        <section className="card">
+          <h2>Informasi pengiriman</h2>
+          <dl className="details">
+            <dt>Tahap</dt>
+            <dd>{stages[o.stage]}</dd>
+            <dt>Asal</dt>
+            <dd>{o.origin}</dd>
+            <dt>Tujuan</dt>
+            <dd>{o.destination}</dd>
+            <dt>Dibuat</dt>
+            <dd>{dateTime(o.created_at)}</dd>
+            <dt>Tarif dasar</dt>
+            <dd>{money(o.base_price_minor)}</dd>
+            <dt>Surcharge</dt>
+            <dd>{money(o.surcharge_minor)}</dd>
+            <dt>Aksesorial pelanggan</dt>
+            <dd>{money(o.accessorial_minor)}</dd>
+            <dt>Harga jual total</dt>
+            <dd>
+              <strong>{money(o.sell_minor)}</strong>
+            </dd>
+          </dl>
+        </section>
+        <section className="card">
+          <h2>Aksi order</h2>
+          <p className="muted">
+            Setelah konfirmasi, rincian order dikunci untuk menjaga konsistensi
+            komersial dan dispatch.
+          </p>
+          {session.role !== "viewer" && (
+            <div className="stack">
+              {o.status === "DRAFT" && (
+                <button
+                  className="primary"
+                  onClick={() => setAction("confirm")}
+                >
+                  Konfirmasi order
+                </button>
+              )}
+              {o.status === "CONFIRMED" && (
+                <Link className="button primary" to={`/dispatch?order=${o.id}`}>
+                  Buat rencana dispatch
+                </Link>
+              )}
+              {["DRAFT", "CONFIRMED"].includes(o.status) && (
+                <button
+                  className="danger-button"
+                  onClick={() => setAction("cancel")}
+                >
+                  Batalkan order
+                </button>
+              )}
+            </div>
+          )}
+          {o.status === "DISPATCHED" && (
+            <div className="alert success">
+              Order telah dialokasikan. Detail rencana tersedia pada board
+              dispatch.
+            </div>
+          )}
+        </section>
+      </div>
+      <section className="card block">
+        <h2>Muatan</h2>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Barang</th>
+                <th>Jumlah</th>
+                <th>Berat / unit</th>
+                <th>Dimensi / unit</th>
+                <th>Penumpukan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {o.items?.map((i) => (
+                <tr key={i.id}>
+                  <td>{i.description}</td>
+                  <td>{i.quantity}</td>
+                  <td>{(i.unit_weight_g / 1000).toLocaleString("id-ID")} kg</td>
+                  <td>
+                    {i.length_mm} × {i.width_mm} × {i.height_mm} mm
+                  </td>
+                  <td>{i.stackable ? "Diizinkan" : "Tidak"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {action && (
+        <Confirm
+          title={action === "confirm" ? "Konfirmasi order?" : "Batalkan order?"}
+          onClose={() => setAction(undefined)}
+          onConfirm={async () => {
+            await api(`orders/${id}/transition`, "POST", { action });
+            state.refresh();
+          }}
+        >
+          <p>
+            {action === "confirm"
+              ? "Pastikan alamat, muatan dan harga sudah benar. Rincian dikunci setelah konfirmasi."
+              : "Order yang dibatalkan tidak dapat dikonfirmasi atau ditugaskan."}
+          </p>
+        </Confirm>
+      )}
+    </>
+  );
 }

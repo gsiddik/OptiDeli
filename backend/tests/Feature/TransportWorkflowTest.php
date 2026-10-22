@@ -255,9 +255,9 @@ class TransportWorkflowTest extends TestCase
         $data = ['minimum_margin_bps' => 1500, 'stage_margin_bps' => ['MIDDLE_MILE' => 1000, 'LAST_MILE' => 1800], 'reason' => 'Kebijakan komersial disetujui untuk rute kontrak tertentu.'];
         $this->putJson('/api/v1/commercial/policy', $data)->assertForbidden();
         $this->actingAs($this->member('cfo'));
-        $this->putJson('/api/v1/commercial/policy', $data)->assertOk()->assertJsonPath('data.version', 2)->assertJsonPath('data.stage_margin_bps.LAST_MILE',1800);
-        $this->assertDatabaseHas('audit_events',['tenant_id' => $this->tenant, 'action' => 'commercial.policy_changed']);
+        $this->putJson('/api/v1/commercial/policy', $data)->assertOk()->assertJsonPath('data.version', 2)->assertJsonPath('data.stage_margin_bps.LAST_MILE', 1800);
+        $this->assertDatabaseHas('audit_events', ['tenant_id' => $this->tenant, 'action' => 'commercial.policy_changed']);
         $data['stage_margin_bps']['LAST_MILE'] = 10001;
-        $this->putJson('/api/v1/commercial/policy',$data)->assertUnprocessable();
+        $this->putJson('/api/v1/commercial/policy', $data)->assertUnprocessable();
     }
 }

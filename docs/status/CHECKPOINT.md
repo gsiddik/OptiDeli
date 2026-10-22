@@ -54,3 +54,13 @@ Read README and docs/api/PHASE1.md, inspect git status/remote changes, then cont
 - Found and fixed a numeric-type regression: Laravel integer validation accepts numeric strings, while dispatch policy snapshots compare types strictly. Policy input is now normalized to integers, with a regression test covering policy update → plan → dispatch.
 - Integrated the owner's uploaded `Favicon OptiDeli - 1.jpg` without modifying the original file. This supersedes the earlier instruction to leave the favicon empty.
 - Merge must use the reviewed PR head after CI passes; phase two starts from the merged `main`, on a new branch.
+
+## CP2 — Execution / yard / ePOD / freight audit in progress
+
+PR #1 merged at `4d1cdf4697b460dc368cf5cbc878689484cfe0ec` after review fixes and passing CI. This branch was created directly from that merged main. Favicon is installed from the owner-provided original JPEG.
+
+Owner confirmed Finance and Finance Supervisor roles, independent financial review, inclusive Rp10,000 minor rounding/admin boundary, inclusive Rp2,000,000 dual approval boundary, CFO for strictly larger exposure or margin below 5%, and mandatory vendor correction for any base-rate mismatch. Netting a negative rounding line against a large accessorial must not hide the approval exposure.
+
+Backend increment: multi-leg execution, controlled cancellation and allocation release, dock bookings/movement, private hashed ePOD/invoice files, separate Finance authority, accessorial evidence review and immediate re-hold, independent/versioned financial approvals, vendor-scoped dispute/correction portal. Initial PostgreSQL verification: 58 tests / 364 assertions passed. Frontend and end-to-end validation still in progress.
+
+Rate cards, tender automation and advanced delivery-exception/claims resolution remain separate follow-on increments; no optimizer, external accounting transfer or automated detention tariff is claimed. Settlement readiness here is an audited internal status, not execution of a bank payment.

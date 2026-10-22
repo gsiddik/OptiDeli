@@ -42,7 +42,9 @@ final class TenantStore
             if ($existing) {
                 abort_unless(hash_equals($existing->fingerprint, $fingerprint), 409, 'Idempotency key reused with a different request.');
 
-                return $this->find($operation === 'order.create' ? 'orders' : 'dispatch_plans', $existing->resource_id);
+                return $this->find(match ($operation) {
+                    'order.create' => 'orders', 'dispatch.plan' => 'dispatch_plans', 'pod.create' => 'proofs_of_delivery', 'appointment.create' => 'dock_appointments', 'invoice.create' => 'freight_invoices', 'claim.create' => 'accessorial_claims', 'vendor.create' => 'vendors', default => throw new \LogicException('Unknown idempotency operation.')
+                }, $existing->resource_id);
             }
             $resource = $create();
             DB::table('idempotency_keys')->insert(['tenant_id' => $this->tenantId, 'operation' => $operation, 'key' => $key, 'fingerprint' => $fingerprint, 'resource_id' => $resource->id]);

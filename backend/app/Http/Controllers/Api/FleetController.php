@@ -14,7 +14,7 @@ class FleetController extends Controller
     {
         $s = OrderController::storeFor($request);
 
-        return response()->json(['data' => ['vehicles' => $s->query('vehicles')->orderBy('plate')->get(), 'drivers' => $s->query('drivers')->orderBy('name')->get(), 'allocations' => $s->query('trips')->get()]]);
+        return response()->json(['data' => ['vehicles' => $s->query('vehicles')->orderBy('plate')->get(), 'drivers' => $s->query('drivers')->orderBy('name')->get(), 'allocations' => $s->query('trips')->where('active', true)->get()]]);
     }
 
     public function vehicle(Request $request)

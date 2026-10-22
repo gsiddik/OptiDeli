@@ -34,6 +34,9 @@ final class YardService
                 'gate_in' => ['BOOKED', 'GATE_IN', 'gate_in_at'],'dock_in' => ['GATE_IN', 'AT_DOCK', 'dock_in_at'],'dock_out' => ['AT_DOCK', 'COMPLETED', 'dock_out_at'],'gate_out' => ['COMPLETED', 'GATE_OUT', 'gate_out_at'],'cancel' => ['BOOKED', 'CANCELLED', null],default => abort(422)
             };
             abort_unless($a->status === $expected, 409, 'Urutan pergerakan yard tidak valid.');
+            if ($action === 'gate_in') {
+                abort_unless($s->find('trips', $a->trip_id, true)->active, 409, 'Trip sudah ditutup; batalkan slot yang belum digunakan.');
+            }
             if ($action === 'dock_in') {
                 abort_if($s->query('dock_appointments')->where('dock_id', $a->dock_id)->where('status', 'AT_DOCK')->where('id', '<>', $id)->exists(), 409, 'Dock masih ditempati armada lain.');
             }

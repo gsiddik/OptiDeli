@@ -7,7 +7,7 @@ Baseline: merged main `4d1cdf4697b460dc368cf5cbc878689484cfe0ec` (PR #1). Routes
 - `GET trips?q=<ID-or-contract>`, `GET trips/{id}`: tenant-scoped list/detail with order, plan, legs, POD and claims.
 - `POST trips/{id}/vendor`: vendor_id + contract_reference; only ASSIGNED and before a live invoice exists.
 - `POST trips/{id}/legs`: origin, destination, planned_eta with explicit timezone. Legs must connect and ETA must increase; editable only before departure.
-- `POST trips/{id}/transition`: action start/complete/cancel; cancel requires reason and ASSIGNED. Start rechecks resource readiness. Complete requires all legs ARRIVED, verified full DELIVERED ePOD with intact private file and no vehicle still in yard.
+- `POST trips/{id}/transition`: action start/complete/cancel; cancel requires reason and ASSIGNED. Start rechecks resource readiness, order route endpoints and final ETA within the dispatch eligibility window. Complete requires all legs ARRIVED, verified full DELIVERED ePOD with intact private file and no vehicle still in yard.
 - `POST legs/{id}/transition`: depart/arrive, in sequence.
 - `POST trips/{id}/pods`: multipart receiver_name, delivered_units, outcome DELIVERED/EXCEPTION, note and file. PDF/JPEG/PNG ≤10 MB. Idempotency-Key required.
 - `POST pods/{id}/verify`: decision verify/reject + note; independent Supervisor/Head/CFO. Partial/exception evidence cannot release the trip through the complete transition.

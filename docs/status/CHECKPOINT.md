@@ -69,8 +69,13 @@ Rate cards, tender automation and advanced delivery-exception/claims resolution 
 
 - Responsive trip/yard/vendor/freight workspaces and a vendor-only portal are implemented. The original owner favicon remains byte-identical. Finance roles cannot mutate order/dispatch operations.
 - Review added invoice-vendor binding protection, private document integrity checks, multipart numeric normalization, tenant denial regressions, and bounded trip search for older records in yard/invoice forms.
-- Final local PostgreSQL suite: **62 tests / 409 assertions passed**, including search boundaries and concurrent dispatch allocation. Frontend: **27 tests passed**; lint, typecheck/production build, Prettier and Pint passed.
+- Final local PostgreSQL suite: **63 tests / 419 assertions passed**, including search boundaries and concurrent dispatch allocation. Frontend: **27 tests passed**; lint, typecheck/production build, Prettier and Pint passed.
 - Real Chromium/API/PostgreSQL E2E passed: dock reservation and all gate events → leg execution → private multipart ePOD → independent verification → completion/release → CFO portal provisioning → vendor base-rate dispute/response/correction → immediate late-accessorial re-hold → Finance evidence review → independent Finance Supervisor and Head approvals. Private file access and mobile vendor overflow checks passed. Screenshots remain in ignored frontend/test-results.
 - A stale local PHP development server returned an HTML error with status 200 after checkout. Restarting the API restored the server; the client now rejects malformed JSON explicitly rather than rendering an invalid session.
 - Full combined browser regression: **2 E2E scenarios passed** (50.9 seconds), covering both CP1 and CP2A with real API/PostgreSQL.
 - PR: https://github.com/gsiddik/OptiDeli/pull/2. Check CI at the current PR head before merge. Rate cards/tender automation remain the next increment; full phase two and production readiness are not claimed.
+
+## CP2A final review refinements
+
+- Starting a trip now requires route endpoints to match the order and final leg ETA not to exceed the verified dispatch window; regression verifies both denials without advancing trip status. A closed trip cannot enter a yard gate using an unused booking.
+- Mobile E2E waits for the ready invoice data before testing overflow and taking a screenshot; the populated 390px portal passes. Latest PostgreSQL suite: 63 tests / 419 assertions.

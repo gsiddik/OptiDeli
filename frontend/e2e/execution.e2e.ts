@@ -352,6 +352,9 @@ test("execution, yard, private ePOD, vendor correction and independent dual frei
   await expect(
     portal.getByRole("heading", { name: "Invoice & sanggahan" }),
   ).toBeVisible();
+  await expect(
+    portal.getByText("READY FOR PAYMENT", { exact: true }),
+  ).toBeVisible();
   expect(
     await portal.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth + 1,

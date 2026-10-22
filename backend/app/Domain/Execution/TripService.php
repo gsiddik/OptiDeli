@@ -27,7 +27,11 @@ final class TripService
                 $driver = $s->find('drivers', $trip->driver_id, true);
                 $plan = $s->find('dispatch_plans', $trip->plan_id);
                 app(FleetAvailability::class)->assertReady($vehicle, $driver, CarbonImmutable::parse($plan->ends_at)->max(now()));
-                abort_unless($s->query('trip_legs')->where('trip_id', $id)->exists(), 422, 'Tambahkan leg perjalanan terlebih dahulu.');
+                $legs = $s->query('trip_legs')->where('trip_id', $id)->orderBy('sequence')->get();
+                abort_unless($legs->isNotEmpty(), 422, 'Tambahkan leg perjalanan terlebih dahulu.');
+                $order = $s->find('orders', $trip->order_id);
+                abort_unless($legs->first()->origin === $order->origin && $legs->last()->destination === $order->destination, 422, 'Rute leg harus dimulai dan berakhir sesuai order.');
+                abort_unless(CarbonImmutable::parse($legs->last()->planned_eta)->lessThanOrEqualTo(CarbonImmutable::parse($plan->ends_at)), 422, 'ETA akhir leg melampaui jadwal kelayakan dispatch; buat rencana baru.');
                 $s->query('trips')->where('id', $id)->update(['status' => 'IN_TRANSIT', 'started_at' => now(), 'updated_at' => now()]);
                 $s->query('orders')->where('id', $trip->order_id)->update(['status' => 'IN_TRANSIT', 'updated_at' => now()]);
             } elseif ($action === 'complete') {

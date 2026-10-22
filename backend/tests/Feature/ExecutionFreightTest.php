@@ -284,4 +284,14 @@ class ExecutionFreightTest extends TestCase
         $this->getJson('/api/v1/trips?q=CONTRACT-TEST')->assertOk()->assertJsonPath('total', 1);
         $this->getJson('/api/v1/trips?q=%25')->assertOk()->assertJsonPath('total', 0);
     }
+
+    public function test_start_requires_route_endpoints_and_eta_within_dispatch_window(): void
+    {
+        $f = $this->fixture();
+        $leg = $this->postJson('/api/v1/trips/'.$f['trip'].'/legs', ['origin' => 'A', 'destination' => 'Wrong hub', 'planned_eta' => now()->addHours(4)->toIso8601String()])->assertCreated()->json('data.id');
+        $this->postJson('/api/v1/trips/'.$f['trip'].'/transition', ['action' => 'start'])->assertUnprocessable();
+        DB::table('trip_legs')->where('id', $leg)->update(['destination' => 'B', 'planned_eta' => now()->addHours(6)]);
+        $this->postJson('/api/v1/trips/'.$f['trip'].'/transition', ['action' => 'start'])->assertUnprocessable();
+        $this->assertDatabaseHas('trips', ['id' => $f['trip'], 'status' => 'ASSIGNED']);
+    }
 }

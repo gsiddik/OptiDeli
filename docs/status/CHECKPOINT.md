@@ -10,9 +10,17 @@
 ## Owner decisions pending
 
 1. Confirm Laravel + PostgreSQL + React/TypeScript, OptiNexus integration and standalone identity approach.
-2. Define margin denominator, included costs, minimum margin and override authority. Embedded formulas are raster images in the DOCX; do not invent an approved policy. Dispatch must fail closed without a configured policy.
+2. Define margin denominator, included costs, minimum margin and override authority. Visual inspection recovered the formula (sell − vendor cost) / sell × 100%; 15% is only an illustrative threshold. Do not invent an approved policy. Dispatch must fail closed without a configured policy.
 3. Confirm staged delivery priority: foundation/order/dispatch, then operational execution/settlement, then advanced optimization/telemetry/ESG.
 
 ## Remaining full-product scope
 
 All seven domains from the specification remain acceptance targets, not completion claims. Advanced 3D packing must model axle loads, stackability and hazardous cargo compatibility before being called an optimizer. ESG needs versioned factors, organizational boundaries and a verified GLEC/ISO methodology. No 18% efficiency improvement is promised from an unverified source claim. External EDI, OptiNexus, OptiFleet, OptiRadar and OptiEntry integrations require tested contracts; sample URLs are not production endpoints.
+
+## CP1a — Backend vertical slice
+
+Owner confirmed the Laravel/PostgreSQL/React stack, both deployment modes and phased delivery. Owner approved 15% default margin, tiers at 10% and 5%, and mandatory reason codes. Stage-specific thresholds are representable; suggested ranges and OTIF examples are not silently activated as exact defaults.
+
+Implemented: same-origin local session authentication, membership-bound tenant context, standalone tenant binding, viewer write protection, order intake/confirmation/cancellation, fleet/driver register, local readiness checks, immutable dispatch plans, independent tiered approval, confirm-time revalidation, per-tenant idempotency, resource allocation constraints, atomic audit/outbox. OptiNexus mode fails closed until its adapter is implemented and verified.
+
+Initial SQLite feature/unit validation: 30 tests, 100 assertions passed. PostgreSQL validation and concurrent allocation checks are in progress. No completion claim for the remaining product modules.

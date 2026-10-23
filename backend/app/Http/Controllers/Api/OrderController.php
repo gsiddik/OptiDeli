@@ -18,7 +18,7 @@ class OrderController extends Controller
 
     public static function writeAccess(Request $request): void
     {
-        abort_if($request->attributes->get('role') === 'viewer', 403, 'Akses hanya baca.');
+        abort_unless(in_array($request->attributes->get('role'), ['dispatcher', 'supervisor', 'head_of_logistics', 'cfo'], true), 403, 'Akses hanya baca.');
     }
 
     public static function key(Request $request): string
@@ -31,7 +31,7 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $data = $request->validate(['status' => ['nullable', Rule::in(['DRAFT', 'CONFIRMED', 'DISPATCHED', 'CANCELLED'])], 'q' => 'nullable|string|max:100', 'page' => 'nullable|integer|min:1']);
+        $data = $request->validate(['status' => ['nullable', Rule::in(['DRAFT', 'CONFIRMED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'])], 'q' => 'nullable|string|max:100', 'page' => 'nullable|integer|min:1']);
         $q = self::storeFor($request)->query('orders');
         if (! empty($data['status'])) {
             $q->where('status', $data['status']);

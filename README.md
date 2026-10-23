@@ -2,7 +2,7 @@
 
 Transport Management System untuk first mile, middle mile dan last mile, bagian dari ekosistem Opti.
 
-**Tahap 1:** fondasi, order dan dispatch sesuai prioritas yang disetujui pemilik. Ini belum merupakan implementasi lengkap tujuh domain enterprise. [Spesifikasi asli](docs/product/Spesifikasi%20Produk%20TMS%20OptiDeli.docx), [keputusan arsitektur](docs/architecture/DECISIONS.md), dan [checkpoint](docs/status/CHECKPOINT.md) mencatat kebutuhan, keputusan dan bukti pengujian.
+**Tahap 1 + increment 2A:** fondasi/order/dispatch, eksekusi trip, yard, ePOD dan freight audit sesuai prioritas pemilik. Ini belum merupakan implementasi lengkap tujuh domain enterprise. [Spesifikasi asli](docs/product/Spesifikasi%20Produk%20TMS%20OptiDeli.docx), [keputusan arsitektur](docs/architecture/DECISIONS.md), dan [checkpoint](docs/status/CHECKPOINT.md) mencatat kebutuhan, keputusan dan bukti pengujian.
 
 ## Kemampuan tahap pertama
 
@@ -14,6 +14,17 @@ Transport Management System untuk first mile, middle mile dan last mile, bagian 
 - CFO/Owner dapat menetapkan threshold per tahap; perubahan menginvalidasi rencana lama.
 - Idempotency, row locks, constraint alokasi, audit dan transactional outbox.
 - Sidebar collapse/expand, kelompok menu, pencarian, breadcrumb, tombol kembali dan tampilan mobile mengikuti pola OptiFleet dengan palet navy/cyan/oranye.
+
+## Kemampuan increment 2A
+
+- Leg perjalanan berurutan, cancel sebelum berangkat, penyelesaian dengan bukti lengkap dan pelepasan alokasi tanpa menghapus riwayat.
+- Dock booking tanpa benturan, gate-in/dock-in/dock-out/gate-out dan kontrol okupansi aktual.
+- ePOD serta invoice privat dengan checksum, verifikasi independen dan akses terikat tenant/vendor.
+- Register vendor, provisioning akun portal oleh CFO, unggah/koreksi invoice dan jawaban dispute oleh vendor terkait.
+- Finance/Freight Auditor dan Finance Supervisor terpisah dari operasional; antrean discrepancy, 3-way match dan dual approval per versi bukti.
+- Klaim aksesorial baru langsung menahan settlement dan menginvalidasi persetujuan lama. Siap bayar adalah status internal; tidak menjalankan transfer uang.
+
+Lihat [kontrak increment 2A](docs/api/PHASE2A.md) untuk matriks batas dan lifecycle.
 
 ## Menjalankan development
 
@@ -40,7 +51,7 @@ npm ci
 npm run dev
 ```
 
-Akun lokal demo: `dispatcher@optideli.test`, `supervisor@optideli.test`, `head_of_logistics@optideli.test`, `cfo@optideli.test`, `viewer@optideli.test`. Tenant `demo`; password sesuai nilai yang Anda berikan saat seed. Seeder default tidak membuat akun atau password. DemoSeeder menolak environment di luar local/testing dan tidak mereset password akun yang sudah ada.
+Akun lokal demo: `dispatcher@optideli.test`, `supervisor@optideli.test`, `head_of_logistics@optideli.test`, `cfo@optideli.test`, `viewer@optideli.test`, `finance@optideli.test`, `finance_supervisor@optideli.test`. Tenant `demo`; password sesuai nilai yang Anda berikan saat seed. Seeder default tidak membuat akun atau password. DemoSeeder menolak environment di luar local/testing dan tidak mereset password akun yang sudah ada.
 
 Frontend development menggunakan port 5180 dengan proxy same-origin `/api` ke port 8300. API dan PostgreSQL dipublikasikan ke loopback saja. Readiness: `GET /api/v1/health` mengembalikan `status: ok`; login dan permintaan representatif tetap diperlukan untuk validasi aplikasi. `compose.yaml` dan PHP built-in server disediakan untuk **development**, bukan deployment production/HA.
 
@@ -70,7 +81,7 @@ Browser E2E memerlukan API, Vite, database lokal dan akun demo aktif. Gunakan Ch
 OPTIDELI_E2E_PASSWORD=... OPTIDELI_E2E_TENANT=demo npm run test:e2e
 ```
 
-Beri jeda sekurangnya 60 detik antara pengulangan suite penuh agar tetap menghormati rate limit user; jangan menonaktifkan throttle untuk membuat pengujian lulus. E2E menggunakan API/database nyata, menambah data berlabel E2E pada tenant demo, dan memeriksa order → konfirmasi → margin lock → persetujuan Supervisor → dispatch, CSRF, logout dan viewport 1440/820/390. Gunakan tenant demo/disposable saja. Tidak memakai mock API; screenshot ditulis ke direktori ignored `frontend/test-results`. Workflow CI memverifikasi backend PostgreSQL dan frontend; browser E2E dijalankan terpisah dan tidak diklaim telah berjalan di GitHub sebelum hasil runner tersedia.
+Beri jeda sekurangnya 60 detik antara pengulangan suite penuh agar tetap menghormati rate limit user; jangan menonaktifkan throttle untuk membuat pengujian lulus. E2E menggunakan API/database nyata, menambah data berlabel E2E pada tenant demo, dan memeriksa order → konfirmasi → margin lock → persetujuan Supervisor → dispatch, CSRF, logout dan viewport 1440/820/390. Suite increment 2A memeriksa yard → trip → ePOD independen → koreksi invoice vendor → aksesorial/re-hold → dual approval, termasuk akses file privat dan portal mobile. Gunakan tenant demo/disposable saja. Tidak memakai mock API; screenshot ditulis ke direktori ignored `frontend/test-results`. Workflow CI memverifikasi backend PostgreSQL dan frontend; browser E2E dijalankan terpisah dan tidak diklaim telah berjalan di GitHub sebelum hasil runner tersedia.
 
 ## Aturan komersial dan operasional
 
@@ -80,11 +91,11 @@ Bila di bawah threshold tahap: ≥10% membutuhkan Supervisor; ≥5% membutuhkan 
 
 Kesiapan armada harus baru (maksimal 15 menit), status AVAILABLE, dokumen/SIM mencakup akhir perjalanan dan verifikasi kelayakan pengemudi mencakup jadwal operasi. Ini adalah **verifikasi lokal manual**, belum merupakan HOS engine maupun pemeriksaan live OptiFleet. Pemeriksaan berat, volume dan dimensi tidak membuktikan feasibility 3D/axle; pernyataan pemeriksaan keselamatan petugas wajib. Hazmat ditolak sampai modul khusus tersedia.
 
-CP1 memakai satu alokasi aktif per order/kendaraan/pengemudi. Penyelesaian trip, pelepasan alokasi, penjadwalan ulang dan multi-leg/consolidation mengikuti tahap berikutnya; aset yang sudah dispatch belum dapat didaur ulang melalui UI tahap ini. Tenant mutation lock sengaja konservatif untuk konsistensi; throughput enterprise belum dibenchmark.
+Satu alokasi aktif per order/kendaraan/pengemudi tetap berlaku. Trip COMPLETED atau CANCELLED melepaskan alokasi; cancel hanya sebelum berangkat. Multi-leg satu order tersedia; consolidation banyak order dan penyelesaian exception cargo belum tersedia. Tenant mutation lock sengaja konservatif untuk konsistensi; throughput enterprise belum dibenchmark.
 
 ## Batasan dan tahapan berikut
 
-Dock/yard, tender/vendor/rate card, ePOD, aksesorial pasca-dispatch/payment hold, freight audit, telematika, 3D optimization, ESG dan EDI belum diimplementasikan. OptiNexus/OIDC, MFA, lisensi/node binding dan adapter ekosistem belum tervalidasi; memilih identity mode yang belum didukung menolak akses, tanpa fallback diam-diam. Outbox hanya menyimpan event dan belum mengirim ke sistem luar. SaaS/local tenant isolation yang teruji tidak berarti SSO atau kontrol lisensi production sudah siap.
+Rate card/tender automation, telematika, 3D optimization, ESG dan EDI menunggu increment berikutnya. Bukti aksesorial saat ini memakai referensi pemeriksaan manual; tidak ada kalkulasi tarif detention otomatis. OptiNexus/OIDC, MFA, lisensi/node binding dan adapter ekosistem belum tervalidasi; memilih identity mode yang belum didukung menolak akses, tanpa fallback diam-diam. Outbox hanya menyimpan event dan belum mengirim ke sistem luar. SaaS/local tenant isolation yang teruji tidak berarti SSO atau kontrol lisensi production sudah siap.
 
 Threshold dinamis per tahap sudah tersedia; penyesuaian otomatis berbasis OTIF menunggu definisi metrik, jendela waktu dan angka policy yang disetujui. Daftar ini tetap menjadi backlog sesuai tahap pemilik.
 

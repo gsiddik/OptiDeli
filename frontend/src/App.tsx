@@ -16,6 +16,11 @@ import { roles } from "./types";
 import { OrderCreate, OrderDetail, OrderList } from "./Orders";
 import { DispatchBoard } from "./Dispatch";
 import { PolicyPage } from "./Policy";
+import { TripList, TripDetail } from "./Trips";
+import { YardPage } from "./Yard";
+import { VendorsPage } from "./Vendors";
+import { FreightPage, FreightDetail } from "./Freight";
+import { VendorPortal } from "./VendorPortal";
 import { FleetPage } from "./Fleet";
 import { AuditPage, Dashboard, Roadmap } from "./Overview";
 const SessionContext = createContext<Session | null>(null);
@@ -124,6 +129,10 @@ const navigation = [
       { to: "/orders", label: "Pemesanan", icon: "orders" },
       { to: "/dispatch", label: "Board dispatch", icon: "dispatch" },
       { to: "/fleet", label: "Armada & pengemudi", icon: "fleet" },
+      { to: "/trips", label: "Eksekusi perjalanan", icon: "dispatch" },
+      { to: "/yard", label: "Dock & yard", icon: "fleet" },
+      { to: "/vendors", label: "Vendor & portal", icon: "fleet" },
+      { to: "/freight", label: "Freight audit", icon: "audit" },
     ],
   },
   {
@@ -354,6 +363,17 @@ export default function App() {
       />
     );
   }
+  if (auth.data.data.role === "vendor")
+    return (
+      <SessionContext.Provider value={auth.data.data}>
+        <VendorPortal
+          onLogout={async () => {
+            await api("auth/logout", "POST");
+            setLoggedOut(true);
+          }}
+        />
+      </SessionContext.Provider>
+    );
   return (
     <SessionContext.Provider value={auth.data.data}>
       <Routes>
@@ -373,6 +393,12 @@ export default function App() {
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="dispatch" element={<DispatchBoard />} />
           <Route path="fleet" element={<FleetPage />} />
+          <Route path="trips" element={<TripList />} />
+          <Route path="trips/:id" element={<TripDetail />} />
+          <Route path="yard" element={<YardPage />} />
+          <Route path="vendors" element={<VendorsPage />} />
+          <Route path="freight" element={<FreightPage />} />
+          <Route path="freight/:id" element={<FreightDetail />} />
           <Route path="policy" element={<PolicyPage />} />
           <Route path="audit" element={<AuditPage />} />
           <Route path="roadmap" element={<Roadmap />} />

@@ -1,3 +1,4 @@
+import { canOperate } from "./opsTypes";
 import { useState } from "react";
 import { api, useData } from "./api";
 import { useSession } from "./App";
@@ -29,7 +30,7 @@ export function FleetPage() {
             dispatch.
           </p>
         </div>
-        {session.role !== "viewer" && (
+        {canOperate(session.role) && (
           <button className="primary" onClick={() => setForm((v) => !v)}>
             {form
               ? "Tutup form"
@@ -176,7 +177,7 @@ export function FleetPage() {
                             ) : (
                               <span className="muted">Belum dialokasikan</span>
                             )}
-                            {session.role !== "viewer" && (
+                            {canOperate(session.role) && (
                               <button
                                 className="block-small"
                                 onClick={() => {

@@ -19,9 +19,13 @@ class TenantContext
             abort_unless($tenant->slug === config('optideli.standalone_tenant'), 403, 'Standalone tenant mismatch.');
         }
         $membership = DB::table('memberships')->where('tenant_id', $tenant->id)->where('user_id', $request->user()->id)->where('active', true)->first();
-        abort_unless($membership && in_array($membership->role, ['viewer', 'dispatcher', 'supervisor', 'head_of_logistics', 'cfo'], true), 403, 'Active membership required.');
+        abort_unless($membership && in_array($membership->role, ['viewer', 'dispatcher', 'supervisor', 'head_of_logistics', 'cfo', 'finance', 'finance_supervisor', 'vendor'], true), 403, 'Active membership required.');
         $request->attributes->set('tenant', $tenant);
         $request->attributes->set('role', $membership->role);
+        if ($membership->role === 'vendor') {
+            abort_unless($membership->vendor_id && DB::table('vendors')->where('id', $membership->vendor_id)->where('tenant_id', $tenant->id)->where('active', true)->exists(), 403, 'Keanggotaan vendor tidak aktif.');
+            $request->attributes->set('vendor_id', $membership->vendor_id);
+        }
 
         return $next($request);
     }

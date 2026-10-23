@@ -98,6 +98,9 @@ export const roles: Record<string, string> = {
   head_of_logistics: "Head of Logistics",
   cfo: "CFO / Owner",
   viewer: "Viewer",
+  finance: "Finance / Freight Auditor",
+  finance_supervisor: "Finance Supervisor",
+  vendor: "Vendor",
 };
 export const levels = [
   "Otomatis",

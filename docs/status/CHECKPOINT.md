@@ -1,8 +1,8 @@
 # OptiDeli development checkpoint
 
-## Current state — CP1, foundation/order/dispatch
+## Current state — CP2A, execution and freight audit
 
-Owner-approved first delivery increment. Implemented and locally validated; the complete enterprise product remains staged. Development branch: `feat/tms-foundation`; PR targets `main`, with no merge authorization.
+PR #1 was reviewed and merged with owner authorization. Increment 2A is on `feat/tms-execution-yard-pod`, created directly from merged main. The complete enterprise product remains staged. Historical CP1 evidence is retained below.
 
 ## Confirmed owner decisions
 
@@ -11,9 +11,9 @@ Owner-approved first delivery increment. Implemented and locally validated; the 
 - Margin `(sell − vendor cost) / sell × 100%`, including approved vendor accessorials and customer price components.
 - Default 15%; below applicable threshold: ≥10% Supervisor/Fleet Operations Manager, ≥5% Head of Logistics/Operations Director, <5% CFO/Owner.
 - Mandatory business reason codes. Per-stage configurability is required; the suggested ranges and OTIF examples do not establish exact automatic defaults.
-- Original logo uploaded by owner as `backend/Logo OptiDeli - 1.jpg` in commit `c48daa6`; frontend copy is byte-identical (SHA-256 `9b7d133639433eca87b5943bceb03d90863c8086cce2435c5f6701707ae406f3`). Favicon omitted.
+- Original logo uploaded by owner as `backend/Logo OptiDeli - 1.jpg` in commit `c48daa6`; frontend copy is byte-identical (SHA-256 `9b7d133639433eca87b5943bceb03d90863c8086cce2435c5f6701707ae406f3`). Favicon was initially omitted; owner later supplied the original JPEG and explicitly requested installation (see review below).
 
-## Delivered
+## CP1 delivered (historical)
 
 - Same-origin local sessions, CSRF, login throttling, tenant membership checks, viewer protection and standalone tenant binding.
 - Order capture with explicit units, price components, draft/confirm/cancel transitions.
@@ -24,7 +24,7 @@ Owner-approved first delivery increment. Implemented and locally validated; the 
 - Responsive OptiFleet-style navigation/shell, original logo, order/dispatch/fleet/audit/policy UI, honest empty/error/loading states.
 - Reproducible PHP development image and Compose workflow, API contract, developer instructions and CI definition.
 
-## Validation evidence
+## CP1 validation evidence (historical)
 
 - PostgreSQL suite: 36 tests, 127 assertions, including a race between two separate worker processes: exactly one allocation wins, the other returns 409.
 - Frontend: 24 tests; production typecheck/build and lint pass.
@@ -34,7 +34,7 @@ Owner-approved first delivery increment. Implemented and locally validated; the 
 - Fresh isolated Compose PostgreSQL/API: migrations succeed; health endpoint returns OK; anonymous order access returns 401; repeat migration is a no-op. Verification containers are stopped after checks; their local volume is preserved.
 - GitHub CI for checkpoint `0fbed8b` passed both backend and frontend. The final session regression is locally verified; inspect the PR checks for the latest commit rather than inferring a remote result from local tests.
 
-## Scope boundaries for next increment
+## Backlog recorded after CP1 (historical)
 
 1. Execution lifecycle, trip completion/release, multiple legs/orders/consolidation, rebooking/cancellation after dispatch. CP1 conservatively holds one allocation per order/vehicle/driver; there is no resource-release UI yet.
 2. Vendor/rate cards/tender, dock/yard, ePOD, post-dispatch accessorial recalculation/payment hold, disputes and freight audit.
@@ -46,7 +46,7 @@ Capacity checks/manual attestation are not a 3D or HOS safety certification. Saa
 
 ## Resume instructions
 
-Read README and docs/api/PHASE1.md, inspect git status/remote changes, then continue on the existing review branch. Preserve user commits and local configuration. Use the dedicated `optideli_test` database for migration/reset tests. Keep checkpoint/commit/push updates; never merge the PR without owner request. A usage-limit pause requires platform/session resumption; repository checkpoints preserve work but do not create an autonomous quota-reset scheduler.
+Read README, docs/api/PHASE1.md and docs/api/PHASE2A.md, inspect git status/remote changes, then continue on the current review branch. Preserve user commits and local configuration. Use the dedicated `optideli_test` database for migration/reset tests. Keep checkpoint/commit/push updates; never merge the PR without owner request. A usage-limit pause requires platform/session resumption; repository checkpoints preserve work but do not create an autonomous quota-reset scheduler.
 
 ## Review PR #1 — owner authorized merge and phase two
 
@@ -54,3 +54,28 @@ Read README and docs/api/PHASE1.md, inspect git status/remote changes, then cont
 - Found and fixed a numeric-type regression: Laravel integer validation accepts numeric strings, while dispatch policy snapshots compare types strictly. Policy input is now normalized to integers, with a regression test covering policy update → plan → dispatch.
 - Integrated the owner's uploaded `Favicon OptiDeli - 1.jpg` without modifying the original file. This supersedes the earlier instruction to leave the favicon empty.
 - Merge must use the reviewed PR head after CI passes; phase two starts from the merged `main`, on a new branch.
+
+## CP2 — Execution / yard / ePOD / freight audit in progress
+
+PR #1 merged at `4d1cdf4697b460dc368cf5cbc878689484cfe0ec` after review fixes and passing CI. This branch was created directly from that merged main. Favicon is installed from the owner-provided original JPEG.
+
+Owner confirmed Finance and Finance Supervisor roles, independent financial review, inclusive Rp10,000 minor rounding/admin boundary, inclusive Rp2,000,000 dual approval boundary, CFO for strictly larger exposure or margin below 5%, and mandatory vendor correction for any base-rate mismatch. Netting a negative rounding line against a large accessorial must not hide the approval exposure.
+
+Backend increment: multi-leg execution, controlled cancellation and allocation release, dock bookings/movement, private hashed ePOD/invoice files, separate Finance authority, accessorial evidence review and immediate re-hold, independent/versioned financial approvals, vendor-scoped dispute/correction portal. Initial PostgreSQL verification passed; final evidence is recorded below.
+
+Rate cards, tender automation and advanced delivery-exception/claims resolution remain separate follow-on increments; no optimizer, external accounting transfer or automated detention tariff is claimed. Settlement readiness here is an audited internal status, not execution of a bank payment.
+
+## CP2A frontend and review checkpoint
+
+- Responsive trip/yard/vendor/freight workspaces and a vendor-only portal are implemented. The original owner favicon remains byte-identical. Finance roles cannot mutate order/dispatch operations.
+- Review added invoice-vendor binding protection, private document integrity checks, multipart numeric normalization, tenant denial regressions, and bounded trip search for older records in yard/invoice forms.
+- Final local PostgreSQL suite: **63 tests / 419 assertions passed**, including search boundaries and concurrent dispatch allocation. Frontend: **27 tests passed**; lint, typecheck/production build, Prettier and Pint passed.
+- Real Chromium/API/PostgreSQL E2E passed: dock reservation and all gate events → leg execution → private multipart ePOD → independent verification → completion/release → CFO portal provisioning → vendor base-rate dispute/response/correction → immediate late-accessorial re-hold → Finance evidence review → independent Finance Supervisor and Head approvals. Private file access and mobile vendor overflow checks passed. Screenshots remain in ignored frontend/test-results.
+- A stale local PHP development server returned an HTML error with status 200 after checkout. Restarting the API restored the server; the client now rejects malformed JSON explicitly rather than rendering an invalid session.
+- Full combined browser regression: **2 E2E scenarios passed** (50.9 seconds), covering both CP1 and CP2A with real API/PostgreSQL.
+- PR: https://github.com/gsiddik/OptiDeli/pull/2. Check CI at the current PR head before merge. Rate cards/tender automation remain the next increment; full phase two and production readiness are not claimed.
+
+## CP2A final review refinements
+
+- Starting a trip now requires route endpoints to match the order and final leg ETA not to exceed the verified dispatch window; regression verifies both denials without advancing trip status. A closed trip cannot enter a yard gate using an unused booking.
+- Mobile E2E waits for the ready invoice data before testing overflow and taking a screenshot; the populated 390px portal passes. Latest PostgreSQL suite: 63 tests / 419 assertions.

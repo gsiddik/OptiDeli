@@ -39,17 +39,26 @@ export async function api<T>(
     signal,
     headers: {
       Accept: "application/json",
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(body !== undefined && !(body instanceof FormData)
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...(method !== "GET" ? { "X-CSRF-TOKEN": csrfToken! } : {}),
       ...(key ? { "Idempotency-Key": key } : {}),
     },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(body !== undefined
+      ? { body: body instanceof FormData ? body : JSON.stringify(body) }
+      : {}),
   });
   if (res.status === 204) {
     if (path === "auth/logout") csrfToken = undefined;
     return undefined as T;
   }
-  const data = (await res.json().catch(() => ({}))) as {
+  const data = (await res.json().catch(() => {
+    throw new ApiError(
+      "Respons server tidak valid. Coba muat ulang atau hubungi administrator.",
+      res.status,
+    );
+  })) as {
     message?: string;
     errors?: Record<string, string[]>;
   };

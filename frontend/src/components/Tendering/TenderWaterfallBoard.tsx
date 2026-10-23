@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { TenderDispatch, formatRupiahFromMinor } from "../../types/tendering";
+import type { TenderDispatch } from "../../types/tendering";
+import { formatRupiahFromMinor } from "../../types/tendering";
 
 export const TenderWaterfallBoard: React.FC = () => {
   const [dispatches, setDispatches] = useState<TenderDispatch[]>([]);
@@ -45,37 +46,37 @@ export const TenderWaterfallBoard: React.FC = () => {
     switch (status) {
       case "OFFERED":
         return (
-          <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2 py-0.5 rounded-full text-xs animate-pulse">
+          <span className="animate-pulse rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">
             Menunggu Respons
           </span>
         );
       case "ACCEPTED":
         return (
-          <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full text-xs">
+          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-400">
             Telah Diterima
           </span>
         );
       case "REJECTED":
         return (
-          <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 px-2 py-0.5 rounded-full text-xs">
+          <span className="rounded-full border border-rose-500/40 bg-rose-500/20 px-2 py-0.5 text-xs text-rose-400">
             Ditolak
           </span>
         );
       case "EXPIRED":
         return (
-          <span className="bg-slate-700 text-slate-400 px-2 py-0.5 rounded-full text-xs">
+          <span className="rounded-full bg-slate-700 px-2 py-0.5 text-xs text-slate-400">
             Kedaluwarsa
           </span>
         );
       case "BYPASSED":
         return (
-          <span className="bg-slate-800 text-slate-500 px-2 py-0.5 rounded-full text-xs">
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-500">
             Bypassed
           </span>
         );
       default:
         return (
-          <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-xs">
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
             Pending Antrean
           </span>
         );
@@ -83,8 +84,8 @@ export const TenderWaterfallBoard: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-slate-100 shadow-xl space-y-6">
-      <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+    <div className="space-y-6 rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-100 shadow-xl">
+      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
         <div>
           <h2 className="text-xl font-bold text-cyan-400">
             Automated Waterfall Tendering Console
@@ -95,18 +96,18 @@ export const TenderWaterfallBoard: React.FC = () => {
         </div>
         <button
           onClick={fetchTenders}
-          className="bg-slate-800 hover:bg-slate-700 text-cyan-400 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700"
+          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-cyan-400 hover:bg-slate-700"
         >
           Refresh Data
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-10 text-slate-500">
+        <div className="py-10 text-center text-slate-500">
           Memuat papan tender...
         </div>
       ) : dispatches.length === 0 ? (
-        <div className="text-center py-10 text-slate-500">
+        <div className="py-10 text-center text-slate-500">
           Belum ada proses tender yang berjalan.
         </div>
       ) : (
@@ -114,21 +115,21 @@ export const TenderWaterfallBoard: React.FC = () => {
           {dispatches.map((td) => (
             <div
               key={td.id}
-              className="bg-slate-950 border border-slate-800 rounded-lg p-5 space-y-4"
+              className="space-y-4 rounded-lg border border-slate-800 bg-slate-950 p-5"
             >
-              <div className="flex flex-wrap justify-between items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <span className="text-xs uppercase font-bold text-orange-400 bg-orange-950/60 px-2 py-0.5 rounded border border-orange-900">
+                  <span className="rounded border border-orange-900 bg-orange-950/60 px-2 py-0.5 text-xs font-bold uppercase text-orange-400">
                     TENDER #{td.id.substring(0, 8)}
                   </span>
-                  <span className="ml-3 text-sm text-slate-300 font-mono">
+                  <span className="ml-3 font-mono text-sm text-slate-300">
                     Order Ref: {td.order_id.substring(0, 8)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-400">Status Sesi:</span>
                   <span
-                    className={`text-xs font-bold px-2 py-0.5 rounded ${
+                    className={`rounded px-2 py-0.5 text-xs font-bold ${
                       td.status === "ACCEPTED"
                         ? "bg-emerald-950 text-emerald-400"
                         : td.status === "RUNNING"
@@ -141,19 +142,19 @@ export const TenderWaterfallBoard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 {td.offers.map((offer) => (
                   <div
                     key={offer.id}
-                    className={`p-3 rounded-lg border transition ${
+                    className={`rounded-lg border p-3 transition ${
                       offer.status === "OFFERED"
-                        ? "bg-cyan-950/30 border-cyan-500/60 ring-1 ring-cyan-500/40"
+                        ? "border-cyan-500/60 bg-cyan-950/30 ring-1 ring-cyan-500/40"
                         : offer.status === "ACCEPTED"
-                          ? "bg-emerald-950/30 border-emerald-500/50"
-                          : "bg-slate-900 border-slate-800 opacity-70"
+                          ? "border-emerald-500/50 bg-emerald-950/30"
+                          : "border-slate-800 bg-slate-900 opacity-70"
                     }`}
                   >
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-400">
                         Tingkat #{offer.sequence}
                       </span>
@@ -162,7 +163,7 @@ export const TenderWaterfallBoard: React.FC = () => {
                     <p className="font-semibold text-slate-200">
                       {offer.vendor_id}
                     </p>
-                    <p className="text-xs font-mono text-cyan-300 mt-1">
+                    <p className="mt-1 font-mono text-xs text-cyan-300">
                       {formatRupiahFromMinor(offer.offered_cost_minor_units)}
                     </p>
 
@@ -170,13 +171,13 @@ export const TenderWaterfallBoard: React.FC = () => {
                       <div className="mt-3 flex gap-2">
                         <button
                           onClick={() => handleRespond(offer.id, "ACCEPT")}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-1 rounded font-medium transition"
+                          className="flex-1 rounded bg-emerald-600 py-1 text-xs font-medium text-white transition hover:bg-emerald-500"
                         >
                           Terima
                         </button>
                         <button
                           onClick={() => handleRespond(offer.id, "REJECT")}
-                          className="flex-1 bg-rose-600/80 hover:bg-rose-600 text-white text-xs py-1 rounded font-medium transition"
+                          className="flex-1 rounded bg-rose-600/80 py-1 text-xs font-medium text-white transition hover:bg-rose-600"
                         >
                           Tolak
                         </button>

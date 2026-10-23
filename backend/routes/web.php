@@ -106,3 +106,14 @@ Route::prefix('api/v1')->group(function () {
     Route::post('/edi/sync-210', [EdiGatewayController::class, 'sync210']);
     Route::get('/edi/transmissions', [EdiGatewayController::class, 'transmissions']);
 });
+
+// ==========================================
+// DUAL DEPLOYMENT & ECOSYSTEM CONTEXT
+// ==========================================
+use App\Http\Controllers\Api\EcosystemContextController;
+
+Route::prefix('api/v1')->group(function () {
+    Route::get('/ecosystem/context', [EcosystemContextController::class, 'getContext']);
+    Route::get('/fleet/assets/{vehicleId}/readiness', [EcosystemContextController::class, 'checkFleetReadiness']);
+    Route::post('/accounting/sync', [EcosystemContextController::class, 'syncAccounting']);
+});

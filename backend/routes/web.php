@@ -83,3 +83,14 @@ Route::prefix('api/v1')->group(function () {
     Route::get('/telematics/live', [TelematicsController::class, 'live']);
     Route::post('/telematics/alerts/{alertId}/resolve', [TelematicsController::class, 'resolveAlert']);
 });
+
+// ==========================================
+// INCREMENT 4: ESG CARBON TRACKING & GLEC
+// ==========================================
+use App\Http\Controllers\Api\EsgCarbonController;
+
+Route::prefix('api/v1')->group(function () {
+    Route::post('/esg/calculate-trip', [EsgCarbonController::class, 'recordTrip']);
+    Route::get('/esg/summary', [EsgCarbonController::class, 'summary']);
+    Route::get('/esg/records', [EsgCarbonController::class, 'records']);
+});

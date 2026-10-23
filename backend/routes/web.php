@@ -63,4 +63,3 @@ Route::prefix('v1')->group(function () {
     Route::post('/tenders/waterfall/start', [WaterfallTenderController::class, 'startWaterfall']);
     Route::post('/tenders/offers/{offerId}/respond', [WaterfallTenderController::class, 'respondOffer']);
 });
-

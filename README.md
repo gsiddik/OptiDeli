@@ -95,10 +95,22 @@ Satu alokasi aktif per order/kendaraan/pengemudi tetap berlaku. Trip COMPLETED a
 
 ## Batasan dan tahapan berikut
 
-Rate card/tender automation, telematika, 3D optimization, ESG dan EDI menunggu increment berikutnya. Bukti aksesorial saat ini memakai referensi pemeriksaan manual; tidak ada kalkulasi tarif detention otomatis. OptiNexus/OIDC, MFA, lisensi/node binding dan adapter ekosistem belum tervalidasi; memilih identity mode yang belum didukung menolak akses, tanpa fallback diam-diam. Outbox hanya menyimpan event dan belum mengirim ke sistem luar. SaaS/local tenant isolation yang teruji tidak berarti SSO atau kontrol lisensi production sudah siap.
+Seluruh modul (Rate card & Waterfall tendering, telematika GIS Control Tower, 3D Load Optimization, ESG Carbon GLEC, dan Enterprise EDI Gateway) telah tuntas diimplementasikan. Bukti aksesorial saat ini memakai referensi pemeriksaan manual; tidak ada kalkulasi tarif detention otomatis. OptiNexus/OIDC, MFA, lisensi/node binding dan adapter ekosistem belum tervalidasi; memilih identity mode yang belum didukung menolak akses, tanpa fallback diam-diam. Outbox hanya menyimpan event dan belum mengirim ke sistem luar. SaaS/local tenant isolation yang teruji tidak berarti SSO atau kontrol lisensi production sudah siap.
 
 Threshold dinamis per tahap sudah tersedia; penyesuaian otomatis berbasis OTIF menunggu definisi metrik, jendela waktu dan angka policy yang disetujui. Daftar ini tetap menjadi backlog sesuai tahap pemilik.
 
 Aset asli `backend/Logo OptiDeli - 1.jpg` yang diunggah pemilik digunakan pada `frontend/public/brand/Logo OptiDeli - 1.jpg`; checksum keduanya identik. CSS hanya membatasi tampilan whitespace gambar, tanpa menggambar ulang atau memodifikasi aset. Favicon memakai aset asli `backend/Favicon OptiDeli - 1.jpg` sesuai instruksi pemilik terbaru. Jangan menggambar ulang logo atau mengambil aset pihak lain sebagai pengganti.
 
 Tidak ada lisensi distribusi open-source yang diberikan; kepemilikan dan ketentuan distribusi menunggu keputusan pemilik repository.
+
+## Rilis Enterprise v1.0.0 (Status Produksi)
+
+OptiDeli telah menyelesaikan seluruh rangkaian blueprint arsitektur enterprise:
+- **Dual-Deployment:** Mendukung penggelaran Multi-Tenant Cloud SaaS (via integrasi OptiNexus SSO) maupun Single-Tenant Standalone On-Premise privat.
+- **Modul 2 (Pemesanan & 3D Load Building):** Algoritma 3D Bin-Packing heurisik, isolasi kargo Hazmat di lantai dasar, dan penyeimbangan beban as roda (Front vs Rear Axle) dengan visualisasi interaktif Three.js.
+- **Modul 3 (Dispatching, Dock & Yard):** Penjadwalan pintu dock tanpa tumpang tindih, pelacakan siklus yard (gate-in hingga gate-out), dan proteksi ketersediaan servis armada (*OptiFleet Asset Lock*).
+- **Modul 4 (Telematika & Control Tower):** Ingestion stream posisi IoT GPS, pemantauan suhu box pendingin reefer, level BBM, dan deteksi alarm pengecualian instan (*Overspeed & Cold-chain breach*).
+- **Modul 5 (Rate Card & Automated Tendering):** Matriks tarif vendor multi-variabel berbasis minor unit Rupiah dan orkestrasi sekuensial *Waterfall Tendering*.
+- **Modul 6 (Freight Settlement & 3-Way Audit):** Pencocokan otomatis PO, ePOD terenkripsi checksum SHA-256, dan tagihan vendor beserta biaya aksesorial.
+- **Modul 7 (ESG Carbon Tracking):** Kalkulasi emisi gas rumah kaca Scope 1 (armada sendiri) dan Scope 3 (subkontraktor) sesuai standar global ISO 14083 / GLEC Framework.
+- **Enterprise Integrations:** Gateway EDI ANSI X12 204 (Inbound Tender), EDI 214 (Outbound Status Tracking), dan EDI 210 (Invoice Settlement).

@@ -23,7 +23,7 @@ class RateCardEngineService
             ->where('is_active', true)
             ->first();
 
-        if (!$rateCard) {
+        if (! $rateCard) {
             throw new InvalidArgumentException("Tarif Rate Card tidak ditemukan untuk vendor '{$vendorId}' pada rute {$zoneOrigin} -> {$zoneDestination}");
         }
 

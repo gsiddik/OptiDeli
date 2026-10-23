@@ -17,7 +17,6 @@ class WaterfallTenderTest extends TestCase
         $orderId = (string) Str::uuid();
 
         // 1. Setup Rate Cards (1 unit = Rp 0,01)
-        // Vendor A: Rp 3.500.000 (350.000.000 minor units), Rp 4.500/km (450.000 minor units)
         VendorRateCard::create([
             'tenant_id' => $tenantId,
             'vendor_id' => 'VND-ALPHA',
@@ -30,7 +29,6 @@ class WaterfallTenderTest extends TestCase
             'is_active' => true,
         ]);
 
-        // Vendor B: Rp 3.800.000 (380.000.000 minor units)
         VendorRateCard::create([
             'tenant_id' => $tenantId,
             'vendor_id' => 'VND-BETA',
@@ -63,7 +61,7 @@ class WaterfallTenderTest extends TestCase
                         'zone_destination' => 'BDG-HUB',
                         'distance_km' => 150.0,
                     ],
-                ]
+                ],
             ]);
 
         $response->assertStatus(201);
@@ -86,7 +84,7 @@ class WaterfallTenderTest extends TestCase
         $rejectResponse->assertStatus(200);
         $offersUpdated = $rejectResponse->json('data.offers');
         $this->assertEquals('REJECTED', $offersUpdated[0]['status']);
-        $this->assertEquals('OFFERED', $offersUpdated[1]['status']); // Ter-eskalasi otomatis!
+        $this->assertEquals('OFFERED', $offersUpdated[1]['status']);
 
         // 4. Vendor BETA menerima -> tender berstatus ACCEPTED
         $acceptResponse = $this->withHeaders(['X-Tenant-Id' => $tenantId])

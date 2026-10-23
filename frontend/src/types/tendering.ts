@@ -11,7 +11,8 @@ export interface VendorRateCard {
   is_active: boolean;
 }
 
-export type TenderOfferStatus = 'PENDING' | 'OFFERED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'BYPASSED';
+export type TenderOfferStatus =
+  "PENDING" | "OFFERED" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "BYPASSED";
 
 export interface TenderOffer {
   id: string;
@@ -27,8 +28,8 @@ export interface TenderOffer {
 export interface TenderDispatch {
   id: string;
   order_id: string;
-  tendering_mode: 'WATERFALL' | 'BROADCAST';
-  status: 'RUNNING' | 'ACCEPTED' | 'EXHAUSTED' | 'CANCELLED';
+  tendering_mode: "WATERFALL" | "BROADCAST";
+  status: "RUNNING" | "ACCEPTED" | "EXHAUSTED" | "CANCELLED";
   current_sequence: number;
   timeout_minutes_per_vendor: number;
   accepted_vendor_id: string | null;
@@ -39,9 +40,9 @@ export interface TenderDispatch {
 
 export const formatRupiahFromMinor = (minorUnits: number): string => {
   const rupiah = minorUnits / 100;
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
     maximumFractionDigits: 0,
   }).format(rupiah);
 };

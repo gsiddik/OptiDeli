@@ -21,7 +21,7 @@ class WaterfallTenderEngineService
         int $timeoutMinutes = 30
     ): TenderDispatch {
         if (empty($rankedVendors)) {
-            throw new RuntimeException("Daftar peringkat vendor tidak boleh kosong untuk memicu waterfall tender.");
+            throw new RuntimeException('Daftar peringkat vendor tidak boleh kosong untuk memicu waterfall tender.');
         }
 
         return DB::transaction(function () use ($tenantId, $orderId, $rankedVendors, $timeoutMinutes) {

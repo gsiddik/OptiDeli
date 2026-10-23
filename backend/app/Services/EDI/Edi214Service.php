@@ -32,37 +32,20 @@ class Edi214Service
         $dateStr = $now->format('Ymd');
         $timeStr = $now->format('Hi');
 
-        $x12 = sprintf(
-            "ISA*00*          *00*          *ZZ*OPTIDELI       *ZZ*CUSTOMERERP    *%s*%s*U*00401*000000001*0*P*>~
-" .
-            "GS*QM*OPTIDELI*CUSTOMERERP*%s*%s*1*X*004010~
-" .
-            "ST*214*0001~
-" .
-            "B10*%s*%s*OPTD~
-" .
-            "LX*1~
-" .
-            "AT7*%s*NS***%s*%s*LT~
-" .
-            "MS1*%s*ID*ID~
-" .
-            "SE*7*0001~
-" .
-            "GE*1*1~
-" .
-            "IEA*1*000000001~",
-            $dateStr,
-            $timeStr,
-            $dateStr,
-            $timeStr,
-            $shipmentId,
-            $shipmentId,
-            $ediCode,
-            $dateStr,
-            $timeStr,
-            strtoupper($locationCity)
-        );
+        $segments = [
+            sprintf('ISA*00*          *00*          *ZZ*OPTIDELI       *ZZ*CUSTOMERERP    *%s*%s*U*00401*000000001*0*P*>', $dateStr, $timeStr),
+            sprintf('GS*QM*OPTIDELI*CUSTOMERERP*%s*%s*1*X*004010', $dateStr, $timeStr),
+            'ST*214*0001',
+            sprintf('B10*%s*%s*OPTD', $shipmentId, $shipmentId),
+            'LX*1',
+            sprintf('AT7*%s*NS***%s*%s*LT', $ediCode, $dateStr, $timeStr),
+            sprintf('MS1*%s*ID*ID', strtoupper($locationCity)),
+            'SE*7*0001',
+            'GE*1*1',
+            'IEA*1*000000001~',
+        ];
+
+        $x12 = implode("~\n", $segments);
 
         EdiTransmission::create([
             'tenant_id' => $tenantId,

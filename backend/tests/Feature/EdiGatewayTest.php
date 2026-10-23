@@ -14,27 +14,20 @@ class EdiGatewayTest extends TestCase
         $tenantId = 'demo';
 
         // 1. Inbound EDI 204
-        $sample204 = "ISA*00*          *00*          *ZZ*CUSTOMERERP    *ZZ*OPTIDELI       *261023*1530*U*00401*000000001*0*P*>~
-" .
-            "GS*SM*CUSTOMERERP*OPTIDELI*20261023*1530*1*X*004010~
-" .
-            "ST*204*0001~
-" .
-            "B2**CARRIER*PO-882199**PP~
-" .
-            "N1*SH*JAKARTA-HUB-01~
-" .
-            "N1*CN*SURABAYA-CROSSDOCK-02~
-" .
-            "OID*ELEKTRONIK CONSUMER*100*CT*2500*KG~
-" .
-            "L3*2500*G*550000000~
-" .
-            "SE*8*0001~
-" .
-            "GE*1*1~
-" .
-            "IEA*1*000000001~";
+        $segments204 = [
+            'ISA*00*          *00*          *ZZ*CUSTOMERERP    *ZZ*OPTIDELI       *261023*1530*U*00401*000000001*0*P*>',
+            'GS*SM*CUSTOMERERP*OPTIDELI*20261023*1530*1*X*004010',
+            'ST*204*0001',
+            'B2**CARRIER*PO-882199**PP',
+            'N1*SH*JAKARTA-HUB-01',
+            'N1*CN*SURABAYA-CROSSDOCK-02',
+            'OID*ELEKTRONIK CONSUMER*100*CT*2500*KG',
+            'L3*2500*G*550000000',
+            'SE*8*0001',
+            'GE*1*1',
+            'IEA*1*000000001~',
+        ];
+        $sample204 = implode("~\n", $segments204);
 
         $res204 = $this->withHeaders(['X-Tenant-Id' => $tenantId])
             ->postJson('/api/v1/edi/inbound-204', ['raw_x12' => $sample204]);

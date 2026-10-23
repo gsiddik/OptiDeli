@@ -23,36 +23,20 @@ class Edi210Service
         $timeStr = $now->format('Hi');
         $totalAmountMinor = $customerArMinorUnits + $accessorialsMinorUnits;
 
-        $x12 = sprintf(
-            "ISA*00*          *00*          *ZZ*OPTIDELI       *ZZ*FINANCEERP     *%s*%s*U*00401*000000001*0*P*>~
-" .
-            "GS*IM*OPTIDELI*FINANCEERP*%s*%s*1*X*004010~
-" .
-            "ST*210*0001~
-" .
-            "B3*B*%s*%s*PP*%s*%d**IDR~
-" .
-            "N1*BT*CUSTOMER-ACCOUNTS-PAYABLE~
-" .
-            "N1*CA*OPTIDELI-OPERATIONS~
-" .
-            "L3*0*G*%d~" . "
-" .
-            "SE*7*0001~
-" .
-            "GE*1*1~
-" .
-            "IEA*1*000000001~",
-            $dateStr,
-            $timeStr,
-            $dateStr,
-            $timeStr,
-            $invoiceNumber,
-            $orderId,
-            $dateStr,
-            $totalAmountMinor,
-            $totalAmountMinor
-        );
+        $segments = [
+            sprintf('ISA*00*          *00*          *ZZ*OPTIDELI       *ZZ*FINANCEERP     *%s*%s*U*00401*000000001*0*P*>', $dateStr, $timeStr),
+            sprintf('GS*IM*OPTIDELI*FINANCEERP*%s*%s*1*X*004010', $dateStr, $timeStr),
+            'ST*210*0001',
+            sprintf('B3*B*%s*%s*PP*%s*%d**IDR', $invoiceNumber, $orderId, $dateStr, $totalAmountMinor),
+            'N1*BT*CUSTOMER-ACCOUNTS-PAYABLE',
+            'N1*CA*OPTIDELI-OPERATIONS',
+            sprintf('L3*0*G*%d', $totalAmountMinor),
+            'SE*7*0001',
+            'GE*1*1',
+            'IEA*1*000000001~',
+        ];
+
+        $x12 = implode("~\n", $segments);
 
         EdiTransmission::create([
             'tenant_id' => $tenantId,

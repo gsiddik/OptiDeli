@@ -37,3 +37,30 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
     });
     require __DIR__.'/vendor.php';
 });
+
+// ==========================================
+// INCREMENT 2B: RATE CARD & WATERFALL TENDER
+// ==========================================
+use App\Http\Controllers\Api\VendorRateCardController;
+use App\Http\Controllers\Api\WaterfallTenderController;
+
+Route::prefix('api/v1')->group(function () {
+    Route::get('/rate-cards', [VendorRateCardController::class, 'index']);
+    Route::post('/rate-cards', [VendorRateCardController::class, 'store']);
+    Route::post('/rate-cards/calculate-estimate', [VendorRateCardController::class, 'calculateEstimate']);
+
+    Route::get('/tenders', [WaterfallTenderController::class, 'index']);
+    Route::post('/tenders/waterfall/start', [WaterfallTenderController::class, 'startWaterfall']);
+    Route::post('/tenders/offers/{offerId}/respond', [WaterfallTenderController::class, 'respondOffer']);
+});
+
+Route::prefix('v1')->group(function () {
+    Route::get('/rate-cards', [VendorRateCardController::class, 'index']);
+    Route::post('/rate-cards', [VendorRateCardController::class, 'store']);
+    Route::post('/rate-cards/calculate-estimate', [VendorRateCardController::class, 'calculateEstimate']);
+
+    Route::get('/tenders', [WaterfallTenderController::class, 'index']);
+    Route::post('/tenders/waterfall/start', [WaterfallTenderController::class, 'startWaterfall']);
+    Route::post('/tenders/offers/{offerId}/respond', [WaterfallTenderController::class, 'respondOffer']);
+});
+

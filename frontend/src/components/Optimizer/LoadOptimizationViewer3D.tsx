@@ -20,7 +20,7 @@ export const LoadOptimizationViewer3D: React.FC = () => {
   });
 
   // Default Sample Cargo
-  const [cargoItems, setCargoItems] = useState<CargoItemInput[]>([
+  const [cargoItems] = useState<CargoItemInput[]>([
     {
       id: "CRG-01",
       name: "Karton Elektronik",

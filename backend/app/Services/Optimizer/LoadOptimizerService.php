@@ -43,13 +43,14 @@ class LoadOptimizerService
         $containerVolumeM3 = ($containerL * $containerW * $containerH) / 1000000.0;
         $maxWeightKg = (float) $vehicle['max_weight_kg'];
 
-        // Uraikan kargo per unit koli dan urutkan (Hazmat diutamakan di lantai, lalu descending volume)
+        // Uraikan kargo per unit koli dan urutkan
         $units = [];
         foreach ($cargoItems as $item) {
             $qty = (int) $item['quantity'];
             for ($i = 0; $i < $qty; $i++) {
+                $unitNumber = $i + 1;
                 $units[] = [
-                    'id' => $item['id'] . '-' . ($i + 1),
+                    'id' => sprintf('%s-%d', $item['id'], $unitNumber),
                     'name' => $item['name'],
                     'length_cm' => (float) $item['length_cm'],
                     'width_cm' => (float) $item['width_cm'],
@@ -62,7 +63,7 @@ class LoadOptimizerService
             }
         }
 
-        // Urutkan: Hazmat pertama (untuk alokasi lantai dasar), kemudian volume terbesar
+        // Urutkan: Hazmat pertama, lalu volume terbesar
         usort($units, function ($a, $b) {
             if ($a['is_hazmat'] !== $b['is_hazmat']) {
                 return $a['is_hazmat'] ? -1 : 1;
@@ -82,7 +83,7 @@ class LoadOptimizerService
 
         $totalWeight = 0.0;
         $totalVolume = 0.0;
-        $weightedXSum = 0.0; // Untuk menghitung Center of Gravity (CoG)
+        $weightedXSum = 0.0;
 
         foreach ($units as $unit) {
             $l = $unit['length_cm'];
@@ -91,7 +92,6 @@ class LoadOptimizerService
 
             // Hazmat tidak boleh ditumpuk di atas kargo lain
             if ($unit['is_hazmat'] && $currentZ > 0.0) {
-                // Pindah ke lantai berikutnya di sumbu X/Y
                 $currentZ = 0.0;
                 $currentY += $maxRowW;
                 $maxRowW = 0.0;
@@ -113,14 +113,13 @@ class LoadOptimizerService
                 $maxRowW = 0.0;
             }
 
-            // Cek apakah muat di panjang X
+            // Cek apakah muat di panjang X atau melebihi berat total
             if (($currentX + $l) > $containerL || ($totalWeight + $unit['weight_kg']) > $maxWeightKg) {
                 $unplaced[] = $unit;
 
                 continue;
             }
 
-            // Sukses ditempatkan
             $posX = $currentX;
             $posY = $currentY;
             $posZ = $currentZ;
@@ -136,11 +135,9 @@ class LoadOptimizerService
             $totalWeight += $unit['weight_kg'];
             $totalVolume += $unit['volume_m3'];
 
-            // Titik tengah massa unit sepanjang sumbu X
             $centerX = $posX + ($l / 2.0);
             $weightedXSum += ($unit['weight_kg'] * $centerX);
 
-            // Update batas lapisan
             if ($h > $maxLayerH) {
                 $maxLayerH = $h;
             }
@@ -155,7 +152,7 @@ class LoadOptimizerService
             }
         }
 
-        // Kalkulasi Distribusi Beban As Roda (Front vs Rear Axle)
+        // Kalkulasi Distribusi Beban As Roda
         $frontMax = (float) ($vehicle['axle_limits']['front_max_kg'] ?? ($maxWeightKg * 0.4));
         $rearMax = (float) ($vehicle['axle_limits']['rear_max_kg'] ?? ($maxWeightKg * 0.6));
 
@@ -164,7 +161,6 @@ class LoadOptimizerService
 
         if ($totalWeight > 0.0) {
             $centerOfGravityX = $weightedXSum / $totalWeight;
-            // Rasio posisi CoG terhadap panjang kontainer
             $rearRatio = min(1.0, max(0.0, $centerOfGravityX / $containerL));
             $frontRatio = 1.0 - $rearRatio;
 

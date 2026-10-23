@@ -72,3 +72,14 @@ use App\Http\Controllers\Api\LoadOptimizerController;
 Route::prefix('api/v1')->group(function () {
     Route::post('/load-optimization/build', [LoadOptimizerController::class, 'build']);
 });
+
+// ==========================================
+// INCREMENT 3B: GIS TELEMATICS & CONTROL TOWER
+// ==========================================
+use App\Http\Controllers\Api\TelematicsController;
+
+Route::prefix('api/v1')->group(function () {
+    Route::post('/telematics/ping', [TelematicsController::class, 'ping']);
+    Route::get('/telematics/live', [TelematicsController::class, 'live']);
+    Route::post('/telematics/alerts/{alertId}/resolve', [TelematicsController::class, 'resolveAlert']);
+});

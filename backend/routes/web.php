@@ -63,3 +63,12 @@ Route::prefix('v1')->group(function () {
     Route::post('/tenders/waterfall/start', [WaterfallTenderController::class, 'startWaterfall']);
     Route::post('/tenders/offers/{offerId}/respond', [WaterfallTenderController::class, 'respondOffer']);
 });
+
+// ==========================================
+// INCREMENT 3A: 3D LOAD OPTIMIZATION ENGINE
+// ==========================================
+use App\Http\Controllers\Api\LoadOptimizerController;
+
+Route::prefix('api/v1')->group(function () {
+    Route::post('/load-optimization/build', [LoadOptimizerController::class, 'build']);
+});

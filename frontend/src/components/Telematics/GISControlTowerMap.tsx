@@ -11,7 +11,6 @@ export const GISControlTowerMap: React.FC = () => {
   const [fleet, setFleet] = useState<LiveVehicleState[]>([]);
   const [selectedVehicle, setSelectedVehicle] =
     useState<LiveVehicleState | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const fetchLiveFleet = async () => {
     try {
@@ -22,8 +21,6 @@ export const GISControlTowerMap: React.FC = () => {
       setFleet(data.data || []);
     } catch (e) {
       console.error(e);
-    } finally {
-      setLoading(false);
     }
   };
 

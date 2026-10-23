@@ -9,9 +9,9 @@ class AccountingSettlementManager
         $driver = config('optideli.accounting.driver', 'internal');
 
         return match ($driver) {
-            'optientry' => new OptiEntryAdapter(),
-            'none' => new NullAccountingAdapter(),
-            default => new InternalLedgerAdapter(),
+            'optientry' => new OptiEntryAdapter,
+            'none' => new NullAccountingAdapter,
+            default => new InternalLedgerAdapter,
         };
     }
 }

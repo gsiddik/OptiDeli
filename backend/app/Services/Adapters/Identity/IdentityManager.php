@@ -9,8 +9,8 @@ class IdentityManager
         $driver = config('optideli.identity.driver', 'standalone');
 
         return match ($driver) {
-            'optinexus' => new OptiNexusIdentityAdapter(),
-            default => new StandaloneIdentityAdapter(),
+            'optinexus' => new OptiNexusIdentityAdapter,
+            default => new StandaloneIdentityAdapter,
         };
     }
 }

@@ -9,9 +9,9 @@ class FleetMaintenanceManager
         $driver = config('optideli.fleet.driver', 'local');
 
         return match ($driver) {
-            'optifleet' => new OptiFleetAdapter(),
-            'none' => new NullFleetAdapter(),
-            default => new LocalFleetAdapter(),
+            'optifleet' => new OptiFleetAdapter,
+            'none' => new NullFleetAdapter,
+            default => new LocalFleetAdapter,
         };
     }
 }

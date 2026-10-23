@@ -26,7 +26,7 @@ class Edi204Service
             'destination_zone' => 'SBY-HUB',
             'cargo_description' => 'General Merchandise',
             'total_weight_kg' => 1000.0,
-            'sell_price_minor_units' => 450000000, // Rp 4.500.000,00
+            'sell_price_minor_units' => 450000000,
         ];
 
         foreach ($segments as $seg) {
@@ -34,7 +34,10 @@ class Edi204Service
             $tag = $elements[0] ?? '';
 
             if ($tag === 'B2') {
-                $parsed['shipment_id'] = $elements[4] ?? ($elements[2] ?? 'SHP-AUTO-01');
+                $shipmentCandidate = ! empty($elements[3]) ? $elements[3] : (! empty($elements[4]) ? $elements[4] : null);
+                if ($shipmentCandidate !== null) {
+                    $parsed['shipment_id'] = $shipmentCandidate;
+                }
             } elseif ($tag === 'N1') {
                 $entity = $elements[1] ?? '';
                 if ($entity === 'SH') {

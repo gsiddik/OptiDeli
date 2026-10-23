@@ -94,3 +94,15 @@ Route::prefix('api/v1')->group(function () {
     Route::get('/esg/summary', [EsgCarbonController::class, 'summary']);
     Route::get('/esg/records', [EsgCarbonController::class, 'records']);
 });
+
+// ==========================================
+// INCREMENT 5: ENTERPRISE EDI GATEWAY
+// ==========================================
+use App\Http\Controllers\Api\EdiGatewayController;
+
+Route::prefix('api/v1')->group(function () {
+    Route::post('/edi/inbound-204', [EdiGatewayController::class, 'inbound204']);
+    Route::post('/edi/generate-214', [EdiGatewayController::class, 'generate214']);
+    Route::post('/edi/sync-210', [EdiGatewayController::class, 'sync210']);
+    Route::get('/edi/transmissions', [EdiGatewayController::class, 'transmissions']);
+});

@@ -142,7 +142,7 @@ function RoleForm({
             required
           />
         </Field>
-        <fieldset>
+        <fieldset className="permission-grid">
           <legend>Izin (hanya izin yang Anda miliki)</legend>
           {grantable.map((p) => (
             <label className="check" key={p.code}>
@@ -157,7 +157,11 @@ function RoleForm({
                   )
                 }
               />{" "}
-              <strong>{p.code}</strong> · {p.description}
+              <span>
+                <code>{p.code}</code>
+                <br />
+                {p.description}
+              </span>
             </label>
           ))}
         </fieldset>

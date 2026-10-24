@@ -21,6 +21,7 @@ import type { Session } from "./types";
 import { roles } from "./types";
 import { can, isVendorSession } from "./opsTypes";
 import { AccessPage } from "./Access";
+import { PlatformApp } from "./Platform";
 import { OrderCreate, OrderDetail, OrderList } from "./Orders";
 import { DispatchBoard } from "./Dispatch";
 import { PolicyPage } from "./Policy";
@@ -37,7 +38,7 @@ export function useSession() {
   if (!s) throw new Error("Sesi diperlukan");
   return s;
 }
-function Brand() {
+export function Brand() {
   const [missing, setMissing] = useState(false);
   return (
     <Link to="/" className="brand" aria-label="OptiDeli beranda">
@@ -122,6 +123,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
             />
           </Field>
         </Form>
+        <Link to="/platform">Masuk sebagai Superadmin</Link>
         <small className="muted">
           Akses dibatasi sesuai tenant dan kewenangan akun.
         </small>
@@ -361,6 +363,15 @@ function Shell({ onLogout }: { onLogout: () => Promise<void> }) {
   );
 }
 export default function App() {
+  const location = useLocation();
+  return location.pathname.startsWith("/platform") ? (
+    <PlatformApp />
+  ) : (
+    <TenantApp />
+  );
+}
+
+function TenantApp() {
   const auth = useData<{ data: Session }>("auth/me");
   const [loggedOut, setLoggedOut] = useState(false);
   if (auth.loading) return <Loading />;

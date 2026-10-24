@@ -30,6 +30,7 @@ class AuthController extends Controller
         }
         Auth::login($user);
         $request->session()->regenerate();
+        $request->session()->forget('platform');
         $request->session()->put('tenant_id', $tenant->id);
 
         return response()->json(['data' => ['name' => $user->name]]);

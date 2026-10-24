@@ -61,3 +61,16 @@ OptiNexus OIDC issuer/client/claim mapping; OptiFleet availability API and stale
 - PostgreSQL explicit locking and constraints: correctness relies on transactions plus DB uniqueness, not UI guards. https://www.postgresql.org/docs/current/explicit-locking.html
 
 These references guide design; no untested certification, compliance or performance improvement is asserted.
+
+## Platform administration (wave 1B, 2026-10-24)
+
+- OptiDeli has a local Superadmin (owner decision K1 applied to OptiDeli): `platform_*` tables hold platform
+  permissions, roles, role assignments and an audit log, separate from tenant RBAC. System roles:
+  `platform_administrator` (all) and `platform_support` (read only).
+- Platform login is `POST /api/v1/platform/auth/login`; the session carries `platform=true` and no tenant, and
+  a tenant login clears it. `PlatformContext` checks the platform permission on every `/api/v1/platform/*` call.
+- The first Superadmin is created on the server with `php artisan optideli:create-platform-admin {email}`
+  (password from `OPTIDELI_PLATFORM_ADMIN_PASSWORD` or a prompt). No password is ever seeded.
+- In `standalone` deployment only the `OPTIDELI_STANDALONE_TENANT` slug can be created. A tenant administrator
+  created by the Superadmin gets the `tenant_administrator` system role; suspending a tenant blocks its logins.
+- The console lives at `/platform` in the same SPA, outside the tenant workspace.

@@ -874,6 +874,20 @@ dialog .close {
 dialog .form-footer {
   margin-bottom: 0;
 }
+.platform-console {
+  padding: 22px 30px 40px;
+  width: 100%;
+  max-width: 1760px;
+  margin: 0 auto;
+}
+@media (max-width: 600px) {
+  .platform-console {
+    padding: 16px;
+  }
+  .platform-console .page-heading .actions {
+    flex-wrap: wrap;
+  }
+}
 .workspace > footer {
   padding: 18px 30px;
   border-top: 1px solid var(--line);

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Access;
 
+use App\Domain\Platform\PlatformAccess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -35,6 +36,13 @@ class SystemRoles
     }
 
     public function syncAll(): void
+    {
+        PlatformAccess::sync();
+        $this->syncTenants();
+    }
+
+    /** Tenant side only: permission registry, system roles of every tenant and pending first role assignments. */
+    public function syncTenants(): void
     {
         $this->syncPermissions();
         DB::table('tenants')->pluck('id')->each(fn ($id) => $this->syncTenant($id));

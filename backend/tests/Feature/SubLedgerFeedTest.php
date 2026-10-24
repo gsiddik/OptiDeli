@@ -172,13 +172,14 @@ class SubLedgerFeedTest extends TestCase
         DB::table('integration_feed_events')->insert(['event_id' => (string) Str::uuid(), 'tenant_id' => $other, 'sequence' => 1, 'event_type' => 'optideli.document.voided', 'schema_version' => '1.0', 'occurred_at' => now(), 'correlation_id' => 'x', 'source' => '{}', 'dimensions' => '{}', 'payload' => '{}']);
 
         $token = $this->feedToken();
-        $page = $this->feed($token, '?limit=1')->assertOk()->assertJsonPath('has_more', true)->assertJsonPath('next_cursor', 1)->assertJsonPath('high_water', 2);
+        $page = $this->feed($token, '?limit=1')->assertOk()->assertJsonPath('has_more', true)->assertJsonPath('next_cursor', '1')->assertJsonPath('high_water', '2');
         $this->assertSame('optideli.customer_invoice.issued', $page->json('data.0.event_type'));
         $this->assertSame('optideli', $page->json('data.0.source_system'));
+        $this->assertSame($this->tenant, $page->json('data.0.source_tenant_reference'));
         $this->assertSame('AR-000001', $page->json('data.0.source.number'));
         $this->assertSame($f['o'], $page->json('data.0.dimensions.order_id'));
         $this->assertMatchesRegularExpression('/^\d+\.\d{2}$/', $page->json('data.0.payload.amount'));
-        $second = $this->feed($token, '?after=1')->assertOk()->assertJsonPath('has_more', false)->assertJsonPath('next_cursor', 2);
+        $second = $this->feed($token, '?after=1')->assertOk()->assertJsonPath('has_more', false)->assertJsonPath('next_cursor', '2');
         $this->assertSame('123.45', $second->json('data.0.payload.amount'));
         $this->assertSame('RECEIPT', $second->json('data.0.payload.direction'));
         $this->assertCount(0, $this->feed($token, '?after=2')->json('data'));
@@ -247,14 +248,15 @@ class SubLedgerFeedTest extends TestCase
 
     public function test_pairing_is_enforced_while_optinexus_is_in_use(): void
     {
-        $this->pairedFeed([200, $this->context()])->assertOk();
+        $this->pairedFeed([200, $this->context()])->assertOk()->assertJsonPath('pairing.nexus_tenant_id', self::NEXUS)
+            ->assertJsonPath('pairing.producer_application', 'optideli')->assertJsonPath('pairing.consumer_application', 'optiaccounting');
         Http::assertSent(fn ($r) => str_contains($r->url(), '/oauth/token') && $r['scope'] === 'commercial.read');
 
-        $this->pairedFeed([200, $this->context(['tenant_status' => 'SUSPENDED'])])->assertForbidden()->assertJsonPath('error.code', 'FEED_TENANT_NOT_ACTIVE');
-        $this->pairedFeed([200, $this->context(['subscriptions' => [['status' => 'CANCELLED']]])])->assertForbidden()->assertJsonPath('error.code', 'FEED_SUBSCRIPTION_INACTIVE');
-        $this->pairedFeed([200, $this->context(['applications_enabled' => ['optiaccounting']])])->assertForbidden()->assertJsonPath('error.code', 'FEED_PRODUCER_NOT_ENTITLED');
-        $this->pairedFeed([200, $this->context(['applications_enabled' => ['optideli']])])->assertForbidden()->assertJsonPath('error.code', 'FEED_CONSUMER_NOT_ENTITLED');
-        $this->pairedFeed([200, $this->context(['tenant_id' => (string) Str::uuid()])])->assertStatus(503)->assertJsonPath('error.code', 'FEED_GOVERNANCE_UNAVAILABLE');
+        $this->pairedFeed([200, $this->context(['tenant_status' => 'SUSPENDED'])])->assertForbidden()->assertJsonPath('code', 'FEED_TENANT_NOT_ACTIVE');
+        $this->pairedFeed([200, $this->context(['subscriptions' => [['status' => 'CANCELLED']]])])->assertForbidden()->assertJsonPath('code', 'FEED_SUBSCRIPTION_INACTIVE');
+        $this->pairedFeed([200, $this->context(['applications_enabled' => ['optiaccounting']])])->assertForbidden()->assertJsonPath('code', 'FEED_PRODUCER_NOT_ENTITLED');
+        $this->pairedFeed([200, $this->context(['applications_enabled' => ['optideli']])])->assertForbidden()->assertJsonPath('code', 'FEED_CONSUMER_NOT_ENTITLED');
+        $this->pairedFeed([200, $this->context(['tenant_id' => (string) Str::uuid()])])->assertStatus(503)->assertJsonPath('code', 'FEED_GOVERNANCE_UNAVAILABLE');
         $this->pairedFeed([503, []])->assertStatus(503)->assertHeader('Retry-After');
     }
 
@@ -265,7 +267,7 @@ class SubLedgerFeedTest extends TestCase
         DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => self::NEXUS]);
         $token = $this->feedToken();
         DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => (string) Str::uuid()]);
-        $this->feed($token)->assertForbidden()->assertJsonPath('error.code', 'FEED_PAIRING_CHANGED');
+        $this->feed($token)->assertForbidden()->assertJsonPath('code', 'FEED_PAIRING_CHANGED');
     }
 
     public function test_without_optinexus_the_feed_stays_credential_only(): void

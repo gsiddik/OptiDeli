@@ -19,8 +19,8 @@ delivery is impossible because the consumer states the last sequence it has stor
 Authentication: `Authorization: Bearer odfd_...`. A credential is bound to exactly one tenant of the producer and has scope `feed.read`.
 The tenant is taken from the credential only; a tenant id in the request is ignored. The producer stores a SHA-256 hash; the token is
 shown once at issue time. Issue: `php artisan optideli:feed:issue-credential <tenant> --consumer=optientry --output=<file>`; revoke:
-`optideli:feed:revoke-credential <id>`. Errors: `401 UNAUTHENTICATED | INVALID_CREDENTIAL` (missing, unknown, expired, revoked),
-`403 TENANT_INACTIVE`, `422` for bad query values.
+`optideli:feed:revoke-credential <id>`. Errors have the shape `{"message", "code"}`: `401 FEED_UNAUTHENTICATED` (missing, unknown, expired, revoked),
+`403 FEED_TENANT_NOT_ACTIVE`, `422` for bad query values.
 
 **Pairing (mandatory in SaaS mode, owner decision).** While `OPTIDELI_IDENTITY_MODE=optinexus` (or `OPTINEXUS_FEED_PAIRING=required`) a valid credential is
 not enough. The credential records the OptiNexus tenant it was issued for; on every read the tenant must still be linked to that tenant and
@@ -37,16 +37,18 @@ Response:
 ```json
 {
   "data": [ { "event_id": "uuid", "sequence": 41, "event_type": "optideli.payment.recorded", "schema_version": "1.0",
-              "source_system": "optideli", "tenant_id": "<OptiNexus tenant id, else producer tenant id>",
+              "source_system": "optideli", "source_tenant_reference": "<producer tenant id>", "tenant_id": "<OptiNexus tenant id, else producer tenant id>",
               "occurred_at": "2026-10-24T09:15:00.123Z", "correlation_id": "<document id>",
               "source": { "type": "ledger_payment", "id": "uuid", "number": "TRF-1" },
               "dimensions": { "order_id": "uuid", "trip_id": "uuid|null", "vendor_id": "uuid|null", "freight_invoice_id": "uuid|null" },
               "payload": { } } ],
-  "next_cursor": 41, "has_more": false, "high_water": 41
+  "next_cursor": "41", "has_more": false, "high_water": "41",
+  "pairing": { "nexus_tenant_id": "uuid", "producer_application": "optideli", "consumer_application": "optiaccounting" }
 }
 ```
 
 `next_cursor` is the last sequence in the page (or `after` for an empty page): store it and send it as the next `after`.
+`pairing` is present while pairing is required; the consumer compares `nexus_tenant_id` with its own OptiNexus tenant. Cursors are digit strings.
 `high_water` is the producer's latest sequence for the tenant; `high_water == next_cursor` means the consumer is caught up.
 
 ## Guarantees

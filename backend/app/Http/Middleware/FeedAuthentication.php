@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Domain\Integration\Optinexus\OptinexusSettings;
 use App\Domain\Ledger\FeedCredentials;
 use App\Domain\Ledger\FeedPairing;
 use Closure;
@@ -16,21 +17,27 @@ class FeedAuthentication
     {
         $token = $r->bearerToken();
         if (! $token) {
-            return response()->json(['error' => ['code' => 'UNAUTHENTICATED', 'message' => 'Bearer token wajib.']], 401);
+            return response()->json(['message' => 'Bearer token wajib.', 'code' => 'FEED_UNAUTHENTICATED'], 401);
         }
         $credential = app(FeedCredentials::class)->resolve($token);
         if (! $credential) {
-            return response()->json(['error' => ['code' => 'INVALID_CREDENTIAL', 'message' => 'Kredensial tidak valid, kedaluwarsa, atau dicabut.']], 401);
+            return response()->json(['message' => 'Kredensial tidak valid, kedaluwarsa, atau dicabut.', 'code' => 'FEED_UNAUTHENTICATED'], 401);
         }
         if (! DB::table('tenants')->where('id', $credential->tenant_id)->where('active', true)->exists()) {
-            return response()->json(['error' => ['code' => 'TENANT_INACTIVE', 'message' => 'Tenant tidak aktif.']], 403);
+            return response()->json(['message' => 'Tenant tidak aktif.', 'code' => 'FEED_TENANT_NOT_ACTIVE'], 403);
         }
         if ($refusal = app(FeedPairing::class)->refusal($credential)) {
-            $response = response()->json(['error' => ['code' => $refusal[1], 'message' => $refusal[2]]], $refusal[0]);
+            $response = response()->json(['message' => $refusal[2], 'code' => $refusal[1]], $refusal[0]);
 
             return $refusal[0] === 503 ? $response->header('Retry-After', '30') : $response;
         }
         $r->attributes->set('feed_credential', $credential);
+        if (app(FeedPairing::class)->required()) {
+            $r->attributes->set('feed_pairing', [
+                'nexus_tenant_id' => $credential->nexus_tenant_id, 'producer_application' => OptinexusSettings::applicationCode(),
+                'consumer_application' => (string) config('optideli.optinexus.feed.consumer_application'),
+            ]);
+        }
 
         return $next($r);
     }

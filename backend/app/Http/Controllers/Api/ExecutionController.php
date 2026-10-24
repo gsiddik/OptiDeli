@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Access\Access;
 use App\Domain\Execution\FreightAuditService;
 use App\Domain\Execution\Permissions;
 use App\Domain\Execution\PrivateEvidence;
@@ -186,7 +187,7 @@ class ExecutionController extends Controller
             'pods' => 'proofs_of_delivery','invoices' => 'freight_invoices',default => abort(404)
         };
         $record = $s->find($table, $id);
-        if ($r->attributes->get('role') === 'vendor') {
+        if (Access::isVendor($r)) {
             $trip = $s->find('trips', $record->trip_id);
             abort_unless(($kind === 'invoices' ? $record->vendor_id : $trip->vendor_id) === $r->attributes->get('vendor_id'), 404);
         }

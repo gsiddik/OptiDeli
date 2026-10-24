@@ -2,17 +2,18 @@
 
 namespace App\Domain\Execution;
 
+use App\Domain\Access\Access;
 use Illuminate\Http\Request;
 
 final class Permissions
 {
     public static function finance(Request $r): void
     {
-        abort_unless(in_array($r->attributes->get('role'), ['finance', 'finance_supervisor', 'cfo'], true), 403, 'Akses Finance diperlukan.');
+        Access::authorize($r, 'finance.access', 'Akses Finance diperlukan.');
     }
 
     public static function verifier(Request $r): void
     {
-        abort_unless(in_array($r->attributes->get('role'), ['supervisor', 'head_of_logistics', 'cfo'], true), 403, 'Verifikator operasional diperlukan.');
+        Access::authorize($r, 'execution.verify', 'Verifikator operasional diperlukan.');
     }
 }

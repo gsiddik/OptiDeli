@@ -39,7 +39,7 @@ class AuthController extends Controller
     {
         $tenant = $request->attributes->get('tenant');
 
-        return response()->json(['data' => ['id' => $request->user()->id, 'name' => $request->user()->name, 'role' => $request->attributes->get('role'), 'tenant' => ['name' => $tenant->name, 'slug' => $tenant->slug, 'minimum_margin_bps' => $tenant->minimum_margin_bps, 'stage_margin_bps' => json_decode($tenant->stage_margin_bps ?? '{}')], 'deployment_mode' => config('optideli.deployment_mode')]]);
+        return response()->json(['data' => ['id' => $request->user()->id, 'name' => $request->user()->name, 'role' => $request->attributes->get('role'), 'permissions' => $request->attributes->get('permissions'), 'tenant' => ['name' => $tenant->name, 'slug' => $tenant->slug, 'minimum_margin_bps' => $tenant->minimum_margin_bps, 'stage_margin_bps' => json_decode($tenant->stage_margin_bps ?? '{}')], 'deployment_mode' => config('optideli.deployment_mode')]]);
     }
 
     public function logout(Request $request)

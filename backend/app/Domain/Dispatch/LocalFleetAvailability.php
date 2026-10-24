@@ -6,7 +6,7 @@ use Carbon\CarbonImmutable;
 
 final class LocalFleetAvailability implements FleetAvailability
 {
-    public function assertReady(object $vehicle, object $driver, CarbonImmutable $end): void
+    public function assertReady(object $vehicle, object $driver, CarbonImmutable $end, ?CarbonImmutable $start = null): void
     {
         abort_unless($vehicle->status === 'AVAILABLE', 422, 'Kendaraan terkunci: status servis atau operasional tidak tersedia.');
         abort_unless(CarbonImmutable::parse($vehicle->readiness_checked_at)->greaterThanOrEqualTo(now()->subMinutes(15)), 422, 'Pemeriksaan kesiapan armada kedaluwarsa; perbarui sebelum dispatch.');

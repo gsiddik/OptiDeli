@@ -88,7 +88,7 @@ final class DispatchService
     {
         $end = CarbonImmutable::parse($data['ends_at']);
         abort_unless(CarbonImmutable::parse($data['starts_at'])->greaterThanOrEqualTo(now()->subMinute()), 422, 'Jadwal mulai sudah lewat.');
-        $this->fleet->assertReady($vehicle, $driver, $end);
+        $this->fleet->assertReady($vehicle, $driver, $end, CarbonImmutable::parse($data['starts_at']));
         abort_if($store->query('trips')->where('active', true)->where(fn ($q) => $q->where('vehicle_id', $vehicle->id)->orWhere('driver_id', $driver->id))->exists(), 409, 'Kendaraan atau pengemudi telah dialokasikan.');
         $weight = 0;
         $volume = 0;

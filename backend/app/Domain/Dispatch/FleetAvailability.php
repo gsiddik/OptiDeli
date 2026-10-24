@@ -6,5 +6,6 @@ use Carbon\CarbonImmutable;
 
 interface FleetAvailability
 {
-    public function assertReady(object $vehicle, object $driver, CarbonImmutable $end): void;
+    /** @param  CarbonImmutable|null  $start  when the trip begins; defaults to now */
+    public function assertReady(object $vehicle, object $driver, CarbonImmutable $end, ?CarbonImmutable $start = null): void;
 }

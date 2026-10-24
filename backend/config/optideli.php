@@ -50,6 +50,11 @@ return [
             'client_secret' => env('OPTINEXUS_SERVICE_CLIENT_SECRET'),
             'timeout_seconds' => (int) env('OPTINEXUS_TIMEOUT', 5),
         ],
+        // Signed webhooks from the OptiNexus event broker (docs/architecture/FLEET_AVAILABILITY.md).
+        'events' => [
+            'webhook_secret' => env('OPTINEXUS_EVENT_WEBHOOK_SECRET'),
+            'tolerance_seconds' => 300,
+        ],
     ],
 
     /*
@@ -71,7 +76,11 @@ return [
     */
     'fleet' => [
         'driver' => env('FLEET_SERVICE_DRIVER', 'local'),
-        'optifleet_url' => env('OPTIFLEET_API_URL', 'http://localhost:8001'),
+        'optifleet_url' => rtrim((string) env('OPTIFLEET_API_URL', 'http://localhost:8001'), '/'),
+        // The live availability query to OptiFleet (per-tenant token in tenants.fleet_availability_token).
+        'timeout_seconds' => (int) env('OPTIFLEET_TIMEOUT', 3),
+        // false (default): a dispatch is refused when OptiFleet cannot be asked and no event is known; true: it goes ahead.
+        'fail_open' => (bool) env('OPTIFLEET_FAIL_OPEN', false),
     ],
 
     /*

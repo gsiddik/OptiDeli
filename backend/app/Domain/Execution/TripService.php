@@ -26,7 +26,7 @@ final class TripService
                 $vehicle = $s->find('vehicles', $trip->vehicle_id, true);
                 $driver = $s->find('drivers', $trip->driver_id, true);
                 $plan = $s->find('dispatch_plans', $trip->plan_id);
-                app(FleetAvailability::class)->assertReady($vehicle, $driver, CarbonImmutable::parse($plan->ends_at)->max(now()));
+                app(FleetAvailability::class)->assertReady($vehicle, $driver, CarbonImmutable::parse($plan->ends_at)->max(now()), CarbonImmutable::now());
                 $legs = $s->query('trip_legs')->where('trip_id', $id)->orderBy('sequence')->get();
                 abort_unless($legs->isNotEmpty(), 422, 'Tambahkan leg perjalanan terlebih dahulu.');
                 $order = $s->find('orders', $trip->order_id);

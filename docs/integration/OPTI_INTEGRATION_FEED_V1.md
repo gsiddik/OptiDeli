@@ -1,6 +1,6 @@
 # Opti Integration Feed v1
 
-Status: **proposed contract, awaiting owner review** (wave 5). No consumer is built until the owner approves this document.
+Status: **contract with the owner's answers of 2026-10-24 applied** (pairing, tax, reversal). Waiting for the owner's explicit go before the OptiEntry adapter. No consumer is built until the owner approves this document.
 
 A producer application (first: OptiDeli) publishes its **financial facts** as an ordered, immutable, per-tenant event stream. An accounting
 system (first: OptiEntry) **pulls** the stream and turns the facts into journals with its own Posting Engine. Producers send business facts
@@ -21,6 +21,16 @@ The tenant is taken from the credential only; a tenant id in the request is igno
 shown once at issue time. Issue: `php artisan optideli:feed:issue-credential <tenant> --consumer=optientry --output=<file>`; revoke:
 `optideli:feed:revoke-credential <id>`. Errors: `401 UNAUTHENTICATED | INVALID_CREDENTIAL` (missing, unknown, expired, revoked),
 `403 TENANT_INACTIVE`, `422` for bad query values.
+
+**Pairing (mandatory in SaaS mode, owner decision).** While `OPTIDELI_IDENTITY_MODE=optinexus` (or `OPTINEXUS_FEED_PAIRING=required`) a valid credential is
+not enough. The credential records the OptiNexus tenant it was issued for; on every read the tenant must still be linked to that tenant and
+OptiNexus (`GET /tenants/{id}/commercial-context`, scope `commercial.read`, cached 300 s) must say: tenant `ACTIVE`, a live subscription
+(`ACTIVE`, `TRIAL`, `GRACE_PERIOD`, `PAST_DUE`), and both `optideli` and the accounting application (`OPTINEXUS_FEED_CONSUMER_APPLICATION`,
+default `optiaccounting`) entitled. Refusals, 403: `FEED_CREDENTIAL_UNPAIRED`, `FEED_PAIRING_CHANGED`, `FEED_TENANT_NOT_ACTIVE`,
+`FEED_SUBSCRIPTION_INACTIVE`, `FEED_PRODUCER_NOT_ENTITLED`, `FEED_CONSUMER_NOT_ENTITLED`. OptiNexus unreachable: `503 FEED_GOVERNANCE_UNAVAILABLE`
+with `Retry-After`; the consumer keeps its cursor, nothing stale is served. Only reading is gated; OptiDeli keeps recording documents.
+`optideli:feed:issue-credential` refuses an unlinked tenant when pairing is required. Standalone installations (no OptiNexus) stay credential-only.
+The OptiDeli service account in OptiNexus needs scope `commercial.read` in addition to `authorization.check`.
 
 Response:
 
@@ -78,9 +88,13 @@ OptiDeli has no payment reversal in v1); document numbers are gap-free per tenan
    revenue roles of the mapped legal entity). Dimensions (`order_id`, `trip_id`, `vendor_id`) become analytical dimensions.
 5. Keep the producer's `document_number` and `event_id` on every journal it creates, for audit and reconciliation.
 
-## Open points for the owner
+## Decisions and roadmap (owner, 2026-10-24)
 
-- Pairing: should a feed credential also require an active OptiNexus subscription check (as the OptiFleet feed does through commercial-context)?
-  v1 checks the credential and tenant status only.
-- Tax: v1 carries gross amounts only; VAT/PPN splits need a decision on where tax is computed before a v1.1.
-- Payment reversal/refund event: not in v1.0 (see rules above).
+- **Pairing:** mandatory in SaaS mode (above).
+- **Tax (PPN):** never computed in OptiDeli. v1 carries gross amounts; OptiEntry's GL/Tax Engine derives tax from its own tax codes and rules.
+- **Payment reversal is not in v1.** Immutability stays: a payment or event is never edited or deleted, a `PAID` document is never rewritten.
+  v1 compensation: for a customer (AR) overpayment or cancelled order, OptiEntry books a customer deposit / unearned revenue or a credit
+  note against the next invoice; for a vendor (AP) claim after payment, the claim becomes a penalty deduction on the vendor's next trip
+  bill through Freight Audit / Waterfall Tendering (Accessorial & Dispute module).
+- **v1.1 (additive, minor version):** new event types `optideli.payment.reversed` (reason: returned goods, double transfer, cargo dispute)
+  and `optideli.credit_note.issued`, from which OptiEntry creates reversing entries. Existing v1 events and consumers are unaffected.

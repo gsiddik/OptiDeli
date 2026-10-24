@@ -20,6 +20,9 @@ class NexusApi
 {
     public const SCOPES = 'authorization.check';
 
+    /** Reads the commercial state of one tenant (tenant status, subscriptions, entitled applications). */
+    public const SCOPE_COMMERCIAL = 'commercial.read';
+
     private const TOKEN_KEY = 'optinexus.service.token';
 
     /**
@@ -28,7 +31,7 @@ class NexusApi
      *
      * @param  array<string,mixed>  $data
      */
-    public function send(string $method, string $path, array $data = [], bool $repeatable = false): Response
+    public function send(string $method, string $path, array $data = [], bool $repeatable = false, string $scope = self::SCOPES): Response
     {
         $renewed = false;
         $repeated = false;
@@ -36,7 +39,7 @@ class NexusApi
 
         while (true) {
             try {
-                $response = Http::withToken($this->token())->acceptJson()->withoutRedirecting()
+                $response = Http::withToken($this->token($scope))->acceptJson()->withoutRedirecting()
                     ->withHeaders(['X-Correlation-Id' => $correlationId])
                     ->timeout(OptinexusSettings::timeout())
                     ->send(strtoupper($method), OptinexusSettings::baseUrl().'/api/v1'.$path, ['json' => $data]);
@@ -51,7 +54,7 @@ class NexusApi
             }
 
             if ($response->status() === 401 && ! $renewed) {
-                Cache::forget(self::TOKEN_KEY);
+                Cache::forget($this->tokenKey($scope));
                 $renewed = true;
 
                 continue;
@@ -82,30 +85,36 @@ class NexusApi
         return (array) ($response->json('data') ?? []);
     }
 
-    private function token(): string
+    private function tokenKey(string $scope): string
+    {
+        return $scope === self::SCOPES ? self::TOKEN_KEY : self::TOKEN_KEY.':'.$scope;
+    }
+
+    private function token(string $scope): string
     {
         if ($missing = OptinexusSettings::missingForService()) {
             throw new IdentityProviderUnavailable('Service account is not configured: '.implode(', ', $missing));
         }
 
-        $cached = Cache::get(self::TOKEN_KEY);
+        $key = $this->tokenKey($scope);
+        $cached = Cache::get($key);
         if (is_string($cached) && $cached !== '') {
             return $cached;
         }
 
         // One worker renews the token; the others wait for it instead of each asking OptiNexus at the same moment.
         try {
-            return Cache::lock(self::TOKEN_KEY.':renewal', 15)->block(10, function () {
-                $cached = Cache::get(self::TOKEN_KEY);
+            return Cache::lock($key.':renewal', 15)->block(10, function () use ($key, $scope) {
+                $cached = Cache::get($key);
 
-                return is_string($cached) && $cached !== '' ? $cached : $this->requestToken();
+                return is_string($cached) && $cached !== '' ? $cached : $this->requestToken($scope);
             });
         } catch (LockTimeoutException) {
             throw new IdentityProviderUnavailable('Service account token renewal timed out.', transient: true);
         }
     }
 
-    private function requestToken(): string
+    private function requestToken(string $scope): string
     {
         try {
             $response = Http::asForm()->acceptJson()->timeout(OptinexusSettings::timeout())
@@ -113,7 +122,7 @@ class NexusApi
                     'grant_type' => 'client_credentials',
                     'client_id' => config('optideli.optinexus.service.client_id'),
                     'client_secret' => config('optideli.optinexus.service.client_secret'),
-                    'scope' => self::SCOPES,
+                    'scope' => $scope,
                 ]);
         } catch (ConnectionException $e) {
             throw new IdentityProviderUnavailable(Str::limit($e->getMessage(), 200), transient: true);
@@ -124,7 +133,7 @@ class NexusApi
             throw new IdentityProviderUnavailable("Service account authentication failed (HTTP {$response->status()}).", transient: $response->serverError());
         }
 
-        Cache::put(self::TOKEN_KEY, $token, max(60, (int) ($response->json('expires_in') ?? 3600) - 120));
+        Cache::put($this->tokenKey($scope), $token, max(60, (int) ($response->json('expires_in') ?? 3600) - 120));
 
         return $token;
     }

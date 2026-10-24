@@ -69,17 +69,25 @@ final class FreightAuditService
         return $s->find('freight_invoices', $id);
     }
 
-    public function approve(TenantStore $s, string $id, string $role, string $note, int $version): object
+    /** @param list<string> $permissions the approver's tenant permissions */
+    public function approve(TenantStore $s, string $id, array $permissions, string $note, int $version): object
     {
-        return DB::transaction(function () use ($s, $id, $role, $note, $version) {
+        return DB::transaction(function () use ($s, $id, $permissions, $note, $version) {
             DB::table('tenants')->where('id', $s->tenantId)->lockForUpdate()->firstOrFail();
             $i = $this->assess($s, $id);
             abort_unless($i->version === $version, 409, 'Versi invoice berubah; muat ulang bukti dan tinjau kembali.');
             abort_unless($i->status === 'ON_HOLD' && $i->hold_reason === 'APPROVAL_REQUIRED', 409, 'Bukti/dispute/koreksi tagihan belum selesai atau tagihan sudah disetujui.');
             abort_if($i->submitted_by === $s->actorId, 403, 'Penginput tagihan tidak dapat menyetujui tagihannya sendiri.');
-            $authority = match (true) {
-                $i->approval_tier === 'FINANCE' && in_array($role, ['finance', 'finance_supervisor'], true) => 'FINANCE',$i->approval_tier === 'DUAL' && $role === 'finance_supervisor' => 'FINANCE_SUPERVISOR',$i->approval_tier === 'DUAL' && in_array($role, ['supervisor', 'head_of_logistics'], true) => 'LOGISTICS_MANAGER',$i->approval_tier === 'CFO' && $role === 'cfo' => 'CFO',default => abort(403, 'Otoritas tidak sesuai tingkat eskalasi tagihan.')
+            $candidates = match ($i->approval_tier) {
+                'FINANCE' => ['freight.approve.finance' => 'FINANCE'],
+                'DUAL' => ['freight.approve.finance_supervisor' => 'FINANCE_SUPERVISOR', 'freight.approve.logistics_manager' => 'LOGISTICS_MANAGER'],
+                'CFO' => ['freight.approve.cfo' => 'CFO'],
+                default => [],
             };
+            $held = array_values(array_intersect_key($candidates, array_flip($permissions)));
+            abort_if($held === [], 403, 'Otoritas tidak sesuai tingkat eskalasi tagihan.');
+            $used = $s->query('invoice_approvals')->where('invoice_id', $id)->where('version', $i->version)->pluck('authority')->all();
+            $authority = collect($held)->first(fn ($a) => ! in_array($a, $used, true)) ?? $held[0];
             abort_if($s->query('invoice_approvals')->where('invoice_id', $id)->where('version', $i->version)->where(fn ($q) => $q->where('actor_id', $s->actorId)->orWhere('authority', $authority))->exists(), 409, 'Approver atau otoritas ini sudah menyetujui versi invoice tersebut.');
             DB::table('invoice_approvals')->insert(['tenant_id' => $s->tenantId, 'invoice_id' => $id, 'version' => $i->version, 'actor_id' => $s->actorId, 'authority' => $authority, 'note' => $note, 'created_at' => now()]);
             $s->event('freight.approved', $id, ['authority' => $authority, 'version' => $i->version, 'note' => $note]);

@@ -19,6 +19,8 @@ import { api, ApiError, csrf, useData } from "./api";
 import { ErrorBox, Field, Form, Icon, Loading } from "./components";
 import type { Session } from "./types";
 import { roles } from "./types";
+import { can, isVendorSession } from "./opsTypes";
+import { AccessPage } from "./Access";
 import { OrderCreate, OrderDetail, OrderList } from "./Orders";
 import { DispatchBoard } from "./Dispatch";
 import { PolicyPage } from "./Policy";
@@ -127,7 +129,10 @@ function Login({ onLogin }: { onLogin: () => void }) {
     </main>
   );
 }
-const navigation = [
+const navigation: {
+  group: string;
+  items: { to: string; label: string; icon: string; permission?: string }[];
+}[] = [
   {
     group: "OPERASIONAL",
     items: [
@@ -146,6 +151,12 @@ const navigation = [
     items: [
       { to: "/policy", label: "Kebijakan margin", icon: "audit" },
       { to: "/audit", label: "Jejak audit", icon: "audit" },
+      {
+        to: "/access",
+        label: "Akses & role",
+        icon: "audit",
+        permission: "access.role.view",
+      },
       { to: "/roadmap", label: "Cakupan produk", icon: "roadmap" },
     ],
   },
@@ -232,8 +243,10 @@ function Shell({ onLogout }: { onLogout: () => Promise<void> }) {
         </div>
         <nav aria-label="Navigasi utama">
           {navigation.map((group) => {
-            const items = group.items.filter((i) =>
-              i.label.toLowerCase().includes(query.toLowerCase()),
+            const items = group.items.filter(
+              (i) =>
+                (!i.permission || can(session, i.permission)) &&
+                i.label.toLowerCase().includes(query.toLowerCase()),
             );
             return (
               items.length > 0 && (
@@ -379,7 +392,7 @@ export default function App() {
       />
     );
   }
-  if (auth.data.data.role === "vendor")
+  if (isVendorSession(auth.data.data))
     return (
       <SessionContext.Provider value={auth.data.data}>
         <VendorPortal
@@ -430,6 +443,7 @@ export default function App() {
           <Route path="edi-gateway" element={<EdiGatewayConsole />} />
           <Route path="policy" element={<PolicyPage />} />
           <Route path="audit" element={<AuditPage />} />
+          <Route path="access" element={<AccessPage />} />
           <Route path="roadmap" element={<Roadmap />} />
           <Route path="*" element={<NotFound />} />
         </Route>

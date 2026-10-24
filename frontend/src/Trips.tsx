@@ -79,8 +79,8 @@ export function TripDetail() {
   if (state.loading) return <Loading />;
   if (state.error) return <ErrorBox error={state.error} />;
   const t = state.data!.data;
-  const ops = canOperate(session.role);
-  const verified = canVerify(session.role);
+  const ops = canOperate(session);
+  const verified = canVerify(session);
   const cost =
     (t.plan?.cost_minor ?? 0) +
     (t.claims ?? [])
@@ -367,7 +367,7 @@ export function TripDetail() {
               <small>{c.evidence_reference}</small>
               <Badge value={c.status} />
             </div>
-            {canFinance(session.role) &&
+            {canFinance(session) &&
               c.status === "SUBMITTED" &&
               c.submitted_by !== session.id && (
                 <Action

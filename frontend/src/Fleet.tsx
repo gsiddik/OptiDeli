@@ -30,7 +30,7 @@ export function FleetPage() {
             dispatch.
           </p>
         </div>
-        {canOperate(session.role) && (
+        {canOperate(session) && (
           <button className="primary" onClick={() => setForm((v) => !v)}>
             {form
               ? "Tutup form"
@@ -177,7 +177,7 @@ export function FleetPage() {
                             ) : (
                               <span className="muted">Belum dialokasikan</span>
                             )}
-                            {canOperate(session.role) && (
+                            {canOperate(session) && (
                               <button
                                 className="block-small"
                                 onClick={() => {

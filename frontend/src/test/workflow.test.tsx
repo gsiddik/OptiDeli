@@ -8,6 +8,7 @@ const session = {
   id: 1,
   name: "Dispatcher",
   role: "dispatcher",
+  permissions: ["enterprise.manage", "operations.manage", "operations.view"],
   tenant: {
     name: "Tenant A",
     slug: "a",
@@ -58,6 +59,50 @@ describe("Application shell and server states", () => {
     await screen.findByRole("heading", { name: "Pesanan transportasi" });
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Kembali" })).toBeTruthy();
+  });
+  it("shows the access page only to members who may view roles", async () => {
+    const admin = {
+      ...session,
+      permissions: [...session.permissions, "access.role.view"],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (path: string) =>
+          new Response(
+            JSON.stringify(
+              path.includes("auth/me") ? { data: admin } : respond(path),
+            ),
+            { status: 200 },
+          ),
+      ),
+    );
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("link", { name: "Akses & role" }));
+    await screen.findByRole("heading", { name: "Akses & role" });
+    expect(screen.queryByRole("heading", { name: "Buat role kustom" })).toBe(
+      null,
+    );
+  });
+  it("hides the access page from members without the permission", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (path: string) =>
+          new Response(JSON.stringify(respond(path)), { status: 200 }),
+      ),
+    );
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Ringkasan transportasi" });
+    expect(screen.queryByRole("link", { name: "Akses & role" })).toBe(null);
   });
   it("shows login when the session is not authenticated", async () => {
     vi.stubGlobal(

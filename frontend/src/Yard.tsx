@@ -14,7 +14,7 @@ export function YardPage() {
   const [tripQuery, setTripQuery] = useState("");
   const [tripDraft, setTripDraft] = useState("");
   const trips = useData<Page<Trip>>(`trips?q=${encodeURIComponent(tripQuery)}`);
-  const ops = canOperate(useSession().role);
+  const ops = canOperate(useSession());
   const actions: Record<string, { label: string; action: string }> = {
     BOOKED: { label: "Catat gate-in", action: "gate_in" },
     GATE_IN: { label: "Masuk dock", action: "dock_in" },

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Access\Access;
 use App\Domain\Dispatch\DispatchService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class DispatchController extends Controller
 
     public function approve(Request $request, string $id, DispatchService $service)
     {
-        return response()->json(['data' => $service->approve(OrderController::storeFor($request), $id, $request->attributes->get('role'))]);
+        return response()->json(['data' => $service->approve(OrderController::storeFor($request), $id, Access::approvalLevel($request))]);
     }
 
     public function confirm(Request $request, string $id, DispatchService $service)

@@ -33,7 +33,7 @@ export function Dashboard() {
             Anda.
           </p>
         </div>
-        {canOperate(s.role) && (
+        {canOperate(s) && (
           <Link className="button primary" to="/orders/new">
             + Buat order
           </Link>

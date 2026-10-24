@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Access\Access;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class VendorController extends Controller
 
     public function account(Request $r, string $id)
     {
-        abort_unless($r->attributes->get('role') === 'cfo', 403);
+        Access::authorize($r, 'vendor.portal.provision');
         $d = $r->validate(['name' => 'required|string|max:150', 'email' => 'required|email|max:254|unique:users,email', 'password' => ['required', 'string', Password::min(12)->letters()->mixedCase()->numbers()->symbols()]]);
         $s = OrderController::storeFor($r);
         DB::transaction(function () use ($s, $d, $id) {
@@ -49,7 +50,7 @@ class VendorController extends Controller
 
     public function portal(Request $r)
     {
-        abort_unless($r->attributes->get('role') === 'vendor', 403);
+        abort_unless(Access::isVendor($r), 403);
         $s = OrderController::storeFor($r);
         $vendor = $r->attributes->get('vendor_id');
         $trips = $s->query('trips')->where('vendor_id', $vendor)->get(['id', 'status', 'contract_reference']);

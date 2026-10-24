@@ -8,7 +8,7 @@ import type { EditorField } from "./RecordEditor";
 import { money } from "./commercial";
 import type { Page } from "./types";
 import type { Invoice, Trip } from "./opsTypes";
-import { canFinance } from "./opsTypes";
+import { can, canApproveTier, canFinance } from "./opsTypes";
 export const invoiceFields: EditorField[] = [
   { name: "number", label: "Nomor invoice vendor" },
   { name: "base_minor", label: "Tarif dasar invoice (Rp)", kind: "money" },
@@ -52,7 +52,7 @@ export function FreightPage() {
             dan otorisasi lengkap.
           </p>
         </div>
-        {canFinance(session.role) && (
+        {canFinance(session) && (
           <Action
             label="Catat invoice vendor"
             path="freight/invoices"
@@ -176,14 +176,7 @@ export function FreightDetail() {
   if (state.loading) return <Loading />;
   if (state.error) return <ErrorBox error={state.error} />;
   const i = state.data!.data;
-  const eligible =
-    (i.approval_tier === "FINANCE" &&
-      ["finance", "finance_supervisor"].includes(session.role)) ||
-    (i.approval_tier === "DUAL" &&
-      ["finance_supervisor", "supervisor", "head_of_logistics"].includes(
-        session.role,
-      )) ||
-    (i.approval_tier === "CFO" && session.role === "cfo");
+  const eligible = canApproveTier(session, i.approval_tier);
   return (
     <>
       <div className="page-heading">
@@ -243,7 +236,7 @@ export function FreightDetail() {
                   primary
                 />
               )}
-            {canFinance(session.role) && i.status !== "VOID" && (
+            {canFinance(session) && i.status !== "VOID" && (
               <Action
                 label="Create dispute log"
                 path={`freight/invoices/${i.id}/disputes`}
@@ -283,7 +276,7 @@ export function FreightDetail() {
               <small>{c.evidence_reference}</small>
               <Badge value={c.status} />
             </div>
-            {canFinance(session.role) &&
+            {canFinance(session) &&
               c.status === "SUBMITTED" &&
               c.submitted_by !== session.id && (
                 <Action
@@ -328,10 +321,11 @@ export function FreightDetail() {
                 </p>
               )}
             </div>
-            {canFinance(session.role) &&
+            {canFinance(session) &&
               d.status !== "RESOLVED" &&
               !d.system_key?.startsWith("base:") &&
-              (i.approval_tier !== "CFO" || session.role === "cfo") && (
+              (i.approval_tier !== "CFO" ||
+                can(session, "freight.escalation.resolve")) && (
                 <Action
                   label="Resolusi dispute"
                   path={`freight/disputes/${d.id}/action`}

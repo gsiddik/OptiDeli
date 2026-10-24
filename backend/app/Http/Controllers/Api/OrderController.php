@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Access\Access;
 use App\Domain\Shared\TenantStore;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ class OrderController extends Controller
 
     public static function writeAccess(Request $request): void
     {
-        abort_unless(in_array($request->attributes->get('role'), ['dispatcher', 'supervisor', 'head_of_logistics', 'cfo'], true), 403, 'Akses hanya baca.');
+        Access::authorize($request, 'operations.manage', 'Akses hanya baca.');
     }
 
     public static function key(Request $request): string

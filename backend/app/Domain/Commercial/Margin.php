@@ -22,11 +22,4 @@ final class Margin
 
         return 3;
     }
-
-    public static function roleLevel(string $role): int
-    {
-        return match ($role) {
-            'supervisor' => 1, 'head_of_logistics' => 2, 'cfo' => 3, default => 0
-        };
-    }
 }

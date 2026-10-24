@@ -42,6 +42,14 @@ Amounts are integers in currency minor units with an explicit ISO currency, neve
 - Audit and outbox records commit atomically with state changes. CP1 writes events but does not claim delivery to OptiNexus/OptiEntry/ERP; production dispatch relay, retry/dead-letter operations and webhook signing remain later work.
 - Production requires TLS, secure session cookies, a private DB, backups and tested recovery, trusted proxy configuration, per-tenant provisioning and documented monitoring. Compose is for local development, not a Kubernetes/HA delivery claim.
 
+## Access control (wave 1, 2026-10-24)
+
+- Authorization checks permissions (`resource.action`, catalog in `backend/app/Domain/Access/PermissionCatalog.php`), never role names. Roles are per-tenant permission collections (`roles`, `role_permissions`, `membership_roles`).
+- Each tenant has system roles named like the former hard-coded roles (viewer, dispatcher, supervisor, head_of_logistics, cfo, finance, finance_supervisor, vendor) with exactly their former access, plus `tenant_administrator`. System roles are fixed; custom roles are managed under `/api/v1/access`.
+- `memberships.role` is a legacy label: it assigns the first role once (`roles_bootstrapped`) and is shown in the UI. Removing roles is never undone by it.
+- Guards: grant only permissions you hold, never change your own roles, roles never cross tenants, `vendor.portal` only on vendor-bound memberships. Margin approval level = highest `dispatch.approve.levelN`; freight authority = held `freight.approve.*` for the invoice tier.
+- After adding permissions run `php artisan optideli:sync-access` (adds catalog rows and tops up system roles; never removes grants).
+
 ## Unresolved integration and product contracts
 
 OptiNexus OIDC issuer/client/claim mapping; OptiFleet availability API and staleness policy; OptiRadar event schema; OptiEntry versioned accounting event contract; EDI trading partner versions/envelopes/acknowledgements; licence verification keys/node binding; MFA; HOS jurisdiction; axle/hazmat rules; rate tax/currency policy; freight audit tolerances; emissions factors/boundaries; retention policy. These must be validated before the related production features can be accepted.

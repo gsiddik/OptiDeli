@@ -34,14 +34,14 @@ final class DispatchService
         });
     }
 
-    public function approve(TenantStore $store, string $id, string $role): object
+    public function approve(TenantStore $store, string $id, int $approvalLevel): object
     {
-        return DB::transaction(function () use ($store, $id, $role) {
+        return DB::transaction(function () use ($store, $id, $approvalLevel) {
             DB::table('tenants')->where('id', $store->tenantId)->lockForUpdate()->firstOrFail();
             $plan = $store->find('dispatch_plans', $id, true);
             abort_unless($plan->status === 'PENDING_APPROVAL', 409, 'Rencana tidak menunggu persetujuan.');
             abort_if($plan->requested_by === $store->actorId, 403, 'Pemohon tidak boleh menyetujui permohonannya sendiri.');
-            abort_unless(Margin::roleLevel($role) >= $plan->required_level, 403, 'Tingkat otorisasi tidak cukup.');
+            abort_unless($approvalLevel >= $plan->required_level, 403, 'Tingkat otorisasi tidak cukup.');
             $this->assertPolicy($store, $plan);
             $store->query('dispatch_plans')->where('id', $id)->update(['status' => 'APPROVED', 'approved_by' => $store->actorId, 'approved_at' => now(), 'updated_at' => now()]);
             $store->event('dispatch.margin_approved', $id, ['required_level' => $plan->required_level, 'reason_code' => $plan->reason_code]);

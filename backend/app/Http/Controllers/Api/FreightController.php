@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Access\Access;
 use App\Domain\Execution\FreightAuditService;
 use App\Domain\Execution\Permissions;
 use App\Http\Controllers\Controller;
@@ -15,7 +16,7 @@ class FreightController extends Controller
 {
     private function ownTrip(Request $r, object $trip): void
     {
-        if ($r->attributes->get('role') === 'vendor') {
+        if (Access::isVendor($r)) {
             abort_unless($trip->vendor_id === $r->attributes->get('vendor_id'), 404);
         }
     }
@@ -49,7 +50,7 @@ class FreightController extends Controller
 
     public function create(Request $r, ?string $correction = null)
     {
-        if ($r->attributes->get('role') !== 'vendor') {
+        if (! Access::isVendor($r)) {
             Permissions::finance($r);
         }
         $d = $r->validate(['trip_id' => 'required|uuid', 'number' => 'required|string|max:100', 'base_minor' => 'required|integer|min:0|max:1000000000000', 'accessorial_minor' => 'required|integer|min:0|max:1000000000000', 'rounding_minor' => 'required|integer|min:-1000000000000|max:1000000000000', 'document_reference' => 'required|string|max:200', 'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240']);
@@ -96,12 +97,12 @@ class FreightController extends Controller
     {
         $d = $r->validate(['note' => 'required|string|min:10|max:2000', 'version' => 'required|integer|min:1']);
 
-        return response()->json(['data' => $service->approve(OrderController::storeFor($r), $id, $r->attributes->get('role'), $d['note'], (int) $d['version'])]);
+        return response()->json(['data' => $service->approve(OrderController::storeFor($r), $id, $r->attributes->get('permissions', []), $d['note'], (int) $d['version'])]);
     }
 
     public function claim(Request $r)
     {
-        if ($r->attributes->get('role') !== 'vendor') {
+        if (! Access::isVendor($r)) {
             OrderController::writeAccess($r);
         }$d = $r->validate(['trip_id' => 'required|uuid', 'category' => ['required', Rule::in(['DETENTION', 'DEMURRAGE', 'LOADING', 'UNLOADING', 'OVERNIGHT'])], 'amount_minor' => 'required|integer|min:1|max:1000000000000', 'reason' => 'required|string|min:10|max:2000', 'appointment_id' => 'nullable|uuid', 'evidence_reference' => 'required|string|min:5|max:300']);
         $s = OrderController::storeFor($r);
@@ -171,13 +172,13 @@ class FreightController extends Controller
             $trip = $s->find('trips', $i->trip_id);
             $this->ownTrip($r, $trip);
             if ($d['action'] === 'respond') {
-                abort_unless($r->attributes->get('role') === 'vendor', 403);
+                abort_unless(Access::isVendor($r), 403);
                 $s->query('freight_disputes')->where('id', $id)->update(['status' => 'RESPONDED', 'vendor_response' => $d['note'], 'updated_at' => now()]);
             } else {
                 Permissions::finance($r);
                 abort_if(str_starts_with($dispute->system_key ?? '', 'base:'), 409, 'Base rate harus dikoreksi melalui upload invoice revisi.');
                 if ($i->approval_tier === 'CFO') {
-                    abort_unless($r->attributes->get('role') === 'cfo', 403, 'Resolusi eskalasi kritis memerlukan CFO.');
+                    Access::authorize($r, 'freight.escalation.resolve', 'Resolusi eskalasi kritis memerlukan CFO.');
                 }$s->query('freight_disputes')->where('id', $id)->update(['status' => 'RESOLVED', 'resolution' => $d['note'], 'resolved_by' => $s->actorId, 'updated_at' => now()]);
             }
             $s->event('freight.dispute_'.$d['action'], $id, ['note' => $d['note']]);

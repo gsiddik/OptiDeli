@@ -1458,3 +1458,27 @@ code {
     font-size: 11px;
   }
 }
+.permission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 0 14px;
+}
+.permission-grid legend {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0 6px;
+}
+.check input[type="checkbox"] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.check code {
+  font-weight: 700;
+  color: var(--navy);
+}

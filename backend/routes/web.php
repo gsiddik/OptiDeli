@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\ExecutionController;
 use App\Http\Controllers\Api\FleetController;
+use App\Http\Controllers\Api\OptinexusEventController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PlatformController;
 use App\Http\Controllers\Api\PolicyController;
@@ -20,6 +21,7 @@ Route::get('/api/v1/auth/sso/status', [SsoController::class, 'status']);
 Route::get('/api/v1/auth/sso/redirect', [SsoController::class, 'redirect'])->middleware('throttle:30,1');
 Route::get('/api/v1/auth/sso/callback', [SsoController::class, 'callback'])->middleware('throttle:30,1');
 Route::post('/api/v1/integration/optinexus/backchannel-logout', [SsoController::class, 'backchannelLogout'])->middleware('throttle:120,1');
+Route::post('/api/v1/integration/optinexus/events', [OptinexusEventController::class, 'receive'])->middleware('throttle:600,1');
 Route::post('/api/v1/platform/auth/login', [PlatformController::class, 'login'])->middleware('throttle:login');
 Route::middleware(['auth', PlatformContext::class, 'throttle:120,1'])->prefix('api/v1/platform')->group(function () {
     Route::get('auth/me', [PlatformController::class, 'me']);

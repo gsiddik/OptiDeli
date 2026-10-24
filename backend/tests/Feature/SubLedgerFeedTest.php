@@ -7,9 +7,12 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /** Wave 5 (K2): the OptiDeli sub-ledger and the Opti Integration Feed v1. */
@@ -20,6 +23,9 @@ class SubLedgerFeedTest extends TestCase
     private string $tenant;
 
     private array $users = [];
+
+    /** @var array{0: int, 1: mixed} what OptiNexus answers next */
+    private array $nexusAnswer = [200, []];
 
     protected function setUp(): void
     {
@@ -209,5 +215,61 @@ class SubLedgerFeedTest extends TestCase
         $this->postJson('/api/v1/ledger/documents/'.$doc.'/payments', ['amount_minor' => 100, 'paid_on' => now()->toDateString(), 'method' => 'CASH', 'reference' => 'R1'])->assertCreated();
         $this->expectException(QueryException::class);
         DB::table('ledger_payments')->update(['amount_minor' => 1]);
+    }
+
+    /** @return array<string, mixed> */
+    private function context(array $override = []): array
+    {
+        return ['data' => array_replace([
+            'tenant_id' => self::NEXUS, 'tenant_status' => 'ACTIVE', 'subscriptions' => [['status' => 'ACTIVE']],
+            'applications_enabled' => ['optideli', 'optiaccounting'],
+        ], $override)];
+    }
+
+    private const NEXUS = '6f1d2c3b-1111-4a5b-8c9d-0123456789ab';
+
+    private function pairedFeed(array $context, ?string $linked = self::NEXUS): TestResponse
+    {
+        config([
+            'optideli.identity_mode' => 'optinexus', 'optideli.optinexus.base_url' => 'https://nexus.test',
+            'optideli.optinexus.service.client_id' => 'cid', 'optideli.optinexus.service.client_secret' => 'secret',
+        ]);
+        Cache::flush();
+        $this->nexusAnswer = $context;
+        Http::fake([
+            'nexus.test/api/v1/oauth/token' => Http::response(['access_token' => 'tok', 'expires_in' => 3600]),
+            'nexus.test/api/v1/tenants/*' => fn () => $this->nexusAnswer[0] === 200 ? Http::response($this->nexusAnswer[1]) : Http::response([], $this->nexusAnswer[0]),
+        ]);
+        DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => $linked]);
+
+        return $this->feed($this->feedToken());
+    }
+
+    public function test_pairing_is_enforced_while_optinexus_is_in_use(): void
+    {
+        $this->pairedFeed([200, $this->context()])->assertOk();
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/oauth/token') && $r['scope'] === 'commercial.read');
+
+        $this->pairedFeed([200, $this->context(['tenant_status' => 'SUSPENDED'])])->assertForbidden()->assertJsonPath('error.code', 'FEED_TENANT_NOT_ACTIVE');
+        $this->pairedFeed([200, $this->context(['subscriptions' => [['status' => 'CANCELLED']]])])->assertForbidden()->assertJsonPath('error.code', 'FEED_SUBSCRIPTION_INACTIVE');
+        $this->pairedFeed([200, $this->context(['applications_enabled' => ['optiaccounting']])])->assertForbidden()->assertJsonPath('error.code', 'FEED_PRODUCER_NOT_ENTITLED');
+        $this->pairedFeed([200, $this->context(['applications_enabled' => ['optideli']])])->assertForbidden()->assertJsonPath('error.code', 'FEED_CONSUMER_NOT_ENTITLED');
+        $this->pairedFeed([200, $this->context(['tenant_id' => (string) Str::uuid()])])->assertStatus(503)->assertJsonPath('error.code', 'FEED_GOVERNANCE_UNAVAILABLE');
+        $this->pairedFeed([503, []])->assertStatus(503)->assertHeader('Retry-After');
+    }
+
+    public function test_credential_must_match_the_current_nexus_link(): void
+    {
+        config(['optideli.optinexus.feed.pairing' => 'required']);
+        $this->artisan('optideli:feed:issue-credential', ['tenant' => 'ledger'])->assertFailed(); // not linked to OptiNexus yet
+        DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => self::NEXUS]);
+        $token = $this->feedToken();
+        DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => (string) Str::uuid()]);
+        $this->feed($token)->assertForbidden()->assertJsonPath('error.code', 'FEED_PAIRING_CHANGED');
+    }
+
+    public function test_without_optinexus_the_feed_stays_credential_only(): void
+    {
+        $this->feed($this->feedToken())->assertOk(); // standalone: pairing 'auto' is not required
     }
 }

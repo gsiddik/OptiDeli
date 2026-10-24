@@ -3,6 +3,7 @@
 use App\Domain\Access\SystemRoles;
 use App\Domain\Integration\Optinexus\OptinexusManifest;
 use App\Domain\Ledger\FeedCredentials;
+use App\Domain\Ledger\FeedPairing;
 use App\Domain\Platform\PlatformAccess;
 use App\Models\User;
 use Illuminate\Foundation\Inspiring;
@@ -89,6 +90,11 @@ Artisan::command('optideli:feed:issue-credential {tenant : Tenant slug or id} {-
     $row = DB::table('tenants')->where(fn ($q) => $q->where('slug', $tenant)->orWhere('id', Str::isUuid($tenant) ? $tenant : null))->first();
     if (! $row) {
         $this->error("Tenant '{$tenant}' not found.");
+
+        return 1;
+    }
+    if (app(FeedPairing::class)->required() && $row->optinexus_tenant_id === null) {
+        $this->error('Pairing is required: link the tenant to OptiNexus first (platform API: tenants/{id}/optinexus).');
 
         return 1;
     }

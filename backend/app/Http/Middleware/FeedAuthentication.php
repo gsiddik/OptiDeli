@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Domain\Ledger\FeedCredentials;
+use App\Domain\Ledger\FeedPairing;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,11 @@ class FeedAuthentication
         }
         if (! DB::table('tenants')->where('id', $credential->tenant_id)->where('active', true)->exists()) {
             return response()->json(['error' => ['code' => 'TENANT_INACTIVE', 'message' => 'Tenant tidak aktif.']], 403);
+        }
+        if ($refusal = app(FeedPairing::class)->refusal($credential)) {
+            $response = response()->json(['error' => ['code' => $refusal[1], 'message' => $refusal[2]]], $refusal[0]);
+
+            return $refusal[0] === 503 ? $response->header('Retry-After', '30') : $response;
         }
         $r->attributes->set('feed_credential', $credential);
 

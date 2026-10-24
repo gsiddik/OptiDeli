@@ -50,6 +50,14 @@ return [
             'client_secret' => env('OPTINEXUS_SERVICE_CLIENT_SECRET'),
             'timeout_seconds' => (int) env('OPTINEXUS_TIMEOUT', 5),
         ],
+        // Opti Integration Feed pairing (docs/integration/OPTI_INTEGRATION_FEED_V1.md): 'auto' = required while identity_mode is
+        // 'optinexus' (SaaS), 'required' = always, 'off' = never (standalone installations only).
+        'feed' => [
+            'pairing' => env('OPTINEXUS_FEED_PAIRING', 'auto'),
+            'consumer_application' => env('OPTINEXUS_FEED_CONSUMER_APPLICATION', 'optiaccounting'),
+            'live_subscription_statuses' => ['ACTIVE', 'TRIAL', 'GRACE_PERIOD', 'PAST_DUE'],
+            'cache_seconds' => 300,
+        ],
         // Signed webhooks from the OptiNexus event broker (docs/architecture/FLEET_AVAILABILITY.md).
         'events' => [
             'webhook_secret' => env('OPTINEXUS_EVENT_WEBHOOK_SECRET'),

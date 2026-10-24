@@ -23,7 +23,7 @@ class EnterpriseRouteBoundaryTest extends TestCase
             ['GET', '/api/v1/rate-cards'], ['POST', '/api/v1/rate-cards'], ['POST', '/api/v1/rate-cards/calculate-estimate'],
             ['GET', '/api/v1/tenders'], ['POST', '/api/v1/tenders/waterfall/start'], ['POST', '/api/v1/tenders/offers/x/respond'],
             ['POST', '/api/v1/load-optimization/build'],
-            ['POST', '/api/v1/telematics/ping'], ['GET', '/api/v1/telematics/live'], ['POST', '/api/v1/telematics/alerts/x/resolve'],
+            ['POST', '/api/v1/telematics/ping'], ['GET', '/api/v1/telematics/live'], ['POST', '/api/v1/telematics/radar-embed'], ['POST', '/api/v1/telematics/alerts/x/resolve'],
             ['POST', '/api/v1/esg/calculate-trip'], ['GET', '/api/v1/esg/summary'], ['GET', '/api/v1/esg/records'],
             ['POST', '/api/v1/edi/inbound-204'], ['POST', '/api/v1/edi/generate-214'], ['POST', '/api/v1/edi/sync-210'], ['GET', '/api/v1/edi/transmissions'],
             ['GET', '/api/v1/ecosystem/context'], ['GET', '/api/v1/fleet/assets/B-1/readiness'], ['POST', '/api/v1/accounting/sync'],

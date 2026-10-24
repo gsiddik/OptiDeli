@@ -10,6 +10,7 @@ type PlatformSession = {
   name: string;
   permissions: string[];
   deployment_mode: string;
+  identity_mode: string;
   standalone_tenant: string | null;
 };
 type TenantRow = {
@@ -17,6 +18,7 @@ type TenantRow = {
   slug: string;
   name: string;
   active: boolean;
+  optinexus_tenant_id: string | null;
   active_members: number;
 };
 
@@ -158,6 +160,7 @@ function PlatformConsole({
                     <th>Slug</th>
                     <th>Status</th>
                     <th>Anggota aktif</th>
+                    <th>OptiNexus</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
@@ -170,6 +173,13 @@ function PlatformConsole({
                         <Badge value={t.active ? "ACTIVE" : "SUSPENDED"} />
                       </td>
                       <td>{t.active_members}</td>
+                      <td>
+                        {t.optinexus_tenant_id ? (
+                          <code>{t.optinexus_tenant_id}</code>
+                        ) : (
+                          <span className="muted">Belum ditautkan</span>
+                        )}
+                      </td>
                       <td>
                         <div className="actions">
                           {can("platform.tenant.manage") && (
@@ -187,23 +197,40 @@ function PlatformConsole({
                               onDone={tenants.refresh}
                             />
                           )}
-                          {can("platform.tenant_admin.create") && (
+                          {can("platform.tenant.manage") && (
                             <Action
-                              label={`Admin ${t.slug}`}
-                              path={`platform/tenants/${t.id}/administrators`}
+                              label={`Tautkan ${t.slug}`}
+                              path={`platform/tenants/${t.id}/optinexus`}
                               fields={[
-                                { name: "name", label: "Nama administrator" },
-                                { name: "email", label: "Email akun baru" },
                                 {
-                                  name: "password",
+                                  name: "optinexus_tenant_id",
                                   label:
-                                    "Kata sandi awal (min. 12, huruf besar/kecil, angka, simbol)",
-                                  kind: "password",
+                                    "ID tenant OptiNexus (UUID; kosongkan untuk melepas)",
+                                  value: t.optinexus_tenant_id ?? "",
+                                  required: false,
                                 },
                               ]}
                               onDone={tenants.refresh}
                             />
                           )}
+                          {session.identity_mode !== "optinexus" &&
+                            can("platform.tenant_admin.create") && (
+                              <Action
+                                label={`Admin ${t.slug}`}
+                                path={`platform/tenants/${t.id}/administrators`}
+                                fields={[
+                                  { name: "name", label: "Nama administrator" },
+                                  { name: "email", label: "Email akun baru" },
+                                  {
+                                    name: "password",
+                                    label:
+                                      "Kata sandi awal (min. 12, huruf besar/kecil, angka, simbol)",
+                                    kind: "password",
+                                  },
+                                ]}
+                                onDone={tenants.refresh}
+                              />
+                            )}
                         </div>
                       </td>
                     </tr>

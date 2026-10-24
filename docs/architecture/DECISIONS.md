@@ -74,3 +74,11 @@ These references guide design; no untested certification, compliance or performa
 - In `standalone` deployment only the `OPTIDELI_STANDALONE_TENANT` slug can be created. A tenant administrator
   created by the Superadmin gets the `tenant_administrator` system role; suspending a tenant blocks its logins.
 - The console lives at `/platform` in the same SPA, outside the tenant workspace.
+
+## OptiNexus identity mode (wave 1C/1D, 2026-10-24)
+
+- `OPTIDELI_IDENTITY_MODE=optinexus` signs tenant users in through OptiNexus (OIDC + PKCE) and takes their permissions from
+  OptiNexus; local roles stay the authority only in `local` mode. The Superadmin always signs in locally. Details:
+  `OPTINEXUS_ADAPTER.md`.
+- Sellable modules for OptiNexus are `optideli.enterprise` and `optideli.vendor_portal`; everything else is core. This is catalog
+  data (additive) and can be changed by the owner.

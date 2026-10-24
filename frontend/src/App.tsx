@@ -58,7 +58,31 @@ export function Brand() {
     </Link>
   );
 }
+const ssoMessages: Record<string, string> = {
+  access_denied:
+    "Organisasi atau akun Anda belum mendapat akses OptiDeli di OptiNexus.",
+  tenant_not_linked:
+    "Organisasi Anda belum ditautkan ke OptiDeli. Hubungi Superadmin.",
+  tenant_inactive: "Tenant OptiDeli organisasi Anda sedang tidak aktif.",
+  no_permissions: "Akun Anda belum memiliki izin OptiDeli di OptiNexus.",
+  membership_inactive: "Keanggotaan Anda di tenant ini tidak aktif.",
+  user_inactive: "Akun Anda tidak aktif.",
+  email_not_verified:
+    "Email akun OptiNexus belum terverifikasi, sehingga akun lama tidak dapat ditautkan.",
+  account_conflict:
+    "Email ini sudah dipakai akun lain di OptiDeli. Hubungi administrator.",
+  sso_unavailable:
+    "OptiNexus sedang tidak dapat dihubungi. Coba lagi sebentar.",
+  sso_disabled: "Masuk melalui OptiNexus belum diaktifkan.",
+  sso_failed: "Masuk melalui OptiNexus gagal. Silakan coba lagi.",
+};
 function Login({ onLogin }: { onLogin: () => void }) {
+  const status = useData<{
+    data: { sso_enabled: boolean; password_login: boolean };
+  }>("auth/sso/status");
+  // If the status call fails the password form stays available; the API remains the authority.
+  const sso = status.data?.data ?? { sso_enabled: false, password_login: true };
+  const ssoError = new URLSearchParams(useLocation().search).get("sso_error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tenant, setTenant] = useState("");
@@ -85,44 +109,61 @@ function Login({ onLogin }: { onLogin: () => void }) {
       <section className="login-form">
         <span className="eyebrow">SELAMAT DATANG</span>
         <h2>Masuk ke ruang operasional</h2>
-        <p className="muted">Gunakan akun dan tenant perusahaan Anda.</p>
-        <Form
-          label="Masuk"
-          onSubmit={async () => {
-            await api("auth/login", "POST", { email, password, tenant });
-            await csrf();
-            onLogin();
-          }}
-        >
-          <Field label="Tenant">
-            <input
-              autoComplete="organization"
-              value={tenant}
-              onChange={(e) => setTenant(e.target.value)}
-              required
-              maxLength={80}
-            />
-          </Field>
-          <Field label="Email">
-            <input
-              autoComplete="username"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </Field>
-          <Field label="Kata sandi">
-            <input
-              autoComplete="current-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              maxLength={1024}
-            />
-          </Field>
-        </Form>
+        <p className="muted">
+          {sso.sso_enabled
+            ? "Masuk dengan akun OptiNexus perusahaan Anda."
+            : "Gunakan akun dan tenant perusahaan Anda."}
+        </p>
+        <ErrorBox
+          error={ssoError && (ssoMessages[ssoError] ?? ssoMessages.sso_failed)}
+        />
+        {sso.sso_enabled && (
+          <a
+            className="button primary sso-button"
+            href="/api/v1/auth/sso/redirect"
+          >
+            Masuk dengan OptiNexus
+          </a>
+        )}
+        {sso.password_login && (
+          <Form
+            label="Masuk"
+            onSubmit={async () => {
+              await api("auth/login", "POST", { email, password, tenant });
+              await csrf();
+              onLogin();
+            }}
+          >
+            <Field label="Tenant">
+              <input
+                autoComplete="organization"
+                value={tenant}
+                onChange={(e) => setTenant(e.target.value)}
+                required
+                maxLength={80}
+              />
+            </Field>
+            <Field label="Email">
+              <input
+                autoComplete="username"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Kata sandi">
+              <input
+                autoComplete="current-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                maxLength={1024}
+              />
+            </Field>
+          </Form>
+        )}
         <p>
           <Link to="/platform">Masuk sebagai Superadmin</Link>
         </p>
@@ -364,6 +405,16 @@ function Shell({ onLogout }: { onLogout: () => Promise<void> }) {
     </div>
   );
 }
+/** Ends the local session and, for an OptiNexus sign-in, the OptiNexus session too (so the next visit is not signed straight back in). */
+async function signOut(done: () => void) {
+  const res = await api<{ data?: { logout_url?: string | null } } | undefined>(
+    "auth/logout",
+    "POST",
+  );
+  const url = res?.data?.logout_url;
+  if (url && /^https?:\/\//.test(url)) window.location.assign(url);
+  else done();
+}
 export default function App() {
   const location = useLocation();
   return location.pathname.startsWith("/platform") ? (
@@ -378,7 +429,12 @@ function TenantApp() {
   const [loggedOut, setLoggedOut] = useState(false);
   if (auth.loading) return <Loading />;
   if (loggedOut || !auth.data) {
-    if (auth.error && !loggedOut && !auth.error.includes("Unauthenticated"))
+    if (
+      auth.error &&
+      !loggedOut &&
+      !auth.error.includes("Unauthenticated") &&
+      !auth.error.includes("Sesi telah berakhir")
+    )
       return (
         <div className="login-error">
           <ErrorBox error={auth.error} />
@@ -408,26 +464,14 @@ function TenantApp() {
   if (isVendorSession(auth.data.data))
     return (
       <SessionContext.Provider value={auth.data.data}>
-        <VendorPortal
-          onLogout={async () => {
-            await api("auth/logout", "POST");
-            setLoggedOut(true);
-          }}
-        />
+        <VendorPortal onLogout={() => signOut(() => setLoggedOut(true))} />
       </SessionContext.Provider>
     );
   return (
     <SessionContext.Provider value={auth.data.data}>
       <Routes>
         <Route
-          element={
-            <Shell
-              onLogout={async () => {
-                await api("auth/logout", "POST");
-                setLoggedOut(true);
-              }}
-            />
-          }
+          element={<Shell onLogout={() => signOut(() => setLoggedOut(true))} />}
         >
           <Route index element={<Dashboard />} />
           <Route path="orders" element={<OrderList />} />

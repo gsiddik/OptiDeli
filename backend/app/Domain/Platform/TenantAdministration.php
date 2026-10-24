@@ -42,6 +42,19 @@ class TenantAdministration
         }, 3);
     }
 
+    public function linkOptinexus(int $actorId, string $tenantId, ?string $nexusTenantId): object
+    {
+        return DB::transaction(function () use ($actorId, $tenantId, $nexusTenantId) {
+            $tenant = DB::table('tenants')->where('id', $tenantId)->lockForUpdate()->first();
+            abort_unless($tenant, 404);
+            abort_if($nexusTenantId !== null && DB::table('tenants')->where('optinexus_tenant_id', $nexusTenantId)->where('id', '!=', $tenantId)->exists(), 422, 'Tenant OptiNexus ini sudah ditautkan ke tenant lain.');
+            DB::table('tenants')->where('id', $tenantId)->update(['optinexus_tenant_id' => $nexusTenantId, 'updated_at' => now()]);
+            PlatformAccess::audit($actorId, 'platform.tenant_optinexus_linked', $tenantId, ['from' => $tenant->optinexus_tenant_id, 'to' => $nexusTenantId]);
+
+            return DB::table('tenants')->where('id', $tenantId)->first();
+        }, 3);
+    }
+
     /** Creates a new user as administrator of the tenant, or makes an existing member its administrator. */
     public function createAdministrator(int $actorId, string $tenantId, array $data): object
     {

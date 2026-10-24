@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Integration\Optinexus\OptinexusSettings;
 use App\Domain\Platform\PlatformAccess;
 use App\Domain\Platform\TenantAdministration;
 use App\Http\Controllers\Controller;
@@ -18,17 +19,18 @@ class PlatformController extends Controller
 {
     public function login(Request $request)
     {
-        abort_unless(config('optideli.identity_mode') === 'local', 503, 'Login platform lokal tidak aktif.');
+        // The Superadmin is always a local account (break-glass), in both identity modes.
+        abort_unless(in_array(config('optideli.identity_mode'), ['local', 'optinexus'], true), 503, 'Login platform lokal tidak aktif.');
         $data = $request->validate(['email' => 'required|email|max:254', 'password' => 'required|string|max:1024']);
         $user = User::where('email', strtolower($data['email']))->first();
         $valid = $user ? Hash::check($data['password'], $user->password) : Hash::check($data['password'], '$2y$12$8G9O0YJy4t3GpGO7cTIijOBRQPfaANkBhnU8YfrfC/n2C/4ELkZfW');
-        if (! $user || ! $valid || PlatformAccess::permissionsFor($user->id) === []) {
+        if (! $user || ! $valid || ! $user->active || PlatformAccess::permissionsFor($user->id) === []) {
             throw ValidationException::withMessages(['email' => 'Kredensial platform tidak sesuai.']);
         }
         Auth::login($user);
         $request->session()->regenerate();
-        $request->session()->forget('tenant_id');
-        $request->session()->put('platform', true);
+        $request->session()->forget(['tenant_id', 'optinexus_sso', 'optinexus_sid', 'optinexus_id_token_hint']);
+        $request->session()->put(['platform' => true, 'session_epoch' => (int) $user->session_epoch]);
         PlatformAccess::audit($user->id, 'platform.login', (string) $user->id);
 
         return response()->json(['data' => ['name' => $user->name]]);
@@ -36,7 +38,7 @@ class PlatformController extends Controller
 
     public function me(Request $request)
     {
-        return response()->json(['data' => ['id' => $request->user()->id, 'name' => $request->user()->name, 'permissions' => $request->attributes->get('platform_permissions'), 'deployment_mode' => config('optideli.deployment_mode'), 'standalone_tenant' => config('optideli.deployment_mode') === 'standalone' ? config('optideli.standalone_tenant') : null]]);
+        return response()->json(['data' => ['id' => $request->user()->id, 'name' => $request->user()->name, 'permissions' => $request->attributes->get('platform_permissions'), 'deployment_mode' => config('optideli.deployment_mode'), 'identity_mode' => config('optideli.identity_mode'), 'standalone_tenant' => config('optideli.deployment_mode') === 'standalone' ? config('optideli.standalone_tenant') : null]]);
     }
 
     public function tenants(Request $request)
@@ -44,7 +46,7 @@ class PlatformController extends Controller
         PlatformAccess::authorize($request, 'platform.tenant.view');
         $members = DB::table('memberships')->where('active', true)->selectRaw('tenant_id, count(*) as total')->groupBy('tenant_id')->pluck('total', 'tenant_id');
 
-        return response()->json(['data' => DB::table('tenants')->orderBy('name')->get(['id', 'slug', 'name', 'active', 'created_at'])
+        return response()->json(['data' => DB::table('tenants')->orderBy('name')->get(['id', 'slug', 'name', 'active', 'optinexus_tenant_id', 'created_at'])
             ->map(fn ($t) => [...(array) $t, 'active_members' => (int) ($members[$t->id] ?? 0)])]);
     }
 
@@ -67,9 +69,19 @@ class PlatformController extends Controller
     public function createTenantAdmin(Request $request, string $id, TenantAdministration $admin)
     {
         PlatformAccess::authorize($request, 'platform.tenant_admin.create');
+        abort_if(OptinexusSettings::active(), 409, 'Pengguna tenant dikelola di OptiNexus.');
         $data = $request->validate(['name' => 'required|string|max:150', 'email' => 'required|email|max:254', 'password' => ['required', 'string', Password::min(12)->letters()->mixedCase()->numbers()->symbols()]]);
 
         return response()->json(['data' => $admin->createAdministrator($request->user()->id, $id, $data)], 201);
+    }
+
+    /** Links the tenant to its OptiNexus tenant id (or unlinks it with null); SSO sign-ins land only in a linked tenant. */
+    public function linkOptinexus(Request $request, string $id, TenantAdministration $admin)
+    {
+        PlatformAccess::authorize($request, 'platform.tenant.manage');
+        $data = $request->validate(['optinexus_tenant_id' => 'present|nullable|uuid']);
+
+        return response()->json(['data' => $admin->linkOptinexus($request->user()->id, $id, $data['optinexus_tenant_id'] === null ? null : strtolower($data['optinexus_tenant_id']))]);
     }
 
     public function audit(Request $request)

@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Access\SystemRoles;
+use App\Domain\Integration\Optinexus\OptinexusManifest;
 use App\Domain\Platform\PlatformAccess;
 use App\Models\User;
 use Illuminate\Foundation\Inspiring;
@@ -36,3 +37,17 @@ Artisan::command('optideli:create-platform-admin {email} {--name=Platform Admini
 
     return 0;
 })->purpose('Create or promote the platform administrator (Superadmin)');
+
+Artisan::command('optideli:nexus:manifest {--output= : Write the JSON to this file instead of printing it}', function (OptinexusManifest $manifest) {
+    // What an OptiNexus operator imports and registers for OptiDeli (docs/architecture/OPTINEXUS_ADAPTER.md §6). Contains no secret.
+    $json = json_encode($manifest->build(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    if ($path = $this->option('output')) {
+        file_put_contents($path, $json.PHP_EOL);
+        $this->info("Manifest written to {$path}.");
+
+        return 0;
+    }
+    $this->line($json);
+
+    return 0;
+})->purpose('Print the OptiDeli manifest v2 for OptiNexus');

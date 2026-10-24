@@ -10,6 +10,7 @@ export type Session = {
     stage_margin_bps: Record<string, number>;
   };
   deployment_mode: string;
+  identity_mode?: string;
 };
 export type Page<T> = {
   data: T[];

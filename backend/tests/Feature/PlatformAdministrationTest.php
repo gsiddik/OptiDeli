@@ -106,4 +106,26 @@ class PlatformAdministrationTest extends TestCase
         $this->postJson('/api/v1/platform/auth/login', ['email' => 'root@platform.test', 'password' => self::PASSWORD])->assertOk();
         $this->getJson('/api/v1/platform/auth/me')->assertOk()->assertJsonPath('data.permissions.0', 'platform.admin.manage');
     }
+
+    public function test_superadmin_links_a_tenant_to_one_optinexus_tenant_only(): void
+    {
+        $this->login($this->platformUser());
+        $a = $this->postJson('/api/v1/platform/tenants', ['slug' => 'alpha', 'name' => 'Alpha'])->json('data.id');
+        $b = $this->postJson('/api/v1/platform/tenants', ['slug' => 'beta', 'name' => 'Beta'])->json('data.id');
+        $nexus = (string) Str::uuid();
+        $this->postJson("/api/v1/platform/tenants/{$a}/optinexus", ['optinexus_tenant_id' => $nexus])->assertOk()->assertJsonPath('data.optinexus_tenant_id', $nexus);
+        $this->postJson("/api/v1/platform/tenants/{$b}/optinexus", ['optinexus_tenant_id' => $nexus])->assertStatus(422);
+        $this->postJson("/api/v1/platform/tenants/{$b}/optinexus", ['optinexus_tenant_id' => 'not-a-uuid'])->assertStatus(422);
+        $this->assertDatabaseHas('platform_audit_events', ['action' => 'platform.tenant_optinexus_linked', 'subject_id' => $a]);
+        $this->postJson("/api/v1/platform/tenants/{$a}/optinexus", ['optinexus_tenant_id' => null])->assertOk()->assertJsonPath('data.optinexus_tenant_id', null);
+    }
+
+    public function test_in_optinexus_mode_the_superadmin_still_signs_in_locally_but_creates_no_tenant_users(): void
+    {
+        $user = $this->platformUser();
+        config(['optideli.identity_mode' => 'optinexus']);
+        $this->login($user);
+        $tenant = $this->postJson('/api/v1/platform/tenants', ['slug' => 'gamma', 'name' => 'Gamma'])->json('data.id');
+        $this->postJson("/api/v1/platform/tenants/{$tenant}/administrators", ['name' => 'G', 'email' => 'g@gamma.test', 'password' => 'Gamma-Admin-Pass!9'])->assertStatus(409);
+    }
 }

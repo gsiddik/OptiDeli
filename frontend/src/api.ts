@@ -70,6 +70,7 @@ export async function api<T>(
       data.errors,
     );
   }
+  if (path === "auth/logout") csrfToken = undefined;
   return data as T;
 }
 export function useData<T>(path: string) {

@@ -43,6 +43,30 @@ final class PermissionCatalog
         ],
     ];
 
+    /**
+     * Sellable modules for OptiNexus (capability code = "<application>.<module>"). Permissions not listed here belong to the core
+     * that comes with the application. In OptiNexus mode a permission of a module the tenant is not entitled to is dropped.
+     */
+    public const MODULES = [
+        'enterprise' => ['name' => 'Enterprise logistics', 'description' => 'Rate cards, tenders, load optimizer, telematics, ESG and EDI.', 'permissions' => ['enterprise.manage']],
+        'vendor_portal' => ['name' => 'Vendor portal', 'description' => 'Carrier and vendor self-service portal.', 'permissions' => ['vendor.portal', 'vendor.portal.provision']],
+    ];
+
+    /** Permissions an Admin Tenant may not hand out from OptiNexus (vendor access needs a vendor-bound membership; access is governed centrally). */
+    public const NOT_DELEGABLE = ['vendor.portal', 'access.role.manage', 'access.user.manage'];
+
+    /** Module (without application prefix) of a permission, or null for the core. */
+    public static function moduleOf(string $code): ?string
+    {
+        foreach (self::MODULES as $module => $definition) {
+            if (in_array($code, $definition['permissions'], true)) {
+                return $module;
+            }
+        }
+
+        return null;
+    }
+
     /** System role templates: name => permission codes. Names match the former membership roles. */
     public const SYSTEM_ROLES = [
         'viewer' => ['operations.view'],

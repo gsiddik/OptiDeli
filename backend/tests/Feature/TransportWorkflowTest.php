@@ -246,8 +246,14 @@ class TransportWorkflowTest extends TestCase
 
     public function test_unsupported_identity_mode_does_not_fall_back_to_local(): void
     {
-        config(['optideli.identity_mode' => 'optinexus']);
+        config(['optideli.identity_mode' => 'keycloak']);
         $this->getJson('/api/v1/orders')->assertStatus(503);
+    }
+
+    public function test_password_session_ends_when_the_identity_mode_becomes_optinexus(): void
+    {
+        config(['optideli.identity_mode' => 'optinexus']);
+        $this->getJson('/api/v1/orders')->assertUnauthorized();
     }
 
     public function test_only_cfo_can_configure_stage_thresholds_and_change_is_audited(): void

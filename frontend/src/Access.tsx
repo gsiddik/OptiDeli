@@ -29,8 +29,10 @@ export function AccessPage() {
   const session = useSession();
   const roles = useData<{ data: Role[] }>("access/roles");
   const catalog = useData<{ data: Permission[] }>("access/permissions");
-  const manageRoles = can(session, "access.role.manage");
-  const manageUsers = can(session, "access.user.manage");
+  // In OptiNexus mode roles and assignments live in OptiNexus; this page only shows them.
+  const managed = session.identity_mode === "optinexus";
+  const manageRoles = !managed && can(session, "access.role.manage");
+  const manageUsers = !managed && can(session, "access.user.manage");
   return (
     <>
       <div className="page-heading">
@@ -43,6 +45,12 @@ export function AccessPage() {
           </p>
         </div>
       </div>
+      {managed && (
+        <div className="alert" role="status">
+          Akses dikelola di OptiNexus. Izin Anda di OptiDeli mengikuti role yang
+          diberikan di OptiNexus.
+        </div>
+      )}
       <ErrorBox error={roles.error ?? catalog.error} />
       {manageRoles && catalog.data && (
         <RoleForm

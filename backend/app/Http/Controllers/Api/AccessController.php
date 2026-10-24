@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Access\Access;
 use App\Domain\Access\RoleService;
+use App\Domain\Integration\Optinexus\OptinexusSettings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class AccessController extends Controller
     public function createRole(Request $r, RoleService $service)
     {
         Access::authorize($r, 'access.role.manage');
+        self::localAuthority();
 
         return response()->json(['data' => $service->create(OrderController::storeFor($r), $this->roleData($r), $r->attributes->get('permissions'))], 201);
     }
@@ -34,6 +36,7 @@ class AccessController extends Controller
     public function updateRole(Request $r, string $id, RoleService $service)
     {
         Access::authorize($r, 'access.role.manage');
+        self::localAuthority();
 
         return response()->json(['data' => $service->update(OrderController::storeFor($r), $id, $this->roleData($r), $r->attributes->get('permissions'))]);
     }
@@ -41,6 +44,7 @@ class AccessController extends Controller
     public function deleteRole(Request $r, string $id, RoleService $service)
     {
         Access::authorize($r, 'access.role.manage');
+        self::localAuthority();
         $service->delete(OrderController::storeFor($r), $id);
 
         return response()->noContent();
@@ -66,6 +70,7 @@ class AccessController extends Controller
     public function assign(Request $r, int $membership, RoleService $service)
     {
         Access::authorize($r, 'access.user.manage');
+        self::localAuthority();
         $d = $r->validate(['role_ids' => 'required|array|min:1|max:20', 'role_ids.*' => 'required|uuid|distinct']);
         $service->assign(OrderController::storeFor($r), $membership, $d['role_ids'], $r->attributes->get('permissions'));
 
@@ -80,5 +85,11 @@ class AccessController extends Controller
             'permissions' => 'required|array|min:1|max:100',
             'permissions.*' => 'required|string|max:100|distinct',
         ]);
+    }
+
+    /** In OptiNexus mode roles and assignments live in OptiNexus; the local tables are not a second authority. */
+    private static function localAuthority(): void
+    {
+        abort_if(OptinexusSettings::active(), 409, 'Role dan anggota dikelola di OptiNexus.');
     }
 }

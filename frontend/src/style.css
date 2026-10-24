@@ -874,6 +874,11 @@ dialog .close {
 dialog .form-footer {
   margin-bottom: 0;
 }
+.sso-button {
+  width: 100%;
+  padding: 11px 13px;
+  margin: 6px 0 18px;
+}
 .platform-console {
   padding: 22px 30px 40px;
   width: 100%;

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { api } from "../../api";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { LiveVehicleState } from "../../types/telematics";
@@ -14,10 +15,7 @@ export const GISControlTowerMap: React.FC = () => {
 
   const fetchLiveFleet = async () => {
     try {
-      const res = await fetch("/api/v1/telematics/live", {
-        headers: { "X-Tenant-Id": "demo", Accept: "application/json" },
-      });
-      const data = await res.json();
+      const data = await api<{ data: LiveVehicleState[] }>("telematics/live");
       setFleet(data.data || []);
     } catch (e) {
       console.error(e);
@@ -89,10 +87,7 @@ export const GISControlTowerMap: React.FC = () => {
   }, [fleet]);
 
   const handleResolveAlert = async (alertId: string) => {
-    await fetch(`/api/v1/telematics/alerts/${alertId}/resolve`, {
-      method: "POST",
-      headers: { "X-Tenant-Id": "demo", Accept: "application/json" },
-    });
+    await api<unknown>(`telematics/alerts/${alertId}/resolve`, "POST");
     fetchLiveFleet();
     if (selectedVehicle) {
       setSelectedVehicle((prev) =>

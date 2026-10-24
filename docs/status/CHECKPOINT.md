@@ -79,3 +79,9 @@ Rate cards, tender automation and advanced delivery-exception/claims resolution 
 
 - Starting a trip now requires route endpoints to match the order and final leg ETA not to exceed the verified dispatch window; regression verifies both denials without advancing trip status. A closed trip cannot enter a yard gate using an unused booking.
 - Mobile E2E waits for the ready invoice data before testing overflow and taking a screenshot; the populated 390px portal passes. Latest PostgreSQL suite: 63 tests / 419 assertions.
+
+## Wave 0 security fix (2026-10-24, ecosystem audit)
+
+- Increment 2B-5/ecosystem routes now sit in `routes/enterprise.php` inside `auth` + `tenant` + internal access; tenant comes from the session only (`X-Tenant-Id` is ignored), viewers cannot mutate, duplicate `/v1/*` routes removed. Frontend components use the shared `api()` client (session cookie + CSRF).
+- `identity_mode` / `standalone_tenant` restored in `config/optideli.php` (missing since 1835c46, login answered 503). Regression test covers login with shipped defaults.
+- Local: SQLite and PostgreSQL suites 94 tests passed; frontend 27 tests, lint, typecheck/build, Prettier, Pint passed. Local deps were resolved for PHP 8.3 (lock needs PHP 8.4); CI uses the committed lock.

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { api } from "../../api";
 import type { VendorRateCard } from "../../types/tendering";
 import { formatRupiahFromMinor } from "../../types/tendering";
 
@@ -16,10 +17,7 @@ export const RateCardDynamicGrid: React.FC = () => {
 
   const fetchRateCards = async () => {
     try {
-      const res = await fetch("/api/v1/rate-cards", {
-        headers: { "X-Tenant-Id": "demo", Accept: "application/json" },
-      });
-      const data = await res.json();
+      const data = await api<{ data: VendorRateCard[] }>("rate-cards");
       setRateCards(data.data || []);
     } catch (e) {
       console.error(e);
@@ -34,22 +32,14 @@ export const RateCardDynamicGrid: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/v1/rate-cards", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Tenant-Id": "demo",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        vendor_id: vendorId,
-        vehicle_type: vehicleType,
-        zone_origin: origin,
-        zone_destination: dest,
-        base_rate_minor_units: Math.round(baseRateRp * 100),
-        rate_per_km_minor_units: Math.round(ratePerKmRp * 100),
-        min_distance_km: 0,
-      }),
+    await api<unknown>("rate-cards", "POST", {
+      vendor_id: vendorId,
+      vehicle_type: vehicleType,
+      zone_origin: origin,
+      zone_destination: dest,
+      base_rate_minor_units: Math.round(baseRateRp * 100),
+      rate_per_km_minor_units: Math.round(ratePerKmRp * 100),
+      min_distance_km: 0,
     });
     setVendorId("");
     fetchRateCards();

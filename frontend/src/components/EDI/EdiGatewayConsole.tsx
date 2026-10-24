@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { api } from "../../api";
 import type { EdiTransmission } from "../../types/edi";
 
 export const EdiGatewayConsole: React.FC = () => {
@@ -11,10 +12,7 @@ export const EdiGatewayConsole: React.FC = () => {
 
   const fetchTransmissions = async () => {
     try {
-      const res = await fetch("/api/v1/edi/transmissions", {
-        headers: { "X-Tenant-Id": "demo", Accept: "application/json" },
-      });
-      const data = await res.json();
+      const data = await api<{ data: EdiTransmission[] }>("edi/transmissions");
       setTransmissions(data.data || []);
     } catch (e) {
       console.error(e);
@@ -28,44 +26,20 @@ export const EdiGatewayConsole: React.FC = () => {
   const handleSimulate = async () => {
     if (testSet === "204") {
       const sample = `ISA*00*          *00*          *ZZ*ERP-CUSTOMER   *ZZ*OPTIDELI       *261023*1500*U*00401*000000001*0*P*>~\nGS*SM*ERP-CUSTOMER*OPTIDELI*20261023*1500*1*X*004010~\nST*204*0001~\nB2**CARRIER*${shipmentId}**PP~\nN1*SH*JAKARTA-LOGISTICS-HUB~\nN1*CN*SURABAYA-DIST-CENTER~\nOID*FMCG RETAIL GOODS*50*CT*1200*KG~\nL3*1200*G*480000000~\nSE*8*0001~\nGE*1*1~\nIEA*1*000000001~`;
-      await fetch("/api/v1/edi/inbound-204", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-Id": "demo",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ raw_x12: sample }),
-      });
+      await api<unknown>("edi/inbound-204", "POST", { raw_x12: sample });
     } else if (testSet === "214") {
-      await fetch("/api/v1/edi/generate-214", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-Id": "demo",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          shipment_id: shipmentId,
-          status: "DELIVERED",
-          location_city: "SURABAYA",
-        }),
+      await api<unknown>("edi/generate-214", "POST", {
+        shipment_id: shipmentId,
+        status: "DELIVERED",
+        location_city: "SURABAYA",
       });
     } else {
-      await fetch("/api/v1/edi/sync-210", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-Id": "demo",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          invoice_number: `INV-${shipmentId}`,
-          order_id: shipmentId,
-          customer_ar_minor_units: 480000000,
-          vendor_ap_minor_units: 390000000,
-          accessorials_minor_units: 20000000,
-        }),
+      await api<unknown>("edi/sync-210", "POST", {
+        invoice_number: `INV-${shipmentId}`,
+        order_id: shipmentId,
+        customer_ar_minor_units: 480000000,
+        vendor_ap_minor_units: 390000000,
+        accessorials_minor_units: 20000000,
       });
     }
     fetchTransmissions();

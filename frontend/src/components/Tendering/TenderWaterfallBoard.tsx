@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { api } from "../../api";
 import type { TenderDispatch } from "../../types/tendering";
 import { formatRupiahFromMinor } from "../../types/tendering";
 
@@ -8,10 +9,7 @@ export const TenderWaterfallBoard: React.FC = () => {
 
   const fetchTenders = async () => {
     try {
-      const res = await fetch("/api/v1/tenders", {
-        headers: { "X-Tenant-Id": "demo", Accept: "application/json" },
-      });
-      const data = await res.json();
+      const data = await api<{ data: TenderDispatch[] }>("tenders");
       setDispatches(data.data || []);
     } catch (e) {
       console.error(e);
@@ -30,15 +28,7 @@ export const TenderWaterfallBoard: React.FC = () => {
     offerId: string,
     action: "ACCEPT" | "REJECT",
   ) => {
-    await fetch(`/api/v1/tenders/offers/${offerId}/respond`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Tenant-Id": "demo",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ action }),
-    });
+    await api<unknown>(`tenders/offers/${offerId}/respond`, "POST", { action });
     fetchTenders();
   };
 

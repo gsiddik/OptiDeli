@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\VendorRateCard;
 use App\Services\Tendering\RateCardEngineService;
+use Brick\Math\BigDecimal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -72,12 +73,12 @@ class VendorRateCardController extends Controller
             $validated['vehicle_type'],
             $validated['zone_origin'],
             $validated['zone_destination'],
-            (float) $validated['distance_km']
+            (string) $validated['distance_km']
         );
 
         return response()->json([
             'estimated_cost_minor_units' => $costMinorUnits,
-            'estimated_cost_idr' => $costMinorUnits / 100,
+            'estimated_cost_idr' => (string) BigDecimal::ofUnscaledValue($costMinorUnits, 2),
         ]);
     }
 }

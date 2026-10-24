@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../../api";
+import { minor } from "../../commercial";
 import type { VendorRateCard } from "../../types/tendering";
 import { formatRupiahFromMinor } from "../../types/tendering";
 
@@ -12,8 +13,9 @@ export const RateCardDynamicGrid: React.FC = () => {
   const [vehicleType, setVehicleType] = useState("CDD");
   const [origin, setOrigin] = useState("JKT-HUB");
   const [dest, setDest] = useState("SBY-HUB");
-  const [baseRateRp, setBaseRateRp] = useState(3500000);
-  const [ratePerKmRp, setRatePerKmRp] = useState(4500);
+  const [baseRateRp, setBaseRateRp] = useState("3500000");
+  const [ratePerKmRp, setRatePerKmRp] = useState("4500");
+  const [saveError, setSaveError] = useState<string>();
 
   const fetchRateCards = async () => {
     try {
@@ -32,15 +34,21 @@ export const RateCardDynamicGrid: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api<unknown>("rate-cards", "POST", {
-      vendor_id: vendorId,
-      vehicle_type: vehicleType,
-      zone_origin: origin,
-      zone_destination: dest,
-      base_rate_minor_units: Math.round(baseRateRp * 100),
-      rate_per_km_minor_units: Math.round(ratePerKmRp * 100),
-      min_distance_km: 0,
-    });
+    setSaveError(undefined);
+    try {
+      await api<unknown>("rate-cards", "POST", {
+        vendor_id: vendorId,
+        vehicle_type: vehicleType,
+        zone_origin: origin,
+        zone_destination: dest,
+        base_rate_minor_units: minor(baseRateRp),
+        rate_per_km_minor_units: minor(ratePerKmRp),
+        min_distance_km: 0,
+      });
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Gagal menyimpan.");
+      return;
+    }
     setVendorId("");
     fetchRateCards();
   };
@@ -175,22 +183,29 @@ export const RateCardDynamicGrid: React.FC = () => {
             required
           />
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             placeholder="Tarif Dasar (Rp)"
             value={baseRateRp}
-            onChange={(e) => setBaseRateRp(Number(e.target.value))}
+            onChange={(e) => setBaseRateRp(e.target.value)}
             className="rounded border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200"
             required
           />
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             placeholder="Tarif per KM (Rp)"
             value={ratePerKmRp}
-            onChange={(e) => setRatePerKmRp(Number(e.target.value))}
+            onChange={(e) => setRatePerKmRp(e.target.value)}
             className="rounded border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200"
             required
           />
         </div>
+        {saveError && (
+          <p role="alert" className="text-xs text-rose-400">
+            {saveError}
+          </p>
+        )}
         <div className="flex justify-end">
           <button
             type="submit"

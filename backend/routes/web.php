@@ -5,14 +5,25 @@ use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\ExecutionController;
 use App\Http\Controllers\Api\FleetController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PlatformController;
 use App\Http\Controllers\Api\PolicyController;
 use App\Http\Middleware\InternalAccess;
+use App\Http\Middleware\PlatformContext;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/api/v1/csrf', fn () => response()->json(['token' => csrf_token()]));
 Route::get('/api/v1/health', fn () => response()->json(['status' => 'ok', 'service' => 'optideli']));
 Route::post('/api/v1/auth/logout', [AuthController::class, 'logout'])->middleware('auth');
 Route::post('/api/v1/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('/api/v1/platform/auth/login', [PlatformController::class, 'login'])->middleware('throttle:login');
+Route::middleware(['auth', PlatformContext::class, 'throttle:120,1'])->prefix('api/v1/platform')->group(function () {
+    Route::get('auth/me', [PlatformController::class, 'me']);
+    Route::get('tenants', [PlatformController::class, 'tenants']);
+    Route::post('tenants', [PlatformController::class, 'createTenant']);
+    Route::post('tenants/{id}/status', [PlatformController::class, 'tenantStatus'])->whereUuid('id');
+    Route::post('tenants/{id}/administrators', [PlatformController::class, 'createTenantAdmin'])->whereUuid('id');
+    Route::get('audit', [PlatformController::class, 'audit']);
+});
 Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group(function () {
     Route::get('auth/me', [AuthController::class, 'me']);
     Route::get('files/{kind}/{id}', [ExecutionController::class, 'file'])->whereUuid('id');

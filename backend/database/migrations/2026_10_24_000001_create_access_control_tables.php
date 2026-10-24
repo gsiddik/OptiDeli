@@ -40,7 +40,7 @@ return new class extends Migration
         });
 
         // Existing tenants get their system roles and every membership keeps exactly the access of its former role.
-        app(SystemRoles::class)->syncAll();
+        app(SystemRoles::class)->syncTenants();
     }
 
     public function down(): void

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { api } from "../../api";
 import * as THREE from "three";
 import type {
   OptimizationResult,
@@ -48,15 +49,11 @@ export const LoadOptimizationViewer3D: React.FC = () => {
   const runOptimization = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/v1/load-optimization/build", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ vehicle, cargo_items: cargoItems }),
-      });
-      const data = await res.json();
+      const data = await api<{ data: OptimizationResult }>(
+        "load-optimization/build",
+        "POST",
+        { vehicle, cargo_items: cargoItems },
+      );
       setResult(data.data);
     } catch (err) {
       console.error("Gagal mengoptimasi muatan:", err);

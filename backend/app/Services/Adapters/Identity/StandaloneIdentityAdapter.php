@@ -8,13 +8,13 @@ class StandaloneIdentityAdapter implements IdentityPortInterface
 {
     public function resolveContext(Request $request): array
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenant = $request->attributes->get('tenant');
 
         return [
-            'tenant_id' => $tenantId,
-            'user_id' => 'usr-local-dispatcher',
-            'user_name' => 'Local Dispatcher (Standalone)',
-            'role' => 'Dispatcher',
+            'tenant_id' => (string) $tenant->id,
+            'user_id' => (string) $request->user()->id,
+            'user_name' => $request->user()->name,
+            'role' => (string) $request->attributes->get('role'),
             'mode' => 'standalone',
             'is_sso' => false,
         ];

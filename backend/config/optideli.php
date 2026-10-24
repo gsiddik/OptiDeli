@@ -9,13 +9,21 @@ return [
     'deployment_mode' => env('OPTIDELI_DEPLOYMENT_MODE', 'standalone'),
 
     /*
+    | Login identity mode read by AuthController and TenantContext. Only 'local' is implemented;
+    | any other value makes login and tenant routes answer 503 instead of failing open.
+    | In standalone deployment only the tenant with this slug may sign in.
+    */
+    'identity_mode' => env('OPTIDELI_IDENTITY_MODE', 'local'),
+    'standalone_tenant' => env('OPTIDELI_STANDALONE_TENANT', 'demo'),
+
+    /*
     |--------------------------------------------------------------------------
     | Identity & Access Management Driver
-    | Options: 'standalone' (Local DB users/roles) | 'optinexus' (SSO & Central CGO)
+    | Options: 'local' (Local DB users/roles) | 'optinexus' (SSO & Central CGO)
     |--------------------------------------------------------------------------
     */
     'identity' => [
-        'driver' => env('OPTIDELI_IDENTITY_MODE', 'standalone'),
+        'driver' => env('OPTIDELI_IDENTITY_MODE', 'local'),
         'optinexus_url' => env('OPTINEXUS_API_URL', 'http://localhost:8000'),
         'm2m_client_id' => env('OPTIDELI_M2M_CLIENT_ID', 'optideli'),
         'm2m_client_secret' => env('OPTIDELI_M2M_CLIENT_SECRET', ''),

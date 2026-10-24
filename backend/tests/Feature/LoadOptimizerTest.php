@@ -2,12 +2,18 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\SignsInTenantMember;
 use Tests\TestCase;
 
 class LoadOptimizerTest extends TestCase
 {
+    use RefreshDatabase;
+    use SignsInTenantMember;
+
     public function test_load_optimizer_places_cargo_and_calculates_axle_loads(): void
     {
+        $this->signInTenantMember();
         $payload = [
             'vehicle' => [
                 'type' => 'CDD Box',

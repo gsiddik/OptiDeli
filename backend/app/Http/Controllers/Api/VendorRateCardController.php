@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\VendorRateCard;
 use App\Services\Tendering\RateCardEngineService;
+use Brick\Math\BigDecimal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,7 @@ class VendorRateCardController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $cards = VendorRateCard::where('tenant_id', $tenantId)
             ->orderBy('vendor_id')
@@ -28,7 +29,7 @@ class VendorRateCardController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'vendor_id' => 'required|string',
@@ -56,7 +57,7 @@ class VendorRateCardController extends Controller
 
     public function calculateEstimate(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'vendor_id' => 'required|string',
@@ -72,12 +73,12 @@ class VendorRateCardController extends Controller
             $validated['vehicle_type'],
             $validated['zone_origin'],
             $validated['zone_destination'],
-            (float) $validated['distance_km']
+            (string) $validated['distance_km']
         );
 
         return response()->json([
             'estimated_cost_minor_units' => $costMinorUnits,
-            'estimated_cost_idr' => $costMinorUnits / 100,
+            'estimated_cost_idr' => (string) BigDecimal::ofUnscaledValue($costMinorUnits, 2),
         ]);
     }
 }

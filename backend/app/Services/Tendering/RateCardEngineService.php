@@ -3,6 +3,8 @@
 namespace App\Services\Tendering;
 
 use App\Models\VendorRateCard;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use InvalidArgumentException;
 
 class RateCardEngineService
@@ -13,7 +15,7 @@ class RateCardEngineService
         string $vehicleType,
         string $zoneOrigin,
         string $zoneDestination,
-        float $actualDistanceKm
+        string|int|float $actualDistanceKm
     ): int {
         $rateCard = VendorRateCard::where('tenant_id', $tenantId)
             ->where('vendor_id', $vendorId)
@@ -27,10 +29,13 @@ class RateCardEngineService
             throw new InvalidArgumentException("Tarif Rate Card tidak ditemukan untuk vendor '{$vendorId}' pada rute {$zoneOrigin} -> {$zoneDestination}");
         }
 
-        $baseRate = $rateCard->base_rate_minor_units;
-        $billableDistanceKm = max(0.0, $actualDistanceKm - $rateCard->min_distance_km);
-        $distanceSurcharge = (int) round($billableDistanceKm * $rateCard->rate_per_km_minor_units);
+        // Decimal arithmetic on money: billable km x per-km rate, rounded half-up to whole minor units.
+        $billableDistanceKm = BigDecimal::of((string) $actualDistanceKm)->minus($rateCard->min_distance_km);
+        if ($billableDistanceKm->isNegative()) {
+            $billableDistanceKm = BigDecimal::zero();
+        }
+        $distanceSurcharge = $billableDistanceKm->multipliedBy($rateCard->rate_per_km_minor_units)->toScale(0, RoundingMode::HalfUp);
 
-        return $baseRate + $distanceSurcharge;
+        return BigDecimal::of($rateCard->base_rate_minor_units)->plus($distanceSurcharge)->toInt();
     }
 }

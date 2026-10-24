@@ -16,7 +16,7 @@ class TelematicsController extends Controller
 
     public function ping(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'trip_id' => 'required|string',
@@ -39,7 +39,7 @@ class TelematicsController extends Controller
 
     public function live(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
         $fleet = $this->telematicsEngine->getLiveFleet($tenantId);
 
         return response()->json([
@@ -49,7 +49,7 @@ class TelematicsController extends Controller
 
     public function resolveAlert(Request $request, string $alertId): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $alert = TelemetryAlert::where('tenant_id', $tenantId)
             ->where('id', $alertId)

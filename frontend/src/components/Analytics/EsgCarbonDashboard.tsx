@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { api } from "../../api";
 import type { CarbonEmissionRecord, EsgSummary } from "../../types/esg";
 
 export const EsgCarbonDashboard: React.FC = () => {
@@ -15,16 +16,10 @@ export const EsgCarbonDashboard: React.FC = () => {
 
   const fetchEsgData = async () => {
     try {
-      const [sumRes, recRes] = await Promise.all([
-        fetch("/api/v1/esg/summary", {
-          headers: { "X-Tenant-Id": "demo", Accept: "application/json" },
-        }),
-        fetch("/api/v1/esg/records", {
-          headers: { "X-Tenant-Id": "demo", Accept: "application/json" },
-        }),
+      const [sumData, recData] = await Promise.all([
+        api<{ data: EsgSummary }>("esg/summary"),
+        api<{ data: CarbonEmissionRecord[] }>("esg/records"),
       ]);
-      const sumData = await sumRes.json();
-      const recData = await recRes.json();
       setSummary(sumData.data);
       setRecords(recData.data || []);
     } catch (e) {
@@ -38,21 +33,13 @@ export const EsgCarbonDashboard: React.FC = () => {
 
   const handleCalculate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/v1/esg/calculate-trip", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Tenant-Id": "demo",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        trip_id: tripId,
-        vehicle_id: vehicleId,
-        fleet_ownership: ownership,
-        fuel_type: fuelType,
-        distance_km: distanceKm,
-        cargo_weight_ton: cargoTon,
-      }),
+    await api<unknown>("esg/calculate-trip", "POST", {
+      trip_id: tripId,
+      vehicle_id: vehicleId,
+      fleet_ownership: ownership,
+      fuel_type: fuelType,
+      distance_km: distanceKm,
+      cargo_weight_ton: cargoTon,
     });
     fetchEsgData();
   };

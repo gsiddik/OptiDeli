@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { api } from "../../api";
 import type { EcosystemContext } from "../../types/ecosystem";
 
 export const EcosystemStatusBar: React.FC = () => {
   const [context, setContext] = useState<EcosystemContext | null>(null);
 
   useEffect(() => {
-    fetch("/api/v1/ecosystem/context", {
-      headers: { "X-Tenant-Id": "demo", Accept: "application/json" },
-    })
-      .then((res) => res.json())
+    api<{ data: EcosystemContext }>("ecosystem/context")
       .then((data) => setContext(data.data))
       .catch((err) => console.error(err));
   }, []);

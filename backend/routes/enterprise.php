@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\EcosystemContextController;
 use App\Http\Controllers\Api\EdiGatewayController;
 use App\Http\Controllers\Api\EsgCarbonController;
 use App\Http\Controllers\Api\LoadOptimizerController;
+use App\Http\Controllers\Api\RadarEmbedController;
 use App\Http\Controllers\Api\TelematicsController;
 use App\Http\Controllers\Api\VendorRateCardController;
 use App\Http\Controllers\Api\WaterfallTenderController;
@@ -17,6 +18,8 @@ Route::post('rate-cards/calculate-estimate', [VendorRateCardController::class, '
 Route::get('tenders', [WaterfallTenderController::class, 'index']);
 Route::post('load-optimization/build', [LoadOptimizerController::class, 'build']);
 Route::get('telematics/live', [TelematicsController::class, 'live']);
+// Read-only: it only mints a viewing session, so it sits outside the WriteAccess group.
+Route::post('telematics/radar-embed', [RadarEmbedController::class, 'session']);
 Route::get('esg/summary', [EsgCarbonController::class, 'summary']);
 Route::get('esg/records', [EsgCarbonController::class, 'records']);
 Route::get('edi/transmissions', [EdiGatewayController::class, 'transmissions']);

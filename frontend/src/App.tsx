@@ -2,6 +2,7 @@ import { LoadOptimizationViewer3D } from "./components/Optimizer/LoadOptimizatio
 import { RateCardDynamicGrid } from "./components/RateCards/RateCardDynamicGrid";
 import { TenderWaterfallBoard } from "./components/Tendering/TenderWaterfallBoard";
 import { GISControlTowerMap } from "./components/Telematics/GISControlTowerMap";
+import { RadarEmbedMap } from "./components/Telematics/RadarEmbedMap";
 import { EsgCarbonDashboard } from "./components/Analytics/EsgCarbonDashboard";
 import { EdiGatewayConsole } from "./components/EDI/EdiGatewayConsole";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -211,6 +212,7 @@ const navigation: {
       { to: "/load-optimizer", label: "3D Load Optimizer", icon: "orders" },
       { to: "/tendering", label: "Rate & Tendering", icon: "fleet" },
       { to: "/control-tower", label: "GIS Control Tower", icon: "dispatch" },
+      { to: "/radar", label: "Peta OptiRadar", icon: "dispatch" },
       { to: "/esg-carbon", label: "Jejak Karbon ESG", icon: "roadmap" },
       { to: "/edi-gateway", label: "EDI Gateway", icon: "audit" },
     ],
@@ -496,6 +498,7 @@ function TenantApp() {
             }
           />
           <Route path="control-tower" element={<GISControlTowerMap />} />
+          <Route path="radar" element={<RadarEmbedMap />} />
           <Route path="esg-carbon" element={<EsgCarbonDashboard />} />
           <Route path="edi-gateway" element={<EdiGatewayConsole />} />
           <Route path="policy" element={<PolicyPage />} />

@@ -2,6 +2,7 @@
 
 use App\Domain\Access\SystemRoles;
 use App\Domain\Integration\Optinexus\OptinexusManifest;
+use App\Domain\Ledger\FeedCredentials;
 use App\Domain\Platform\PlatformAccess;
 use App\Models\User;
 use Illuminate\Foundation\Inspiring;
@@ -82,3 +83,39 @@ Artisan::command('optideli:fleet:token {tenant : Tenant slug or id} {--token-fil
 
     return 0;
 })->purpose('Store or remove a tenant\'s OptiFleet availability credential');
+
+Artisan::command('optideli:feed:issue-credential {tenant : Tenant slug or id} {--consumer=optientry} {--name=OptiEntry feed} {--expires= : Expiry date (Y-m-d)} {--output= : Write the token to this file (mode 600) instead of printing it}', function (FeedCredentials $credentials, string $tenant) {
+    // Opti Integration Feed v1 read credential (docs/integration/OPTI_INTEGRATION_FEED_V1.md). The token is shown once; only its hash is stored.
+    $row = DB::table('tenants')->where(fn ($q) => $q->where('slug', $tenant)->orWhere('id', Str::isUuid($tenant) ? $tenant : null))->first();
+    if (! $row) {
+        $this->error("Tenant '{$tenant}' not found.");
+
+        return 1;
+    }
+    $issued = $credentials->issue($row->id, (string) $this->option('consumer'), (string) $this->option('name'), 'cli', $this->option('expires') ?: null);
+    PlatformAccess::audit(null, 'platform.feed_credential_issued', $row->id, ['credential_id' => $issued['id'], 'consumer' => $this->option('consumer')]);
+    if ($path = $this->option('output')) {
+        file_put_contents($path, $issued['token'].PHP_EOL);
+        chmod($path, 0600);
+        $this->info("Credential {$issued['id']} issued for {$row->slug}; token written to {$path}.");
+
+        return 0;
+    }
+    $this->info("Credential {$issued['id']} issued for {$row->slug}. Token (shown once):");
+    $this->line($issued['token']);
+
+    return 0;
+})->purpose('Issue an Opti Integration Feed read credential for a tenant');
+
+Artisan::command('optideli:feed:revoke-credential {id} {--reason=revoked by operator}', function (FeedCredentials $credentials, string $id) {
+    if (! $credentials->revoke($id, (string) $this->option('reason'))) {
+        $this->error('Credential not found or already revoked.');
+
+        return 1;
+    }
+    $tenantId = DB::table('integration_feed_credentials')->where('id', $id)->value('tenant_id');
+    PlatformAccess::audit(null, 'platform.feed_credential_revoked', $tenantId, ['credential_id' => $id]);
+    $this->info('Credential revoked.');
+
+    return 0;
+})->purpose('Revoke an Opti Integration Feed credential');

@@ -20,7 +20,7 @@ class EdiGatewayController extends Controller
 
     public function inbound204(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'raw_x12' => 'required|string',
@@ -36,7 +36,7 @@ class EdiGatewayController extends Controller
 
     public function generate214(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'shipment_id' => 'required|string',
@@ -61,7 +61,7 @@ class EdiGatewayController extends Controller
 
     public function sync210(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'invoice_number' => 'required|string',
@@ -88,7 +88,7 @@ class EdiGatewayController extends Controller
 
     public function transmissions(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $transmissions = EdiTransmission::where('tenant_id', $tenantId)
             ->orderByDesc('transmitted_at')

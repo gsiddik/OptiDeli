@@ -16,7 +16,7 @@ class WaterfallTenderController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $dispatches = TenderDispatch::where('tenant_id', $tenantId)
             ->with('offers')
@@ -29,7 +29,7 @@ class WaterfallTenderController extends Controller
 
     public function startWaterfall(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'order_id' => 'required|uuid',
@@ -54,7 +54,7 @@ class WaterfallTenderController extends Controller
 
     public function respondOffer(Request $request, string $offerId): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'action' => 'required|in:ACCEPT,REJECT',

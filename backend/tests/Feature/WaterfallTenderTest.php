@@ -5,15 +5,17 @@ namespace Tests\Feature;
 use App\Models\VendorRateCard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\SignsInTenantMember;
 use Tests\TestCase;
 
 class WaterfallTenderTest extends TestCase
 {
     use RefreshDatabase;
+    use SignsInTenantMember;
 
     public function test_rate_card_minor_unit_calculation_and_waterfall_cascading(): void
     {
-        $tenantId = 'demo';
+        $tenantId = $this->signInTenantMember();
         $orderId = (string) Str::uuid();
 
         // 1. Setup Rate Cards (1 unit = Rp 0,01)
@@ -42,27 +44,26 @@ class WaterfallTenderTest extends TestCase
         ]);
 
         // 2. Start Waterfall Tender via API
-        $response = $this->withHeaders(['X-Tenant-Id' => $tenantId])
-            ->postJson('/api/v1/tenders/waterfall/start', [
-                'order_id' => $orderId,
-                'timeout_minutes' => 15,
-                'ranked_vendors' => [
-                    [
-                        'vendor_id' => 'VND-ALPHA',
-                        'vehicle_type' => 'CDD',
-                        'zone_origin' => 'JKT-HUB',
-                        'zone_destination' => 'BDG-HUB',
-                        'distance_km' => 150.0,
-                    ],
-                    [
-                        'vendor_id' => 'VND-BETA',
-                        'vehicle_type' => 'CDD',
-                        'zone_origin' => 'JKT-HUB',
-                        'zone_destination' => 'BDG-HUB',
-                        'distance_km' => 150.0,
-                    ],
+        $response = $this->postJson('/api/v1/tenders/waterfall/start', [
+            'order_id' => $orderId,
+            'timeout_minutes' => 15,
+            'ranked_vendors' => [
+                [
+                    'vendor_id' => 'VND-ALPHA',
+                    'vehicle_type' => 'CDD',
+                    'zone_origin' => 'JKT-HUB',
+                    'zone_destination' => 'BDG-HUB',
+                    'distance_km' => 150.0,
                 ],
-            ]);
+                [
+                    'vendor_id' => 'VND-BETA',
+                    'vehicle_type' => 'CDD',
+                    'zone_origin' => 'JKT-HUB',
+                    'zone_destination' => 'BDG-HUB',
+                    'distance_km' => 150.0,
+                ],
+            ],
+        ]);
 
         $response->assertStatus(201);
         $data = $response->json('data');
@@ -75,11 +76,10 @@ class WaterfallTenderTest extends TestCase
         $offerBetaId = $data['offers'][1]['id'];
 
         // 3. Vendor ALPHA menolak -> cascade otomatis ke Vendor BETA
-        $rejectResponse = $this->withHeaders(['X-Tenant-Id' => $tenantId])
-            ->postJson("/api/v1/tenders/offers/{$offerAlphaId}/respond", [
-                'action' => 'REJECT',
-                'rejection_reason' => 'Unit sedang perawatan berkala.',
-            ]);
+        $rejectResponse = $this->postJson("/api/v1/tenders/offers/{$offerAlphaId}/respond", [
+            'action' => 'REJECT',
+            'rejection_reason' => 'Unit sedang perawatan berkala.',
+        ]);
 
         $rejectResponse->assertStatus(200);
         $offersUpdated = $rejectResponse->json('data.offers');
@@ -87,10 +87,9 @@ class WaterfallTenderTest extends TestCase
         $this->assertEquals('OFFERED', $offersUpdated[1]['status']);
 
         // 4. Vendor BETA menerima -> tender berstatus ACCEPTED
-        $acceptResponse = $this->withHeaders(['X-Tenant-Id' => $tenantId])
-            ->postJson("/api/v1/tenders/offers/{$offerBetaId}/respond", [
-                'action' => 'ACCEPT',
-            ]);
+        $acceptResponse = $this->postJson("/api/v1/tenders/offers/{$offerBetaId}/respond", [
+            'action' => 'ACCEPT',
+        ]);
 
         $acceptResponse->assertStatus(200);
         $this->assertEquals('ACCEPTED', $acceptResponse->json('data.status'));

@@ -6,7 +6,7 @@ class IdentityManager
 {
     public static function create(): IdentityPortInterface
     {
-        $driver = config('optideli.identity.driver', 'standalone');
+        $driver = config('optideli.identity.driver', 'local');
 
         return match ($driver) {
             'optinexus' => new OptiNexusIdentityAdapter,

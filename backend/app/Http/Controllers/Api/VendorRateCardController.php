@@ -16,7 +16,7 @@ class VendorRateCardController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $cards = VendorRateCard::where('tenant_id', $tenantId)
             ->orderBy('vendor_id')
@@ -28,7 +28,7 @@ class VendorRateCardController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'vendor_id' => 'required|string',
@@ -56,7 +56,7 @@ class VendorRateCardController extends Controller
 
     public function calculateEstimate(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'vendor_id' => 'required|string',

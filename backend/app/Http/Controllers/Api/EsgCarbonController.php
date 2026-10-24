@@ -16,7 +16,7 @@ class EsgCarbonController extends Controller
 
     public function recordTrip(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'trip_id' => 'required|string',
@@ -37,7 +37,7 @@ class EsgCarbonController extends Controller
 
     public function summary(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
         $summary = $this->esgEngine->getSummary($tenantId);
 
         return response()->json([
@@ -47,7 +47,7 @@ class EsgCarbonController extends Controller
 
     public function records(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
         $records = CarbonEmissionRecord::where('tenant_id', $tenantId)
             ->orderByDesc('recorded_at')
             ->limit(50)

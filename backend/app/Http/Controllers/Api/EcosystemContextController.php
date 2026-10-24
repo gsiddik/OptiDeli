@@ -20,7 +20,7 @@ class EcosystemContextController extends Controller
                 'deployment_mode' => config('optideli.deployment_mode', 'standalone'),
                 'identity' => $identity,
                 'active_drivers' => [
-                    'identity' => config('optideli.identity.driver', 'standalone'),
+                    'identity' => config('optideli.identity.driver', 'local'),
                     'telematics' => config('optideli.telematics.driver', 'generic'),
                     'fleet' => config('optideli.fleet.driver', 'local'),
                     'accounting' => config('optideli.accounting.driver', 'internal'),
@@ -37,7 +37,7 @@ class EcosystemContextController extends Controller
 
     public function checkFleetReadiness(Request $request, string $vehicleId): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
         $result = FleetMaintenanceManager::create()->checkVehicleReadiness($tenantId, $vehicleId);
 
         return response()->json(['data' => $result]);
@@ -45,7 +45,7 @@ class EcosystemContextController extends Controller
 
     public function syncAccounting(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id', 'demo');
+        $tenantId = $request->attributes->get('tenant')->id;
 
         $validated = $request->validate([
             'order_id' => 'required|string',

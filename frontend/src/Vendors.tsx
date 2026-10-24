@@ -3,7 +3,7 @@ import { useSession } from "./App";
 import { Badge, Empty, ErrorBox, Loading } from "./components";
 import { Action } from "./RecordEditor";
 import type { Vendor } from "./opsTypes";
-import { canOperate } from "./opsTypes";
+import { can, canOperate } from "./opsTypes";
 export function VendorsPage() {
   const state = useData<{ data: Vendor[] }>("vendors");
   const session = useSession();
@@ -18,7 +18,7 @@ export function VendorsPage() {
             perusahaannya.
           </p>
         </div>
-        {canOperate(session.role) && (
+        {canOperate(session) && (
           <Action
             label="Daftarkan vendor"
             path="vendors"
@@ -57,7 +57,7 @@ export function VendorsPage() {
                           <Badge value={v.active ? "ACTIVE" : "INACTIVE"} />
                         </td>
                         <td>
-                          {session.role === "cfo" && (
+                          {can(session, "vendor.portal.provision") && (
                             <Action
                               label={`Buat akun ${v.code}`}
                               path={`vendors/${v.id}/account`}

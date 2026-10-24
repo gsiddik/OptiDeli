@@ -1,4 +1,4 @@
-import { canOperate } from "./opsTypes";
+import { canOperate, dispatchApprovalLevel } from "./opsTypes";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, useData } from "./api";
@@ -88,10 +88,7 @@ export function DispatchBoard() {
     : activePolicy.minimum_margin_bps;
   const level =
     order && validCost ? approvalLevel(order.sell_minor, cost, threshold) : 0;
-  const roleLevel =
-    ({ supervisor: 1, head_of_logistics: 2, cfo: 3 } as Record<string, number>)[
-      session.role
-    ] ?? 0;
+  const roleLevel = dispatchApprovalLevel(session);
   return (
     <>
       <div className="page-heading">
@@ -107,7 +104,7 @@ export function DispatchBoard() {
           {notice}
         </div>
       )}
-      {canOperate(session.role) && (
+      {canOperate(session) && (
         <Form
           label={
             level > 0 ? "Ajukan persetujuan margin" : "Simpan rencana dispatch"
@@ -423,7 +420,7 @@ export function DispatchBoard() {
                                   </button>
                                 )}
                               {["READY", "APPROVED"].includes(p.status) &&
-                                canOperate(session.role) && (
+                                canOperate(session) && (
                                   <button
                                     className="primary"
                                     onClick={() =>

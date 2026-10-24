@@ -103,9 +103,23 @@ export type Invoice = {
   disputes?: Dispute[];
   approvals?: { authority: string; actor_id: number; note: string }[];
 };
-export const canOperate = (role: string) =>
-  ["dispatcher", "supervisor", "head_of_logistics", "cfo"].includes(role);
-export const canFinance = (role: string) =>
-  ["finance", "finance_supervisor", "cfo"].includes(role);
-export const canVerify = (role: string) =>
-  ["supervisor", "head_of_logistics", "cfo"].includes(role);
+/** Capability checks for the UI. The backend enforces every one of them; these only hide what would be refused. */
+type Perms = { permissions: string[] };
+export const can = (s: Perms, permission: string) =>
+  s.permissions.includes(permission);
+export const canOperate = (s: Perms) => can(s, "operations.manage");
+export const canFinance = (s: Perms) => can(s, "finance.access");
+export const canVerify = (s: Perms) => can(s, "execution.verify");
+export const isVendorSession = (s: Perms) => can(s, "vendor.portal");
+export const dispatchApprovalLevel = (s: Perms) =>
+  [3, 2, 1].find((level) => can(s, `dispatch.approve.level${level}`)) ?? 0;
+const tierPermissions: Record<string, string[]> = {
+  FINANCE: ["freight.approve.finance"],
+  DUAL: [
+    "freight.approve.finance_supervisor",
+    "freight.approve.logistics_manager",
+  ],
+  CFO: ["freight.approve.cfo"],
+};
+export const canApproveTier = (s: Perms, tier: string) =>
+  (tierPermissions[tier] ?? []).some((p) => can(s, p));

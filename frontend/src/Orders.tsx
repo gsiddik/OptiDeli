@@ -38,7 +38,7 @@ export function OrderList() {
           <h1 tabIndex={-1}>Pesanan transportasi</h1>
           <p>Kelola permintaan pengiriman dari draft hingga dispatch.</p>
         </div>
-        {canOperate(session.role) && (
+        {canOperate(session) && (
           <Link className="button primary" to="/orders/new">
             + Buat order
           </Link>
@@ -166,7 +166,7 @@ export function OrderCreate() {
   } catch {
     /* Preview remains empty until values are valid. */
   }
-  if (!canOperate(session.role))
+  if (!canOperate(session))
     return <ErrorBox error="Akun Anda memiliki akses hanya baca." />;
   return (
     <>
@@ -487,7 +487,7 @@ export function OrderDetail() {
             Setelah konfirmasi, rincian order dikunci untuk menjaga konsistensi
             komersial dan dispatch.
           </p>
-          {canOperate(session.role) && (
+          {canOperate(session) && (
             <div className="stack">
               {o.status === "DRAFT" && (
                 <button

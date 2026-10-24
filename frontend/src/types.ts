@@ -2,6 +2,7 @@ export type Session = {
   id: number;
   name: string;
   role: string;
+  permissions: string[];
   tenant: {
     name: string;
     slug: string;

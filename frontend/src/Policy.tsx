@@ -3,6 +3,7 @@ import { api, useData } from "./api";
 import { useSession } from "./App";
 import { ErrorBox, Field, Form, Loading } from "./components";
 import { stages } from "./types";
+import { can } from "./opsTypes";
 type Policy = {
   minimum_margin_bps: number;
   stage_margin_bps: Record<string, number>;
@@ -38,7 +39,7 @@ export function PolicyPage() {
           <PolicyForm
             key={state.data.data.version}
             policy={state.data.data}
-            readOnly={session.role !== "cfo"}
+            readOnly={!can(session, "policy.manage")}
             onSave={() => {
               setSaved(true);
               state.refresh();

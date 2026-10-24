@@ -123,7 +123,9 @@ function Login({ onLogin }: { onLogin: () => void }) {
             />
           </Field>
         </Form>
-        <Link to="/platform">Masuk sebagai Superadmin</Link>
+        <p>
+          <Link to="/platform">Masuk sebagai Superadmin</Link>
+        </p>
         <small className="muted">
           Akses dibatasi sesuai tenant dan kewenangan akun.
         </small>

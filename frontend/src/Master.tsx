@@ -12,6 +12,7 @@ import {
   Loading,
   Pagination,
 } from "./components";
+import { ImportDialog } from "./MasterImport";
 import { can } from "./opsTypes";
 import { EditorDialog, submitRecord } from "./RecordEditor";
 import type { EditorField } from "./RecordEditor";
@@ -201,6 +202,7 @@ function MasterList({
   const [failure, setFailure] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [loadingRegions, setLoadingRegions] = useState(false);
+  const [importing, setImporting] = useState(false);
   const regional = resource.key === "regions" || resource.key === "cities";
   const columns = resource.fields.filter((f) => f.list);
 
@@ -222,8 +224,26 @@ function MasterList({
         <div>
           <h2>{resource.label}</h2>
         </div>
+        <div className="actions">
+          <a href={`/api/v1/master/${resource.key}/template?format=xlsx`}>
+            Template Excel
+          </a>
+          <a
+            href={`/api/v1/master/${resource.key}/export?format=xlsx&q=${encodeURIComponent(q)}&active=${active}`}
+          >
+            Ekspor Excel
+          </a>
+          <a
+            href={`/api/v1/master/${resource.key}/export?format=csv&q=${encodeURIComponent(q)}&active=${active}`}
+          >
+            Ekspor CSV
+          </a>
+        </div>
         {canWrite && (
           <div className="actions">
+            <button onClick={() => setImporting(true)}>
+              Impor Excel / CSV
+            </button>
             {regional && (
               <button onClick={() => setLoadingRegions(true)}>
                 Muat data wilayah resmi
@@ -362,6 +382,14 @@ function MasterList({
             ada tidak diubah; aman dijalankan berulang.
           </p>
         </Confirm>
+      )}
+      {importing && (
+        <ImportDialog
+          resource={resource.key}
+          label={resource.label}
+          onClose={() => setImporting(false)}
+          onDone={state.refresh}
+        />
       )}
       {dialog && (
         <MasterDialog

@@ -96,13 +96,18 @@ final class MasterService
         return $data;
     }
 
-    /** @return array<string, mixed> */
-    private function validated(string $resource, array $input, bool $creating, ?string $id = null): array
+    /**
+     * Normalizes and validates one record without writing it.
+     *
+     * @return array{0: array<string, mixed>, 1: array<string, list<string>>} the clean values, and the errors per field (empty when valid)
+     */
+    public function check(string $resource, array $input, bool $creating, ?string $id = null): array
     {
         $data = $this->normalize($resource, $input);
         $v = Validator::make($data, $this->rules($resource, $creating, $id));
+        $v->setAttributeNames(array_column(MasterRegistry::fieldsOf($resource), 'label', 'name'));
         if ($v->fails()) {
-            throw new ValidationException($v);
+            return [[], $v->errors()->toArray()];
         }
         $clean = [];
         foreach (MasterRegistry::fieldsOf($resource) as $f) {
@@ -110,6 +115,17 @@ final class MasterService
                 $value = $data[$f['name']];
                 $clean[$f['name']] = $f['kind'] === 'boolean' && $value !== null ? filter_var($value, FILTER_VALIDATE_BOOLEAN) : $value;
             }
+        }
+
+        return [$clean, []];
+    }
+
+    /** @return array<string, mixed> */
+    private function validated(string $resource, array $input, bool $creating, ?string $id = null): array
+    {
+        [$clean, $errors] = $this->check($resource, $input, $creating, $id);
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
         }
 
         return $clean;

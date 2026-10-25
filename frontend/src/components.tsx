@@ -215,6 +215,8 @@ export function Icon({ name }: { name: string }) {
       "M5 17H3v-6l2-7h14l2 7v6h-2M3 11h18M7 17h10M6 14h1m10 0h1M5 17v3m14-3v3",
     audit: "M4 4h16v17H4zM8 8h8M8 12h8M8 16h5",
     roadmap: "M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6m-8 0v6",
+    master:
+      "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6",
     menu: "M4 6h16M4 12h16M4 18h16",
     back: "m10 5-7 7 7 7M3 12h18",
   };

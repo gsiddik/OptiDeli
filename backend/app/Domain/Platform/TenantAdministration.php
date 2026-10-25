@@ -3,6 +3,7 @@
 namespace App\Domain\Platform;
 
 use App\Domain\Access\SystemRoles;
+use App\Domain\Master\MasterDefaults;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -24,6 +25,7 @@ class TenantAdministration
             DB::table('tenants')->insert(['id' => $id, 'slug' => $data['slug'], 'name' => $data['name'], 'active' => true, 'minimum_margin_bps' => 1500, 'policy_version' => 1, 'created_at' => now(), 'updated_at' => now()]);
             $this->roles->syncPermissions();
             $this->roles->syncTenant($id);
+            MasterDefaults::seed($id);
             PlatformAccess::audit($actorId, 'platform.tenant_created', $id, ['slug' => $data['slug'], 'name' => $data['name']]);
 
             return DB::table('tenants')->where('id', $id)->first();

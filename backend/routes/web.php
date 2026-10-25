@@ -56,6 +56,7 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
         Route::post('fleet/drivers', [FleetController::class, 'driver']);
         Route::get('audit', [FleetController::class, 'audit']);
         require __DIR__.'/operations.php';
+        require __DIR__.'/master.php';
         require __DIR__.'/enterprise.php';
         require __DIR__.'/access.php';
         require __DIR__.'/ledger.php';

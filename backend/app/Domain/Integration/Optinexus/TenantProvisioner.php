@@ -3,6 +3,7 @@
 namespace App\Domain\Integration\Optinexus;
 
 use App\Domain\Access\SystemRoles;
+use App\Domain\Master\MasterDefaults;
 use App\Domain\Platform\PlatformAccess;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -73,6 +74,7 @@ class TenantProvisioner
                 ]);
                 $this->roles->syncPermissions();
                 $this->roles->syncTenant($id);
+                MasterDefaults::seed($id);
                 PlatformAccess::audit(null, 'platform.tenant_provisioned_by_optinexus', $id, ['slug' => $slug, 'name' => $name, 'optinexus_tenant_id' => $nexusTenantId]);
 
                 return self::CREATED;

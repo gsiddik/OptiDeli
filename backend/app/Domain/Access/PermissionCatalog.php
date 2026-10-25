@@ -16,6 +16,9 @@ final class PermissionCatalog
             'enterprise.manage' => 'Use rate cards, tenders, telematics, ESG, EDI and accounting sync actions',
             'execution.verify' => 'Verify proof of delivery and operational evidence',
         ],
+        'Master data' => [
+            'master.manage' => 'Create and change master data: customers, projects, locations, regions, carrier types, goods, services and charge codes',
+        ],
         'Dispatch approval' => [
             'dispatch.approve.level1' => 'Approve a dispatch plan below the margin guardrail (level 1)',
             'dispatch.approve.level2' => 'Approve a dispatch plan at margin level 2',
@@ -70,10 +73,10 @@ final class PermissionCatalog
     /** System role templates: name => permission codes. Names match the former membership roles. */
     public const SYSTEM_ROLES = [
         'viewer' => ['operations.view'],
-        'dispatcher' => ['operations.view', 'operations.manage', 'enterprise.manage'],
-        'supervisor' => ['operations.view', 'operations.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'freight.approve.logistics_manager'],
-        'head_of_logistics' => ['operations.view', 'operations.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'freight.approve.logistics_manager'],
-        'cfo' => ['operations.view', 'operations.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'dispatch.approve.level3', 'finance.access', 'freight.approve.cfo', 'freight.escalation.resolve', 'policy.manage', 'vendor.portal.provision'],
+        'dispatcher' => ['operations.view', 'operations.manage', 'master.manage', 'enterprise.manage'],
+        'supervisor' => ['operations.view', 'operations.manage', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'freight.approve.logistics_manager'],
+        'head_of_logistics' => ['operations.view', 'operations.manage', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'freight.approve.logistics_manager'],
+        'cfo' => ['operations.view', 'operations.manage', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'dispatch.approve.level3', 'finance.access', 'freight.approve.cfo', 'freight.escalation.resolve', 'policy.manage', 'vendor.portal.provision'],
         'finance' => ['operations.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance'],
         'finance_supervisor' => ['operations.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance', 'freight.approve.finance_supervisor'],
         'vendor' => ['vendor.portal'],

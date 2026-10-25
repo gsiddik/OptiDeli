@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Domain\Master\MasterDefaults;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ class DemoSeeder extends Seeder
             if (! $tenant) {
                 DB::table('tenants')->insert(['id' => $id, 'slug' => 'demo', 'name' => 'OptiDeli Demo', 'minimum_margin_bps' => 1500, 'policy_version' => 1, 'created_at' => now(), 'updated_at' => now()]);
             }
+            MasterDefaults::seed($id);
             foreach (['dispatcher', 'supervisor', 'head_of_logistics', 'cfo', 'viewer', 'finance', 'finance_supervisor'] as $role) {
                 $user = User::firstOrCreate(['email' => $role.'@optideli.test'], ['name' => ucwords(str_replace('_', ' ', $role)), 'password' => Hash::make($password)]);
                 DB::table('memberships')->updateOrInsert(['tenant_id' => $id, 'user_id' => $user->id], ['role' => $role, 'active' => true]);

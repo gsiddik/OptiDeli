@@ -32,6 +32,7 @@ import { AccessPage } from "./Access";
 import { PlatformApp } from "./Platform";
 import { OrderCreate, OrderDetail, OrderList } from "./Orders";
 import { DispatchBoard } from "./Dispatch";
+import { MasterPage } from "./Master";
 import { PolicyPage } from "./Policy";
 import { TripList, TripDetail } from "./Trips";
 import { YardPage } from "./Yard";
@@ -198,6 +199,10 @@ const navigation: {
       { to: "/vendors", label: "Vendor & portal", icon: "fleet" },
       { to: "/freight", label: "Freight audit", icon: "audit" },
     ],
+  },
+  {
+    group: "MASTER DATA",
+    items: [{ to: "/master", label: "Master data", icon: "master" }],
   },
   {
     group: "GOVERNANCE",
@@ -491,6 +496,8 @@ function TenantApp() {
           <Route path="orders/new" element={<OrderCreate />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="dispatch" element={<DispatchBoard />} />
+          <Route path="master" element={<MasterPage />} />
+          <Route path="master/:resource" element={<MasterPage />} />
           <Route path="fleet" element={<FleetPage />} />
           <Route path="trips" element={<TripList />} />
           <Route path="trips/:id" element={<TripDetail />} />

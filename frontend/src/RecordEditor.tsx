@@ -10,6 +10,7 @@ export type EditorField = {
     | "text"
     | "textarea"
     | "number"
+    | "decimal"
     | "money"
     | "signedMoney"
     | "datetime"
@@ -66,6 +67,7 @@ export function RecordEditor({
               break;
             }
             case "number":
+            case "decimal":
               body[f.name] = Number(v);
               break;
             case "datetime":
@@ -117,7 +119,7 @@ export function RecordEditor({
                 required={f.required !== false}
                 autoComplete={f.kind === "password" ? "new-password" : "off"}
                 type={
-                  f.kind === "number"
+                  f.kind === "number" || f.kind === "decimal"
                     ? "number"
                     : f.kind === "datetime"
                       ? "datetime-local"
@@ -133,7 +135,13 @@ export function RecordEditor({
                     : undefined
                 }
                 min={f.kind === "number" ? 0 : undefined}
-                step={f.kind === "number" ? 1 : undefined}
+                step={
+                  f.kind === "number"
+                    ? 1
+                    : f.kind === "decimal"
+                      ? "any"
+                      : undefined
+                }
                 value={String(values[f.name] ?? "")}
                 onChange={(e) => change(f.name, e.target.value)}
               />
@@ -149,6 +157,7 @@ export async function submitRecord(
   body: Record<string, unknown>,
   key: string,
   fixed: Record<string, unknown> = {},
+  method: "POST" | "PUT" = "POST",
 ) {
   const data = { ...body, ...fixed };
   if (Object.values(data).some((v) => v instanceof File)) {
@@ -157,9 +166,9 @@ export async function submitRecord(
       if (v !== null && v !== undefined)
         form.append(k, v instanceof File ? v : String(v));
     }
-    return api(path, "POST", form, key);
+    return api(path, method, form, key);
   }
-  return api(path, "POST", data, key);
+  return api(path, method, data, key);
 }
 export function Action({
   label,
@@ -200,7 +209,7 @@ export function Action({
     </>
   );
 }
-function EditorDialog({
+export function EditorDialog({
   title,
   fields,
   onClose,

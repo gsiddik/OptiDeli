@@ -1,4 +1,11 @@
-import { cloneElement, useEffect, useId, useRef, useState } from "react";
+import {
+  Component,
+  cloneElement,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import type { ReactElement, ReactNode, FormEvent } from "react";
 import { ApiError } from "./api";
 import type { Page } from "./types";
@@ -18,6 +25,36 @@ export function ErrorBox({ error }: { error: unknown }) {
       )}
     </div>
   );
+}
+/**
+ * Keeps a screen that fails to render from blanking the whole application: the navigation stays, the failure is shown with its
+ * message, and moving to another screen (a new `key`) or reloading tries again.
+ */
+export class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error("OptiDeli screen failed to render", error);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="alert danger" role="alert">
+        <strong>Halaman ini tidak dapat ditampilkan.</strong>
+        <p>{this.state.error.message}</p>
+        <div className="actions">
+          <button onClick={() => window.location.reload()}>
+            Muat ulang halaman
+          </button>
+        </div>
+      </div>
+    );
+  }
 }
 export function Loading() {
   return (

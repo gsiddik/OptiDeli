@@ -1,4 +1,5 @@
 import { canOperate } from "./opsTypes";
+import { newId } from "./uuid";
 import { useState } from "react";
 import {
   Link,
@@ -140,7 +141,7 @@ const blankItem = (): Item => ({
 export function OrderCreate() {
   const navigate = useNavigate();
   const session = useSession();
-  const [key, setKey] = useState(() => crypto.randomUUID());
+  const [key, setKey] = useState(() => newId());
   const [customer, setCustomer] = useState("");
   const [reference, setReference] = useState("");
   const [stage, setStage] = useState("FIRST_MILE");
@@ -158,7 +159,7 @@ export function OrderCreate() {
     setItems((old) =>
       old.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
     );
-    setKey(crypto.randomUUID());
+    setKey(newId());
   }
   let total = 0;
   try {
@@ -216,7 +217,7 @@ export function OrderCreate() {
                     value={customer}
                     onChange={(e) => {
                       setCustomer(e.target.value);
-                      setKey(crypto.randomUUID());
+                      setKey(newId());
                     }}
                   />
                 </Field>
@@ -226,7 +227,7 @@ export function OrderCreate() {
                     value={reference}
                     onChange={(e) => {
                       setReference(e.target.value);
-                      setKey(crypto.randomUUID());
+                      setKey(newId());
                     }}
                   />
                 </Field>
@@ -235,7 +236,7 @@ export function OrderCreate() {
                     value={stage}
                     onChange={(e) => {
                       setStage(e.target.value);
-                      setKey(crypto.randomUUID());
+                      setKey(newId());
                     }}
                   >
                     {Object.entries(stages).map(([k, v]) => (
@@ -255,7 +256,7 @@ export function OrderCreate() {
                     value={origin}
                     onChange={(e) => {
                       setOrigin(e.target.value);
-                      setKey(crypto.randomUUID());
+                      setKey(newId());
                     }}
                   />
                 </Field>
@@ -266,7 +267,7 @@ export function OrderCreate() {
                     value={destination}
                     onChange={(e) => {
                       setDestination(e.target.value);
-                      setKey(crypto.randomUUID());
+                      setKey(newId());
                     }}
                   />
                 </Field>
@@ -280,7 +281,7 @@ export function OrderCreate() {
                   disabled={items.length >= 100}
                   onClick={() => {
                     setItems((v) => [...v, blankItem()]);
-                    setKey(crypto.randomUUID());
+                    setKey(newId());
                   }}
                 >
                   + Tambah barang
@@ -367,7 +368,7 @@ export function OrderCreate() {
                       disabled={items.length === 1}
                       onClick={() => {
                         setItems((v) => v.filter((_, i) => i !== index));
-                        setKey(crypto.randomUUID());
+                        setKey(newId());
                       }}
                     >
                       Hapus barang {index + 1}
@@ -388,7 +389,7 @@ export function OrderCreate() {
                 value={base}
                 onChange={(e) => {
                   setBase(e.target.value);
-                  setKey(crypto.randomUUID());
+                  setKey(newId());
                 }}
               />
             </Field>
@@ -399,7 +400,7 @@ export function OrderCreate() {
                 value={surcharge}
                 onChange={(e) => {
                   setSurcharge(e.target.value);
-                  setKey(crypto.randomUUID());
+                  setKey(newId());
                 }}
               />
             </Field>
@@ -410,7 +411,7 @@ export function OrderCreate() {
                 value={accessorial}
                 onChange={(e) => {
                   setAccessorial(e.target.value);
-                  setKey(crypto.randomUUID());
+                  setKey(newId());
                 }}
               />
             </Field>

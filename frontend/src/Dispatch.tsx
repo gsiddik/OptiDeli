@@ -1,4 +1,5 @@
 import { canOperate, dispatchApprovalLevel } from "./opsTypes";
+import { newId } from "./uuid";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, useData } from "./api";
@@ -56,7 +57,7 @@ export function DispatchBoard() {
   const [attestation, setAttestation] = useState("");
   const [reason, setReason] = useState("");
   const [detail, setDetail] = useState("");
-  const [key, setKey] = useState(() => crypto.randomUUID());
+  const [key, setKey] = useState(() => newId());
   const [notice, setNotice] = useState("");
   const [confirm, setConfirm] = useState<{
     id: string;
@@ -139,7 +140,7 @@ export function DispatchBoard() {
         >
           <div
             onChange={() => {
-              setKey(crypto.randomUUID());
+              setKey(newId());
               setNotice("");
             }}
             className="split"

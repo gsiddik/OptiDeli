@@ -1,0 +1,154 @@
+# OptiDeli container package: PostgreSQL, one-shot bootstrap job, API (php-fpm + nginx) and the console (SPA behind nginx).
+# It is what OptiNexus deploy/optiecosystem runs next to the other Opti products. compose.yaml (PHP built-in server, source mounted)
+# stays the development runtime and is what `docker compose` picks without -f, so name this file explicitly:
+#   docker compose -f docker-compose.container.yml --env-file <env file> up -d
+#
+# Two kinds of settings, kept apart on purpose:
+#   * the env file is read by Compose for ${...} interpolation only (never commit it);
+#   * the runtime environment of the containers is exactly the `environment:` blocks below, identical for every PHP role (x-deli-env),
+#     so a changed secret needs `docker compose up -d` (containers re-created), never an image rebuild.
+# Only the `bootstrap` job migrates. api waits for it (service_completed_successfully, and the entrypoint also waits for a current schema).
+# OptiDeli has no queued jobs or scheduled tasks today, so there is no worker or scheduler container.
+name: optideli
+
+x-deli-env: &deli-env
+  APP_NAME: OptiDeli
+  APP_ENV: ${APP_ENV:-production}
+  APP_KEY: ${APP_KEY:?set APP_KEY in the env file}
+  APP_DEBUG: ${APP_DEBUG:-false}
+  # The console origin: the SPA, its /api proxy, the SSO callback and the post-logout return all live there.
+  APP_URL: ${DELI_PUBLIC_URL:-http://localhost:5200}
+  OPTIDELI_FRONTEND_URL: ${DELI_PUBLIC_URL:-http://localhost:5200}
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_DATABASE: ${DB_DATABASE:-optideli}
+  DB_USERNAME: ${DB_USERNAME:-optideli}
+  DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in the env file}
+  SESSION_DRIVER: database
+  CACHE_STORE: database
+  QUEUE_CONNECTION: database
+  LOG_CHANNEL: stderr
+  OPTIDELI_DEPLOYMENT_MODE: ${OPTIDELI_DEPLOYMENT_MODE:-standalone}
+  OPTIDELI_STANDALONE_TENANT: ${OPTIDELI_STANDALONE_TENANT:-demo}
+  OPTIDELI_IDENTITY_MODE: ${OPTIDELI_IDENTITY_MODE:-local}
+  # Bootstrap only: first Superadmin (both values needed; never resets an existing password) and demo data (APP_ENV=local only).
+  OPTIDELI_PLATFORM_ADMIN_EMAIL: ${OPTIDELI_PLATFORM_ADMIN_EMAIL:-}
+  OPTIDELI_PLATFORM_ADMIN_PASSWORD: ${OPTIDELI_PLATFORM_ADMIN_PASSWORD:-}
+  OPTIDELI_SEED: ${OPTIDELI_SEED:-catalog}
+  OPTIDELI_DEMO_PASSWORD: ${OPTIDELI_DEMO_PASSWORD:-}
+  # OptiNexus adapter (docs/architecture/OPTINEXUS_ADAPTER.md). The OIDC redirect is the console origin + /api/v1/auth/sso/callback.
+  OPTINEXUS_BASE_URL: ${OPTINEXUS_BASE_URL:-}
+  OPTINEXUS_APPLICATION_CODE: ${OPTINEXUS_APPLICATION_CODE:-optideli}
+  OPTINEXUS_SSO_CLIENT_ID: ${OPTINEXUS_SSO_CLIENT_ID:-}
+  OPTINEXUS_SSO_CLIENT_SECRET: ${OPTINEXUS_SSO_CLIENT_SECRET:-}
+  OPTINEXUS_SSO_REDIRECT_URI: ${DELI_PUBLIC_URL:-http://localhost:5200}/api/v1/auth/sso/callback
+  # Service account (scopes authorization.check, commercial.read, embed.create): permissions, feed pairing and OptiRadar embed sessions.
+  OPTINEXUS_SERVICE_CLIENT_ID: ${OPTINEXUS_SERVICE_CLIENT_ID:-}
+  OPTINEXUS_SERVICE_CLIENT_SECRET: ${OPTINEXUS_SERVICE_CLIENT_SECRET:-}
+  OPTINEXUS_TIMEOUT: ${OPTINEXUS_TIMEOUT:-5}
+  OPTINEXUS_FEED_PAIRING: ${OPTINEXUS_FEED_PAIRING:-auto}
+  OPTINEXUS_EVENT_WEBHOOK_SECRET: ${OPTINEXUS_EVENT_WEBHOOK_SECRET:-}
+  FLEET_SERVICE_DRIVER: ${FLEET_SERVICE_DRIVER:-local}
+  OPTIFLEET_API_URL: ${OPTIFLEET_API_URL:-}
+  OPTIFLEET_FAIL_OPEN: ${OPTIFLEET_FAIL_OPEN:-false}
+
+x-php: &php
+  image: ${DELI_IMAGE:-optideli-backend:local}
+  restart: unless-stopped
+  environment: *deli-env
+  # ePOD and invoice files (private disk) persist across container re-creation.
+  volumes:
+    - deli_storage:/var/www/html/storage/app
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-optideli}
+      POSTGRES_USER: ${DB_USERNAME:-optideli}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in the env file}
+    volumes:
+      - deli_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-optideli} -d ${DB_DATABASE:-optideli}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  bootstrap:
+    <<: *php
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      args:
+        PHP_IMAGE: ${PHP_IMAGE:-php:8.4-fpm-alpine}
+        COMPOSER_INSTALL_FLAGS: ${COMPOSER_INSTALL_FLAGS:---prefer-dist}
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["bootstrap"]
+
+  api:
+    <<: *php
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 9000) ? 0 : 1);'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  web:
+    image: ${NGINX_IMAGE:-nginx:1.27-alpine}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      BACKEND_HOST: api
+      LISTEN_PORT: ${DELI_API_PORT:-8300}
+      CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-20m}
+    volumes:
+      - ./docker/nginx/api.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${DELI_API_PORT:-8300}:${DELI_API_PORT:-8300}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:${DELI_API_PORT:-8300}/up || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  ui:
+    image: ${DELI_UI_IMAGE:-optideli-ui:local}
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      LISTEN_PORT: ${DELI_UI_PORT:-5200}
+      API_UPSTREAM: http://web:${DELI_API_PORT:-8300}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${DELI_UI_PORT:-5200}:${DELI_UI_PORT:-5200}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:${DELI_UI_PORT:-5200}/nginx-health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  deli_postgres_data:
+  deli_storage:

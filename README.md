@@ -57,6 +57,10 @@ Frontend development menggunakan port 5180 dengan proxy same-origin `/api` ke po
 
 Skrip runtime memakai optional trust bundle host melalui BuildKit secret dan proxy yang sudah disediakan cloud. TLS/checksum tetap diverifikasi. `scripts/php` tidak memerlukan instalasi PHP global; `scripts/composer` menjalankan Composer dengan user lokal.
 
+## Paket container (OptiEcosystem)
+
+`docker-compose.container.yml` menjalankan OptiDeli seperti produk Opti lain: PostgreSQL, job `bootstrap` sekali jalan (migrasi, katalog izin dan role sistem, Superadmin pertama bila `OPTIDELI_PLATFORM_ADMIN_EMAIL`/`_PASSWORD` diisi, data demo bila `OPTIDELI_SEED=demo` dan `APP_ENV=local`), API php-fpm di belakang nginx (port 8300) dan console SPA (port 5200, mem-proxy `/api` sehingga cookie sesi tetap first-party). Image dibangun dari root repository (`docker/backend/Dockerfile`, `docker/frontend/Dockerfile`). Pemakaian bersama OptiNexus, OptiRadar dan produk lain lewat `deploy/optiecosystem` di repository OptiNexus (panduan Podman Desktop di sana). `compose.yaml` tetap runtime development dan tetap dipilih oleh `docker compose` tanpa `-f`.
+
 ## Pengujian
 
 **Gunakan database test terpisah.** Feature/concurrency tests membuat dan mereset tabel; jangan arahkan ke database development atau produksi.

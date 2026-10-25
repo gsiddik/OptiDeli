@@ -17,7 +17,14 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { api, ApiError, csrf, useData } from "./api";
-import { ErrorBox, Field, Form, Icon, Loading } from "./components";
+import {
+  ErrorBox,
+  ErrorBoundary,
+  Field,
+  Form,
+  Icon,
+  Loading,
+} from "./components";
 import type { Session } from "./types";
 import { roles } from "./types";
 import { can, isVendorSession } from "./opsTypes";
@@ -398,7 +405,9 @@ function Shell({ onLogout }: { onLogout: () => Promise<void> }) {
             )}
           </div>
           <ErrorBox error={logoutError} />
-          <Outlet />
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
         <footer>
           OptiDeli <span>First mile · Middle mile · Last mile</span>
@@ -420,7 +429,9 @@ async function signOut(done: () => void) {
 export default function App() {
   const location = useLocation();
   return location.pathname.startsWith("/platform") ? (
-    <PlatformApp />
+    <ErrorBoundary>
+      <PlatformApp />
+    </ErrorBoundary>
   ) : (
     <TenantApp />
   );

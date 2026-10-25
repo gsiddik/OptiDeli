@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { newId } from "./uuid";
 import { Field, Form } from "./components";
 import { minor } from "./commercial";
 export type EditorField = {
@@ -33,10 +34,10 @@ export function RecordEditor({
   const [values, setValues] = useState<Record<string, string | File | null>>(
     () => Object.fromEntries(fields.map((f) => [f.name, f.value ?? ""])),
   );
-  const [key, setKey] = useState(() => crypto.randomUUID());
+  const [key, setKey] = useState(() => newId());
   function change(name: string, value: string | File | null) {
     setValues((v) => ({ ...v, [name]: value }));
-    setKey(crypto.randomUUID());
+    setKey(newId());
   }
   return (
     <Form

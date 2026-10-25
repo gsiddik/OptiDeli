@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Access\Access;
+use App\Domain\Master\MasterLabels;
 use App\Domain\Shared\TenantStore;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
@@ -41,7 +43,10 @@ class OrderController extends Controller
             $q->where(fn ($q) => $q->where('number', 'like', '%'.addcslashes($data['q'], '%_\\').'%')->orWhere('customer_name', 'like', '%'.addcslashes($data['q'], '%_\\').'%'));
         }
 
-        return response()->json($q->orderByDesc('created_at')->orderBy('id')->paginate(25));
+        $page = $q->orderByDesc('created_at')->orderBy('id')->paginate(25);
+        MasterLabels::annotate(self::storeFor($request), $page->items(), MasterLabels::ORDER);
+
+        return response()->json($page);
     }
 
     public function show(Request $request, string $id)
@@ -50,6 +55,7 @@ class OrderController extends Controller
         $order = $store->find('orders', $id);
         $order->items = $store->query('order_items')->where('order_id', $id)->get();
         $order->plans = $store->query('dispatch_plans')->where('order_id', $id)->orderByDesc('created_at')->get();
+        MasterLabels::annotate($store, [$order], MasterLabels::ORDER);
 
         return response()->json(['data' => $order]);
     }
@@ -58,10 +64,14 @@ class OrderController extends Controller
     {
         self::writeAccess($request);
         $money = 'required|integer|min:0|max:1000000000000';
+        $tenant = $request->attributes->get('tenant')->id;
+        $master = fn (string $table) => ['nullable', 'uuid', Rule::exists($table, 'id')->where('tenant_id', $tenant)->where('active', true)];
         $data = $request->validate([
-            'customer_name' => 'required|string|max:200', 'reference' => 'nullable|string|max:100',
+            'customer_name' => 'required_without:customer_id|nullable|string|max:200', 'reference' => 'nullable|string|max:100',
+            'customer_id' => array_merge(['required_with:project_id'], $master('customers')), 'project_id' => $master('customer_projects'),
+            'service_id' => $master('services'), 'origin_location_id' => $master('locations'), 'destination_location_id' => $master('locations'),
             'stage' => ['required', Rule::in(['FIRST_MILE', 'MIDDLE_MILE', 'LAST_MILE', 'E2E'])],
-            'origin' => 'required|string|max:300', 'destination' => 'required|string|max:300',
+            'origin' => 'required_without:origin_location_id|nullable|string|max:300', 'destination' => 'required_without:destination_location_id|nullable|string|max:300',
             'currency' => ['required', Rule::in(['IDR'])], 'base_price_minor' => $money, 'surcharge_minor' => $money, 'accessorial_minor' => $money,
             'items' => 'required|array|min:1|max:100',
             'items.*' => 'required|array:description,quantity,unit_weight_g,length_mm,width_mm,height_mm,stackable,hazmat_class',
@@ -71,10 +81,12 @@ class OrderController extends Controller
             'items.*.stackable' => 'required|boolean', 'items.*.hazmat_class' => 'nullable|string|max:20',
         ]);
         $store = self::storeFor($request);
+        self::checkProject($store, $data);
         $order = $store->idempotent('order.create', self::key($request), $data, function () use ($data, $store) {
             $id = (string) Str::uuid();
             $items = $data['items'];
             unset($data['items']);
+            $data = self::snapshot($store, $data);
             $sell = $data['base_price_minor'] + $data['surcharge_minor'] + $data['accessorial_minor'];
             abort_unless($sell > 0, 422, 'Harga jual harus lebih dari nol.');
             DB::table('orders')->insert([...$data, 'id' => $id, 'tenant_id' => $store->tenantId, 'number' => 'OD-'.Str::ulid(), 'sell_minor' => $sell, 'status' => 'DRAFT', 'created_by' => $store->actorId, 'created_at' => now(), 'updated_at' => now()]);
@@ -87,6 +99,29 @@ class OrderController extends Controller
         });
 
         return response()->json(['data' => $order], 201);
+    }
+
+    /** A project must belong to the customer it is ordered for. */
+    private static function checkProject(TenantStore $store, array $data): void
+    {
+        if (! empty($data['project_id']) && $store->query('customer_projects')->where('id', $data['project_id'])->where('customer_id', $data['customer_id'])->doesntExist()) {
+            throw ValidationException::withMessages(['project_id' => 'Proyek tidak termasuk pelanggan yang dipilih.']);
+        }
+    }
+
+    /** The free text of an order is a snapshot of the master data it points at, kept as it was when the order was made. */
+    private static function snapshot(TenantStore $store, array $data): array
+    {
+        if (! empty($data['customer_id'])) {
+            $data['customer_name'] = $store->find('customers', $data['customer_id'])->name;
+        }
+        foreach (['origin' => 'origin_location_id', 'destination' => 'destination_location_id'] as $text => $column) {
+            if (! empty($data[$column])) {
+                $data[$text] = mb_substr($store->find('locations', $data[$column])->name, 0, 300);
+            }
+        }
+
+        return $data;
     }
 
     public function transition(Request $request, string $id)

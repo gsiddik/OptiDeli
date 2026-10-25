@@ -112,6 +112,17 @@ class MasterDataTest extends TestCase
         $this->postJson('/api/v1/master/customer_projects', ['code' => 'prj-3', 'name' => 'X', 'customer_id' => $c['id'], 'valid_from' => '2026-06-01', 'valid_until' => '2026-01-01'], $this->key())->assertUnprocessable()->assertJsonValidationErrors('valid_until');
     }
 
+    public function test_options_carry_the_parent_id_so_a_form_can_filter_projects_by_customer(): void
+    {
+        $c = $this->customer();
+        $this->postJson('/api/v1/master/customer_projects', ['code' => 'p1', 'name' => 'Proyek', 'customer_id' => $c['id']], $this->key())->assertCreated();
+
+        $option = $this->getJson('/api/v1/master/customer_projects/options')->assertOk()->json('data.0');
+
+        $this->assertSame($c['id'], $option['customer_id']);
+        $this->assertSame('P1', $option['code']);
+    }
+
     public function test_a_location_needs_both_coordinates_a_valid_range_and_a_unique_name(): void
     {
         $base = ['code' => 'pool-jkt', 'name' => 'Pool Jakarta', 'type' => 'POOL'];

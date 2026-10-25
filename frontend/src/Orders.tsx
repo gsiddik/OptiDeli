@@ -1,6 +1,6 @@
 import { canOperate } from "./opsTypes";
 import { newId } from "./uuid";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Link,
   useNavigate,
@@ -138,11 +138,50 @@ const blankItem = (): Item => ({
   height_mm: 100,
   stackable: false,
 });
+type MasterOption = {
+  id: string;
+  code: string;
+  name: string;
+  customer_id?: string;
+};
+type Masters = Record<string, MasterOption[]>;
+const MASTER_PICKS = [
+  "customers",
+  "customer_projects",
+  "services",
+  "locations",
+];
 export function OrderCreate() {
   const navigate = useNavigate();
   const session = useSession();
   const [key, setKey] = useState(() => newId());
   const [customer, setCustomer] = useState("");
+  const [masters, setMasters] = useState<Masters>({});
+  const [masterError, setMasterError] = useState<string>();
+  const [customerId, setCustomerId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [originId, setOriginId] = useState("");
+  const [destinationId, setDestinationId] = useState("");
+  useEffect(() => {
+    Promise.all(
+      MASTER_PICKS.map((r) =>
+        api<{ data: MasterOption[] }>(`master/${r}/options`),
+      ),
+    )
+      .then((all) =>
+        setMasters(
+          Object.fromEntries(MASTER_PICKS.map((r, i) => [r, all[i].data])),
+        ),
+      )
+      .catch((e: unknown) =>
+        setMasterError(
+          e instanceof Error ? e.message : "Master data tidak dapat dimuat.",
+        ),
+      );
+  }, []);
+  const pick = (resource: string, id: string) =>
+    masters[resource]?.find((o) => o.id === id);
   const [reference, setReference] = useState("");
   const [stage, setStage] = useState("FIRST_MILE");
   const [origin, setOrigin] = useState("");
@@ -186,6 +225,11 @@ export function OrderCreate() {
         onSubmit={async () => {
           const data = {
             customer_name: customer,
+            customer_id: customerId || null,
+            project_id: projectId || null,
+            service_id: serviceId || null,
+            origin_location_id: originId || null,
+            destination_location_id: destinationId || null,
             reference: reference || null,
             stage,
             origin,
@@ -209,12 +253,68 @@ export function OrderCreate() {
           <div className="stack">
             <section className="card">
               <h2>Informasi pengiriman</h2>
+              <ErrorBox error={masterError} />
               <div className="form-grid">
+                <Field label="Pelanggan (master data)">
+                  <select
+                    value={customerId}
+                    onChange={(e) => {
+                      const found = pick("customers", e.target.value);
+                      setCustomerId(e.target.value);
+                      setProjectId("");
+                      if (found) setCustomer(found.name);
+                      setKey(newId());
+                    }}
+                  >
+                    <option value="">Tulis nama manual</option>
+                    {masters.customers?.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Proyek / kontrak">
+                  <select
+                    value={projectId}
+                    disabled={!customerId}
+                    onChange={(e) => {
+                      setProjectId(e.target.value);
+                      setKey(newId());
+                    }}
+                  >
+                    <option value="">Tanpa proyek</option>
+                    {masters.customer_projects
+                      ?.filter((o) => o.customer_id === customerId)
+                      .map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.code} · {o.name}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+                <Field label="Layanan">
+                  <select
+                    value={serviceId}
+                    onChange={(e) => {
+                      setServiceId(e.target.value);
+                      setKey(newId());
+                    }}
+                  >
+                    <option value="">Tanpa layanan</option>
+                    {masters.services?.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
                 <Field label="Nama pelanggan">
                   <input
                     required
                     maxLength={200}
                     value={customer}
+                    readOnly={!!customerId}
                     onChange={(e) => {
                       setCustomer(e.target.value);
                       setKey(newId());
@@ -249,10 +349,29 @@ export function OrderCreate() {
                 <Field label="Mata uang">
                   <input value="IDR — Rupiah Indonesia" readOnly />
                 </Field>
+                <Field label="Lokasi asal (master data)">
+                  <select
+                    value={originId}
+                    onChange={(e) => {
+                      const found = pick("locations", e.target.value);
+                      setOriginId(e.target.value);
+                      if (found) setOrigin(found.name);
+                      setKey(newId());
+                    }}
+                  >
+                    <option value="">Tulis alamat manual</option>
+                    {masters.locations?.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
                 <Field label="Alamat / hub asal">
                   <textarea
                     required
                     maxLength={300}
+                    readOnly={!!originId}
                     value={origin}
                     onChange={(e) => {
                       setOrigin(e.target.value);
@@ -260,10 +379,29 @@ export function OrderCreate() {
                     }}
                   />
                 </Field>
+                <Field label="Lokasi tujuan (master data)">
+                  <select
+                    value={destinationId}
+                    onChange={(e) => {
+                      const found = pick("locations", e.target.value);
+                      setDestinationId(e.target.value);
+                      if (found) setDestination(found.name);
+                      setKey(newId());
+                    }}
+                  >
+                    <option value="">Tulis alamat manual</option>
+                    {masters.locations?.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
                 <Field label="Alamat / hub tujuan">
                   <textarea
                     required
                     maxLength={300}
+                    readOnly={!!destinationId}
                     value={destination}
                     onChange={(e) => {
                       setDestination(e.target.value);
@@ -462,6 +600,24 @@ export function OrderDetail() {
         <section className="card">
           <h2>Informasi pengiriman</h2>
           <dl className="details">
+            {o.customer_id_label && (
+              <>
+                <dt>Pelanggan (master)</dt>
+                <dd>{o.customer_id_label}</dd>
+              </>
+            )}
+            {o.project_id_label && (
+              <>
+                <dt>Proyek / kontrak</dt>
+                <dd>{o.project_id_label}</dd>
+              </>
+            )}
+            {o.service_id_label && (
+              <>
+                <dt>Layanan</dt>
+                <dd>{o.service_id_label}</dd>
+              </>
+            )}
             <dt>Tahap</dt>
             <dd>{stages[o.stage]}</dd>
             <dt>Asal</dt>

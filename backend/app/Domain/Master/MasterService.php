@@ -158,7 +158,9 @@ final class MasterService
     {
         $this->definition($resource);
 
-        return $this->store->query($resource)->where('active', true)->orderBy('name')->get(['id', 'code', 'name'])->all();
+        $parents = array_column(array_filter(MasterRegistry::fieldsOf($resource), fn (array $f) => $f['kind'] === 'ref'), 'name');
+
+        return $this->store->query($resource)->where('active', true)->orderBy('name')->get(array_merge(['id', 'code', 'name'], $parents))->all();
     }
 
     public function create(string $resource, array $input): object

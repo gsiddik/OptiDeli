@@ -34,6 +34,16 @@ export type Order = {
   number: string;
   customer_name: string;
   reference?: string;
+  customer_id?: string | null;
+  project_id?: string | null;
+  service_id?: string | null;
+  origin_location_id?: string | null;
+  destination_location_id?: string | null;
+  customer_id_label?: string | null;
+  project_id_label?: string | null;
+  service_id_label?: string | null;
+  origin_location_id_label?: string | null;
+  destination_location_id_label?: string | null;
   stage: string;
   origin: string;
   destination: string;

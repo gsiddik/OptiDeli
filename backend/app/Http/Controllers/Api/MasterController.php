@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Access\Access;
 use App\Domain\Master\MasterRegistry;
 use App\Domain\Master\MasterService;
+use App\Domain\Master\RegionalReference;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
@@ -24,6 +25,14 @@ class MasterController extends Controller
         Access::authorize($r, 'master.manage', 'Akun Anda tidak boleh mengubah master data.');
 
         return $this->service($r);
+    }
+
+    /** Loads the official province and regency/city list (Kemendagri codes) into this tenant's master data. */
+    public function loadRegionalReference(Request $r)
+    {
+        Access::authorize($r, 'master.manage', 'Akun Anda tidak boleh mengubah master data.');
+
+        return response()->json(['data' => RegionalReference::load(OrderController::storeFor($r))]);
     }
 
     public function schema()

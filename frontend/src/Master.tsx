@@ -199,6 +199,9 @@ function MasterList({
   const [deactivating, setDeactivating] = useState<Row | null>(null);
   const [reason, setReason] = useState("");
   const [failure, setFailure] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const [loadingRegions, setLoadingRegions] = useState(false);
+  const regional = resource.key === "regions" || resource.key === "cities";
   const columns = resource.fields.filter((f) => f.list);
 
   async function activate(row: Row) {
@@ -221,6 +224,11 @@ function MasterList({
         </div>
         {canWrite && (
           <div className="actions">
+            {regional && (
+              <button onClick={() => setLoadingRegions(true)}>
+                Muat data wilayah resmi
+              </button>
+            )}
             <button className="primary" onClick={() => setDialog({})}>
               + Tambah {resource.singular}
             </button>
@@ -257,6 +265,11 @@ function MasterList({
         <button type="submit">Cari</button>
       </form>
       <ErrorBox error={state.error ?? failure} />
+      {notice && (
+        <div className="alert success" role="status">
+          {notice}
+        </div>
+      )}
       <section className="card">
         {state.loading ? (
           <Loading />
@@ -323,6 +336,33 @@ function MasterList({
           )
         )}
       </section>
+      {loadingRegions && (
+        <Confirm
+          title="Muat data wilayah resmi?"
+          onClose={() => setLoadingRegions(false)}
+          onConfirm={async () => {
+            const result = await api<{
+              data: {
+                regions_created: number;
+                regions_existing: number;
+                cities_created: number;
+                cities_existing: number;
+              };
+            }>("master/regional-reference", "POST", {});
+            const r = result.data;
+            setNotice(
+              `Ditambahkan ${r.regions_created} provinsi dan ${r.cities_created} kota/kabupaten; ${r.regions_existing + r.cities_existing} sudah ada dan tidak diubah.`,
+            );
+            state.refresh();
+          }}
+        >
+          <p>
+            Menambahkan 38 provinsi dan 514 kabupaten/kota dengan kode
+            Kemendagri (Kepmendagri No 300.2.2-2138 Tahun 2025). Data yang sudah
+            ada tidak diubah; aman dijalankan berulang.
+          </p>
+        </Confirm>
+      )}
       {dialog && (
         <MasterDialog
           resource={resource}

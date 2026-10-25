@@ -84,6 +84,16 @@ const schema = {
       ],
     },
     {
+      key: "regions",
+      label: "Provinsi",
+      singular: "provinsi",
+      group: "network",
+      fields: [
+        text("code", "Kode", { required: true, immutable: true, list: true }),
+        text("name", "Nama", { required: true, list: true }),
+      ],
+    },
+    {
       key: "locations",
       label: "Lokasi",
       singular: "lokasi",
@@ -149,6 +159,15 @@ function stubApi(
       if (path.startsWith("auth/me"))
         return json({ data: session(permissions) });
       if (path === "master/schema") return json({ data: schema });
+      if (path === "master/regional-reference" && method === "POST")
+        return json({
+          data: {
+            regions_created: 38,
+            regions_existing: 0,
+            cities_created: 514,
+            cities_existing: 2,
+          },
+        });
       if (path === "master/customers/options")
         return json({
           data: [{ id: customerRow.id, code: "CUST-01", name: "PT Maju Jaya" }],
@@ -370,6 +389,46 @@ describe("Master data screen", () => {
     await waitFor(() =>
       expect(calls.some((c) => c.body?.active === true)).toBe(true),
     );
+  });
+
+  it("loads the official regional reference after a confirmation and reports what was added", async () => {
+    const calls = stubApi(["operations.view", "master.manage"], {
+      regions: [],
+    });
+    open("/master/regions");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Muat data wilayah resmi" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(/38 provinsi dan 514 kabupaten\/kota/),
+    ).toBeTruthy();
+    fireEvent.submit(
+      within(dialog)
+        .getByRole("button", { name: "Ya, lanjutkan" })
+        .closest("form")!,
+    );
+
+    expect(
+      await screen.findByText(
+        /Ditambahkan 38 provinsi dan 514 kota\/kabupaten; 2 sudah ada/,
+      ),
+    ).toBeTruthy();
+    expect(
+      calls.some(
+        (c) => c.method === "POST" && c.path === "master/regional-reference",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not offer the regional load on other masters or without master.manage", async () => {
+    stubApi(["operations.view", "master.manage"]);
+    open();
+    await screen.findByText("PT Maju Jaya");
+    expect(
+      screen.queryByRole("button", { name: "Muat data wilayah resmi" }),
+    ).toBeNull();
   });
 
   it("is read-only without master.manage", async () => {

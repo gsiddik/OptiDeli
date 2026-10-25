@@ -72,6 +72,29 @@ give users access and an OptiNexus role with `optideli.*` permissions, link the 
 `OPTIDELI_IDENTITY_MODE=optinexus` plus the `OPTINEXUS_*` variables. Delegable: every permission except `vendor.portal` and
 `access.role.manage`/`access.user.manage`.
 
+### Tenant created by OptiNexus (webhook)
+
+Without this, a person whose OptiNexus tenant has no OptiDeli tenant is refused at sign-in (`tenant_not_linked`: "Organisasi Anda belum
+ditautkan ke OptiDeli") until a Superadmin creates the tenant and links it. OptiNexus now publishes `cgo.tenant.application_assigned` when
+a subscription assigns OptiDeli to a tenant (`OptiNexus/docs/ecosystem/PLATFORM_EVENTS.md`); OptiDeli receives it on the existing
+`POST /api/v1/integration/optinexus/events` (same signature check as the OptiFleet availability events) and `TenantProvisioner` creates the
+tenant already linked to the OptiNexus tenant:
+
+* slug from the tenant's name (`Str::slug`, lower case words joined by single dashes, a numeric suffix on a clash, "tenant" when nothing is left),
+  name = the OptiNexus tenant name (its code when the name is blank), active, default margin, the system roles of the tenant (like the console);
+* idempotent and additive: a tenant that is already linked is left as it is (a Superadmin's edits survive), a concurrent delivery cannot create
+  two (the link is unique), and nothing is deleted or suspended when OptiDeli is later removed from the tenant;
+* events about other applications or other types, a tenant id that is not a UUID, and standalone deployments (one fixed tenant) are
+  acknowledged with `ignored`; the audit log records `platform.tenant_provisioned_by_optinexus`.
+
+**Needs `OPTIDELI_DEPLOYMENT_MODE=saas`.** A `standalone` deployment serves one fixed tenant (`OPTIDELI_STANDALONE_TENANT`), so nothing is
+created there (a notice is logged) and any other tenant is refused at sign-in anyway.
+
+Setup, once per installation: `OPTINEXUS_EVENT_WEBHOOK_SECRET` is the secret of the OptiNexus event subscription of `optideli` for the key
+`cgo.tenant.application_assigned` (`php artisan ecosystem:register-event-subscription optideli cgo.tenant.application_assigned
+--url=<deli>/api/v1/integration/optinexus/events --secret-file=<0600 file>`; https unless `EVENT_WEBHOOK_ALLOW_HTTP=true`, local trial only).
+Tests: `TenantProvisioningTest`.
+
 ## 6. Not in this wave
 
 Delegation API (tenant users and roles managed from the OptiDeli UI), product switcher / product-context, event relay to the

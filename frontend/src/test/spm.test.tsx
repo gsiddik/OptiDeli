@@ -60,6 +60,7 @@ const detail = (status: string, buy = true) => ({
     customer_name: "PT Maju",
     status: "CONFIRMED",
   },
+  awbs: [],
   lines: [
     {
       id: "33333333-3333-4333-8333-333333333333",

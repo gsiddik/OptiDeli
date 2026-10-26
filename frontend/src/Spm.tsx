@@ -13,6 +13,8 @@ import {
 } from "./components";
 import { dateTime, money } from "./commercial";
 import { can } from "./opsTypes";
+import { SpmAwbSection } from "./SpmAwbs";
+import type { Awb } from "./SpmAwbs";
 import { EditorDialog, submitRecord } from "./RecordEditor";
 import type { EditorField } from "./RecordEditor";
 import type { Page } from "./types";
@@ -32,6 +34,7 @@ type SpmRow = {
 };
 type Line = {
   id: string;
+  awb_id?: string | null;
   line_no: number;
   po_number: string | null;
   so_number: string | null;
@@ -78,6 +81,7 @@ type Detail = {
   };
   order: { id: string; number: string; customer_name: string; status: string };
   lines: Line[];
+  awbs: Awb[];
   charges: Charge[];
   history: {
     id: string;
@@ -673,6 +677,13 @@ export function SpmDetailPage() {
           </table>
         </div>
       </section>
+      <SpmAwbSection
+        spmId={s.id}
+        status={s.status}
+        lines={d.lines}
+        awbs={d.awbs}
+        onChange={state.refresh}
+      />
       <section className="card block">
         <div className="page-heading">
           <h2>Biaya</h2>

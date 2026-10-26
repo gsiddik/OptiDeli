@@ -57,7 +57,7 @@ class AccessControlTest extends TestCase
     {
         $this->as($this->member('dispatcher'))->getJson('/api/v1/auth/me')->assertOk()
             ->assertJsonPath('data.role', 'dispatcher')
-            ->assertJsonPath('data.permissions', ['enterprise.manage', 'master.manage', 'operations.manage', 'operations.view', 'rate.buy.view', 'rate.manage', 'rate.view', 'spm.manage']);
+            ->assertJsonPath('data.permissions', ['cash.request', 'cash.view', 'enterprise.manage', 'master.manage', 'operations.manage', 'operations.view', 'rate.buy.view', 'rate.manage', 'rate.view', 'spm.manage']);
         $this->as($this->member('viewer'))->getJson('/api/v1/auth/me')->assertJsonPath('data.permissions', ['operations.view']);
     }
 

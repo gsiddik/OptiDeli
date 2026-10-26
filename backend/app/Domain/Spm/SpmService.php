@@ -93,6 +93,14 @@ final class SpmService
         foreach ($charges as $c) {
             $c->charge_code_label = isset($codes[$c->charge_code_id]) ? $codes[$c->charge_code_id]->code.' · '.$codes[$c->charge_code_id]->name : null;
         }
+        $awbs = $this->store->query('awbs')->where('transport_order_id', $id)->orderBy('sequence')->get();
+        $trips = $this->store->query('spm_trips')->whereIn('id', $awbs->pluck('trip_id')->filter())->pluck('number', 'id');
+        $byAwb = $lines->groupBy('awb_id');
+        foreach ($awbs as $awb) {
+            $awb->trip_number = $awb->trip_id ? ($trips[$awb->trip_id] ?? null) : null;
+            $awb->line_ids = ($byAwb[$awb->id] ?? collect())->pluck('id')->values()->all();
+            $awb->weight_kg = (float) ($byAwb[$awb->id] ?? collect())->sum('weight_kg');
+        }
         $history = $this->store->query('spm_status_history')->where('transport_order_id', $id)->orderBy('created_at')->get();
         $users = DB::table('users')->whereIn('id', $history->pluck('actor_id'))->pluck('name', 'id');
         foreach ($history as $h) {
@@ -102,7 +110,7 @@ final class SpmService
 
         return [
             'spm' => $spm, 'order' => ['id' => $order->id, 'number' => $order->number, 'customer_name' => $order->customer_name, 'reference' => $order->reference, 'status' => $order->status],
-            'lines' => $lines->all(), 'charges' => $charges->all(), 'history' => $history->all(),
+            'lines' => $lines->all(), 'awbs' => $awbs->all(), 'charges' => $charges->all(), 'history' => $history->all(),
             'totals' => $canSeeBuy ? ['sell_minor' => $total('SELL'), 'buy_minor' => $total('BUY'), 'margin_minor' => $total('SELL') - $total('BUY')] : ['sell_minor' => $total('SELL')],
             'siblings' => $this->store->query('transport_orders')->where('order_id', $spm->order_id)->orderBy('sequence')->get(['id', 'number', 'sequence', 'status'])->all(),
         ];
@@ -293,6 +301,9 @@ final class SpmService
             if (in_array($to, ['CANCELLED', 'REOPENED'], true) && mb_strlen(trim((string) $reason)) < 5) {
                 $this->fail('reason', 'Alasan wajib diisi (minimal 5 karakter).');
             }
+            if ($to === 'CANCELLED' && $this->store->query('spm_trips')->where('transport_order_id', $id)->where('active', true)->exists()) {
+                abort(409, 'SPM masih memiliki perjalanan aktif. Batalkan perjalanannya lebih dulu.');
+            }
             $warnings = [];
             if ($to === 'PLANNED') {
                 $warnings = $this->plan($spm);
@@ -311,6 +322,8 @@ final class SpmService
         if (! $spm->origin_location_id || ! $spm->destination_location_id) {
             $this->fail('origin_location_id', 'Pilih lokasi asal dan tujuan dari master data sebelum SPM direncanakan.');
         }
+
+        (new AwbService($this->store))->ensureComplete($spm);
 
         return $this->price($spm);
     }

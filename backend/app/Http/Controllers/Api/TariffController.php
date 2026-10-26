@@ -104,6 +104,14 @@ class TariffController extends Controller
         return response()->json(['data' => $this->approver($r)->retire($id, $d['reason'])]);
     }
 
+    /** Sends a vendor's submitted rate back to the vendor with the reason. */
+    public function rejectProposal(Request $r, string $id)
+    {
+        $d = $r->validate(['note' => 'required|string|min:5|max:500']);
+
+        return response()->json(['data' => $this->approver($r)->rejectProposal($id, $d['note'])]);
+    }
+
     public function newVersion(Request $r, string $id)
     {
         return response()->json(['data' => $this->manager($r)->newVersion($id, (string) $r->input('valid_from'))], 201);

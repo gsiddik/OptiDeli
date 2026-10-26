@@ -125,6 +125,7 @@ final class TripPlanner
             $end = CarbonImmutable::parse($d['ends_at']);
             abort_unless($start->greaterThanOrEqualTo(now()->subMinute()), 422, 'Jadwal mulai sudah lewat.');
             $this->fleet->assertReady($vehicle, $driver, $end, $start);
+            $vendorWarnings = $this->assignVendor($spm, $vehicle, $driver, $d['vendor_id'] ?? null);
             if ($this->store->query('trips')->where('active', true)->where(fn ($q) => $q->where('vehicle_id', $vehicle->id)->orWhere('driver_id', $driver->id))->exists()
                 || $this->store->query('spm_trips')->where('active', true)->where(fn ($q) => $q->where('vehicle_id', $vehicle->id)->orWhere('driver_id', $driver->id))->exists()) {
                 abort(409, 'Kendaraan atau pengemudi telah dialokasikan.');
@@ -142,7 +143,7 @@ final class TripPlanner
             abort_if((float) $lines->sum('weight_kg') * 1000 > $vehicle->capacity_g, 422, 'Berat muatan melebihi kapasitas kendaraan.');
             abort_if((float) $lines->sum('volume_cbm') * 1e9 > $vehicle->length_mm * $vehicle->width_mm * $vehicle->height_mm, 422, 'Volume muatan melebihi box kendaraan.');
 
-            [$sell, $cost] = $this->share($spm, $d['awb_ids']);
+            [$sell, $cost] = $this->share($this->store->find('transport_orders', $spm->id), $d['awb_ids']);
             [$level, $threshold, $warnings] = $this->gate($spm);
             if ($level > 0 && empty($d['reason_code'])) {
                 $this->fail('reason_code', 'Reason code wajib untuk margin di bawah threshold.');
@@ -153,7 +154,7 @@ final class TripPlanner
             $number = sprintf('PJ-%s-%05d', $period, DocumentNumbers::next($this->store->tenantId, 'TRIP', $period));
             DB::table('spm_trips')->insert([
                 'id' => $id, 'tenant_id' => $this->store->tenantId, 'number' => $number, 'transport_order_id' => $spm->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $driver->id,
-                'vendor_id' => $d['vendor_id'] ?? $spm->vendor_id, 'status' => $level > 0 ? 'PENDING_APPROVAL' : 'PLANNED', 'active' => true, 'starts_at' => $start, 'ends_at' => $end,
+                'vendor_id' => $vehicle->vendor_id ?? $d['vendor_id'] ?? $spm->vendor_id, 'status' => $level > 0 ? 'PENDING_APPROVAL' : 'PLANNED', 'active' => true, 'starts_at' => $start, 'ends_at' => $end,
                 'sell_minor' => $sell, 'cost_minor' => $cost, 'threshold_bps' => $threshold, 'required_level' => $level, 'reason_code' => $d['reason_code'] ?? null, 'notes' => $d['notes'] ?? null,
                 'created_by' => $this->store->actorId, 'created_at' => now(), 'updated_at' => now(),
             ]);
@@ -163,7 +164,7 @@ final class TripPlanner
                 $reservations->convert($reservationId, $id, $vehicle->id, $driver->id, $start, $end);
             }
             $stopWarnings = $this->buildStops($id, $spm, $awbs, $start, $end, $d['route_template_id'] ?? null);
-            $warnings = array_merge($warnings, $stopWarnings);
+            $warnings = array_merge($vendorWarnings, $warnings, $stopWarnings);
             $this->store->event('spm_trip.planned', $id, ['number' => $number, 'spm' => $spm->number, 'awbs' => $awbs->pluck('number')->all(), 'required_level' => $level, 'sell_minor' => $sell, 'cost_minor' => $cost]);
 
             return ['trip' => $this->show($id), 'warnings' => $warnings];
@@ -171,6 +172,40 @@ final class TripPlanner
     }
 
     /** The part of the SPM's sell and cost that falls on these AWBs, by weight (by count when nothing is weighed). @return array{0: int, 1: int} */
+    /**
+     * A vendor's vehicle goes with that vendor's driver and with an SPM of that vendor: the SPM is given to the vendor when it has none, and
+     * its buying side follows the vendor's rate for the vehicle's type. The tenant's own vehicles and drivers are not mixed with a vendor's.
+     *
+     * @return list<string> warnings
+     */
+    private function assignVendor(object $spm, object $vehicle, object $driver, ?string $requestedVendor): array
+    {
+        $vendor = $vehicle->vendor_id ?? null;
+        if (($driver->vendor_id ?? null) !== $vendor) {
+            $this->fail('driver_id', $vendor ? 'Kendaraan vendor harus dikemudikan pengemudi dari vendor yang sama.' : 'Pengemudi vendor tidak dapat mengemudikan kendaraan milik tenant.');
+        }
+        if ($vendor === null) {
+            return [];
+        }
+        if ($requestedVendor !== null && $requestedVendor !== $vendor) {
+            $this->fail('vendor_id', 'Vendor perjalanan harus sama dengan pemilik kendaraan.');
+        }
+        if ($spm->vendor_id !== null && $spm->vendor_id !== $vendor) {
+            $this->fail('vehicle_id', 'SPM ini sudah ditugaskan ke vendor lain.');
+        }
+        if ($spm->vendor_id === null) {
+            DB::table('transport_orders')->where('tenant_id', $this->store->tenantId)->where('id', $spm->id)->update(['vendor_id' => $vendor, 'updated_at' => now()]);
+            $this->store->event('spm.vendor_assigned', $spm->id, ['number' => $spm->number, 'vendor_id' => $vendor]);
+        }
+        $label = $vehicle->carrier_type_id ? (string) $this->store->query('carrier_types')->where('id', $vehicle->carrier_type_id)->value('name') : (string) $vehicle->type;
+        $warnings = (new SpmService($this->store))->repriceBuy($spm->id, $vendor, $vehicle->carrier_type_id, $label);
+        if ($this->store->query('spm_trips')->where('transport_order_id', $spm->id)->where('active', true)->exists()) {
+            $warnings[] = 'SPM ini sudah memiliki perjalanan lain; harga beli mengikuti kendaraan terakhir yang ditugaskan.';
+        }
+
+        return $warnings;
+    }
+
     private function share(object $spm, array $awbIds): array
     {
         $charges = $this->store->query('spm_charges')->where('transport_order_id', $spm->id)->where('status', '!=', 'REJECTED')->get();

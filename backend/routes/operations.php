@@ -22,6 +22,8 @@ Route::post('yard/appointments/{id}/transition', [E::class, 'yardTransition'])->
 Route::get('vendors', [V::class, 'index']);
 Route::post('vendors', [V::class, 'create']);
 Route::post('vendors/{id}/account', [V::class, 'account'])->whereUuid('id');
+Route::get('vendors/{id}/accounts', [V::class, 'accounts'])->whereUuid('id');
+Route::put('vendors/{id}/accounts/{membership}/active', [V::class, 'setAccountActive'])->whereUuid('id')->whereNumber('membership');
 Route::get('api-clients', [CustomerIntegrationController::class, 'clients']);
 Route::post('api-clients', [CustomerIntegrationController::class, 'issueClient']);
 Route::post('api-clients/{id}/rotate', [CustomerIntegrationController::class, 'rotateClient'])->whereUuid('id');

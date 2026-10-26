@@ -21,7 +21,7 @@ class TenantContext
         abort_unless(in_array(config('optideli.deployment_mode'), ['standalone', 'saas'], true), 503, 'Unsupported deployment mode.');
         $sso = OptinexusSettings::active();
         abort_unless($sso || config('optideli.identity_mode') === 'local', 503, 'Unsupported identity mode.');
-        if (! SessionState::valid($request, $request->user()) || ($sso && ! $request->session()->get('optinexus_sso'))) {
+        if (! SessionState::valid($request, $request->user()) || ($sso && ! $request->session()->get('optinexus_sso') && ! $request->session()->get('external_login'))) {
             // Ended by OptiNexus, deactivated, or a password session left over from before the switch to OptiNexus.
             Auth::guard('web')->logout();
             $request->session()->invalidate();
@@ -34,7 +34,14 @@ class TenantContext
         }
         $membership = DB::table('memberships')->where('tenant_id', $tenant->id)->where('user_id', $request->user()->id)->where('active', true)->first();
         abort_unless($membership, 403, 'Active membership required.');
-        if ($sso) {
+        // In OptiNexus mode a vendor's or customer's account lives here, not there: it signs in with its own password and its roles are local.
+        $external = $membership->vendor_id !== null || $membership->customer_id !== null;
+        if ($sso && $request->session()->get('external_login') && ! $external) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            abort(401, 'Sesi telah berakhir. Silakan masuk kembali.');
+        }
+        if ($sso && ! $external) {
             try {
                 // OptiNexus decides; the answer is cached at most 300 s. An outage fails closed.
                 $permissions = app(NexusPermissionSource::class)->forMembership($membership, $tenant);

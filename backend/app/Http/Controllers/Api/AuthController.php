@@ -39,6 +39,30 @@ class AuthController extends Controller
         return response()->json(['data' => ['name' => $user->name]]);
     }
 
+    /**
+     * Sign-in of a vendor's or customer's user. In OptiNexus mode the staff sign in at OptiNexus only; these accounts are created here (with a
+     * seat when they are a vendor's) and keep their own password, so they have this one entry point, which refuses anyone else.
+     */
+    public function externalLogin(Request $request)
+    {
+        abort_unless(in_array(config('optideli.deployment_mode'), ['saas', 'standalone'], true), 503);
+        $data = $request->validate(['email' => 'required|email|max:254', 'password' => 'required|string|max:1024', 'tenant' => 'required|string|max:80']);
+        $tenant = DB::table('tenants')->where('slug', $data['tenant'])->where('active', true)->first();
+        $user = User::where('email', strtolower($data['email']))->first();
+        $valid = $user && Hash::check($data['password'], $user->password) && $user->active;
+        if (! $user) {
+            Hash::check($data['password'], '$2y$12$8G9O0YJy4t3GpGO7cTIijOBRQPfaANkBhnU8YfrfC/n2C/4ELkZfW');
+        }
+        $membership = $tenant && $user ? DB::table('memberships')->where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('active', true)
+            ->where(fn ($q) => $q->whereNotNull('vendor_id')->orWhereNotNull('customer_id'))->exists() : false;
+        if (! $valid || ! $membership) {
+            throw ValidationException::withMessages(['email' => 'Kredensial atau tenant tidak sesuai.']);
+        }
+        SessionState::start($request, $user, $tenant->id, null, true);
+
+        return response()->json(['data' => ['name' => $user->name]]);
+    }
+
     public function me(Request $request)
     {
         $tenant = $request->attributes->get('tenant');

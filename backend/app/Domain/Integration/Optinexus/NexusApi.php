@@ -23,6 +23,9 @@ class NexusApi
     /** Reads the commercial state of one tenant (tenant status, subscriptions, entitled applications). */
     public const SCOPE_COMMERCIAL = 'commercial.read';
 
+    /** Reports chargeable usage (the monthly seat count) to OptiNexus. Granted to the service account explicitly. */
+    public const SCOPE_USAGE = 'usage.write';
+
     /** Asks OptiNexus for a short-lived OptiRadar embed session (K5). Granted to the service account explicitly. */
     public const SCOPE_EMBED = 'embed.create';
 

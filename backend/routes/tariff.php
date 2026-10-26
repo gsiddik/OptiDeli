@@ -20,4 +20,5 @@ Route::delete('tariffs/{id}/lines/{line}', [T::class, 'deleteLine'])->whereUuid(
 Route::post('tariffs/{id}/imports', [T::class, 'importLines'])->whereUuid('id');
 Route::post('tariffs/{id}/approve', [T::class, 'approve'])->whereUuid('id');
 Route::post('tariffs/{id}/retire', [T::class, 'retire'])->whereUuid('id');
+Route::post('tariffs/{id}/reject', [T::class, 'rejectProposal'])->whereUuid('id');
 Route::post('tariffs/{id}/versions', [T::class, 'newVersion'])->whereUuid('id');

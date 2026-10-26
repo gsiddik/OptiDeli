@@ -6,6 +6,8 @@ import { Badge, Empty, ErrorBox, Loading } from "./components";
 import { invoiceFields } from "./Freight";
 import { claimFields } from "./Trips";
 import { money } from "./commercial";
+import { VendorFleetPanel } from "./VendorFleetPanel";
+import { VendorRatesPanel } from "./VendorRatesPanel";
 import type { Vendor, Trip, Invoice, Dispute, Pod } from "./opsTypes";
 export function VendorPortal({ onLogout }: { onLogout: () => Promise<void> }) {
   const session = useSession();
@@ -13,12 +15,24 @@ export function VendorPortal({ onLogout }: { onLogout: () => Promise<void> }) {
     data: {
       vendor: Vendor;
       trips: Trip[];
+      spm_trips: {
+        id: string;
+        number: string;
+        spm_number: string | null;
+        route: string | null;
+        plate: string | null;
+        driver_name: string | null;
+        status: string;
+        starts_at: string;
+        cost_minor: number;
+      }[];
       invoices: Invoice[];
       disputes: Dispute[];
       pods: Pod[];
     };
   }>("vendor/portal");
   const [error, setError] = useState<unknown>();
+  const [tab, setTab] = useState<"trips" | "fleet" | "rates">("trips");
   const d = state.data?.data;
   return (
     <div className="portal">
@@ -52,13 +66,83 @@ export function VendorPortal({ onLogout }: { onLogout: () => Promise<void> }) {
           </div>
           <button onClick={state.refresh}>Muat ulang</button>
         </div>
+        <div className="tabs" role="tablist" aria-label="Bagian portal vendor">
+          {(
+            [
+              ["trips", "Penugasan & invoice"],
+              ["fleet", "Kendaraan & pengemudi"],
+              ["rates", "Tarif"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              aria-pressed={tab === key}
+              onClick={() => setTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <ErrorBox error={error ?? state.error} />
-        {state.loading ? (
+        {tab === "fleet" && <VendorFleetPanel />}
+        {tab === "rates" && <VendorRatesPanel />}
+        {tab !== "trips" ? null : state.loading ? (
           <Loading />
         ) : (
           d && (
             <>
               <section className="card">
+                <div className="section-heading">
+                  <h2>Penugasan SPM</h2>
+                </div>
+                {d.spm_trips.length ? (
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Perjalanan</th>
+                          <th>Rute</th>
+                          <th>Kendaraan / pengemudi</th>
+                          <th>Jadwal</th>
+                          <th>Nilai</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {d.spm_trips.map((t) => (
+                          <tr key={t.id}>
+                            <td>
+                              {t.number}
+                              <br />
+                              <small className="muted">{t.spm_number}</small>
+                            </td>
+                            <td>{t.route}</td>
+                            <td>
+                              {t.plate}
+                              <br />
+                              <small className="muted">{t.driver_name}</small>
+                            </td>
+                            <td>
+                              {t.starts_at.slice(0, 16).replace("T", " ")}
+                            </td>
+                            <td>{money(t.cost_minor)}</td>
+                            <td>
+                              <Badge value={t.status} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <Empty>
+                    Belum ada SPM yang ditugaskan ke kendaraan Anda.
+                  </Empty>
+                )}
+              </section>
+              <section className="card block">
                 <div className="section-heading">
                   <h2>Trip & pengajuan</h2>
                 </div>

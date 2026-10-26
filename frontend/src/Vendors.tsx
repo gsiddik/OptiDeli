@@ -1,12 +1,68 @@
-import { useData } from "./api";
+import { useState } from "react";
+import { api, useData } from "./api";
 import { useSession } from "./App";
 import { Badge, Empty, ErrorBox, Loading } from "./components";
 import { Action } from "./RecordEditor";
+import { SeatsCard } from "./Seats";
 import type { Vendor } from "./opsTypes";
 import { can, canOperate } from "./opsTypes";
+type Account = {
+  id: number;
+  name: string;
+  email: string;
+  active: boolean | number;
+};
+
+/** The sign-in accounts of one vendor. Each active one takes a seat of the tenant; switching one off frees it. */
+function Accounts({
+  vendorId,
+  onChange,
+}: {
+  vendorId: string;
+  onChange: () => void;
+}) {
+  const state = useData<{ data: Account[] }>(`vendors/${vendorId}/accounts`);
+  const [failure, setFailure] = useState<string>();
+  async function toggle(a: Account) {
+    setFailure(undefined);
+    try {
+      await api(`vendors/${vendorId}/accounts/${a.id}/active`, "PUT", {
+        active: !a.active,
+      });
+      state.refresh();
+      onChange();
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : "Permintaan gagal.");
+    }
+  }
+  if (state.loading) return <Loading />;
+  return (
+    <div className="block">
+      <ErrorBox error={failure ?? state.error} />
+      {state.data?.data.length ? (
+        <ul className="plain">
+          {state.data.data.map((a) => (
+            <li key={a.id}>
+              {a.name} · {a.email}{" "}
+              <Badge value={a.active ? "ACTIVE" : "INACTIVE"} />{" "}
+              <button onClick={() => void toggle(a)}>
+                {a.active ? "Nonaktifkan" : "Aktifkan"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty>Belum ada akun untuk vendor ini.</Empty>
+      )}
+    </div>
+  );
+}
+
 export function VendorsPage() {
   const state = useData<{ data: Vendor[] }>("vendors");
   const session = useSession();
+  const [open, setOpen] = useState<string>();
+  const [seatsKey, setSeatsKey] = useState(0);
   return (
     <>
       <div className="page-heading">
@@ -32,6 +88,7 @@ export function VendorsPage() {
         )}
       </div>
       <ErrorBox error={state.error} />
+      <SeatsCard key={seatsKey} />
       <section className="card">
         {state.loading ? (
           <Loading />
@@ -58,6 +115,22 @@ export function VendorsPage() {
                         </td>
                         <td>
                           {can(session, "vendor.portal.provision") && (
+                            <button
+                              aria-expanded={open === v.id}
+                              onClick={() =>
+                                setOpen(open === v.id ? undefined : v.id)
+                              }
+                            >
+                              Akun
+                            </button>
+                          )}
+                          {open === v.id && (
+                            <Accounts
+                              vendorId={v.id}
+                              onChange={() => setSeatsKey((k) => k + 1)}
+                            />
+                          )}
+                          {can(session, "vendor.portal.provision") && (
                             <Action
                               label={`Buat akun ${v.code}`}
                               path={`vendors/${v.id}/account`}
@@ -71,7 +144,10 @@ export function VendorsPage() {
                                   kind: "password",
                                 },
                               ]}
-                              onDone={state.refresh}
+                              onDone={() => {
+                                state.refresh();
+                                setSeatsKey((k) => k + 1);
+                              }}
                             />
                           )}
                         </td>

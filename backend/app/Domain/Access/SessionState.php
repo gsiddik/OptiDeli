@@ -13,12 +13,16 @@ use Illuminate\Support\Facades\DB;
 final class SessionState
 {
     /** @param  array{sid?:?string,id_token_hint?:?string}  $sso  set only for a sign-in through OptiNexus */
-    public static function start(Request $request, User $user, string $tenantId, ?array $sso = null): void
+    public static function start(Request $request, User $user, string $tenantId, ?array $sso = null, bool $external = false): void
     {
         Auth::login($user);
         $request->session()->regenerate();
-        $request->session()->forget(['platform', 'optinexus_sso', 'optinexus_sid', 'optinexus_id_token_hint']);
+        $request->session()->forget(['platform', 'optinexus_sso', 'optinexus_sid', 'optinexus_id_token_hint', 'external_login']);
         $request->session()->put(['tenant_id' => $tenantId, 'session_epoch' => (int) $user->session_epoch]);
+        if ($external) {
+            // A vendor's or customer's own account, signed in here with its password while the staff sign in through OptiNexus.
+            $request->session()->put('external_login', true);
+        }
         if ($sso !== null) {
             $request->session()->put(['optinexus_sso' => true, 'optinexus_sid' => $sso['sid'] ?? null, 'optinexus_id_token_hint' => $sso['id_token_hint'] ?? null]);
         }

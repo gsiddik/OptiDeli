@@ -156,7 +156,10 @@ export function FleetPage() {
                         <tr key={v.id}>
                           <td>
                             <strong>{v.plate}</strong>
-                            <small>{v.type}</small>
+                            <small>{v.carrier_type_label ?? v.type}</small>
+                            {v.vendor_label && (
+                              <small>Vendor {v.vendor_label}</small>
+                            )}
                           </td>
                           <td>
                             {(v.capacity_g / 1000).toLocaleString("id-ID")} kg
@@ -164,10 +167,17 @@ export function FleetPage() {
                               {v.length_mm} × {v.width_mm} × {v.height_mm} mm
                             </small>
                           </td>
-                          <td>{v.documents_valid_until}</td>
+                          <td>{v.documents_valid_until ?? "—"}</td>
                           <td>
                             <Badge value={v.status} />
-                            <small>{dateTime(v.readiness_checked_at)}</small>
+                            {v.vendor_id && v.verification_status && (
+                              <Badge value={v.verification_status} />
+                            )}
+                            <small>
+                              {v.readiness_checked_at
+                                ? dateTime(v.readiness_checked_at)
+                                : "Belum diverifikasi"}
+                            </small>
                           </td>
                           <td>
                             {state.data!.data.allocations.some(
@@ -215,10 +225,22 @@ export function FleetPage() {
                     <tbody>
                       {state.data.data.drivers.map((d) => (
                         <tr key={d.id}>
-                          <td>{d.name}</td>
+                          <td>
+                            {d.name}
+                            {d.vendor_label && (
+                              <small>Vendor {d.vendor_label}</small>
+                            )}
+                          </td>
                           <td>{d.license_number}</td>
-                          <td>{d.license_valid_until}</td>
-                          <td>{dateTime(d.eligibility_verified_until)}</td>
+                          <td>{d.license_valid_until ?? "—"}</td>
+                          <td>
+                            {d.eligibility_verified_until
+                              ? dateTime(d.eligibility_verified_until)
+                              : "Belum diverifikasi"}
+                            {d.vendor_id && d.verification_status && (
+                              <Badge value={d.verification_status} />
+                            )}
+                          </td>
                           <td>
                             {state.data!.data.allocations.some(
                               (a) => a.driver_id === d.id,

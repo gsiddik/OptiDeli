@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AccessController as A;
+use App\Http\Controllers\Api\SeatController;
 use Illuminate\Support\Facades\Route;
 
 // Tenant role management; permission checks live in the controller (access.role.view / access.role.manage / access.user.manage).
@@ -10,4 +11,5 @@ Route::post('access/roles', [A::class, 'createRole']);
 Route::put('access/roles/{id}', [A::class, 'updateRole'])->whereUuid('id');
 Route::delete('access/roles/{id}', [A::class, 'deleteRole'])->whereUuid('id');
 Route::get('access/members', [A::class, 'members']);
+Route::get('seats', [SeatController::class, 'show']);
 Route::put('access/members/{membership}/roles', [A::class, 'assign'])->whereNumber('membership');

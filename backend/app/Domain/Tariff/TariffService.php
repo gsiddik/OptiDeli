@@ -30,7 +30,18 @@ final class TariffService
 
     private const TABLE_REFS = ['customer_id' => 'customers', 'project_id' => 'customer_projects', 'vendor_id' => 'vendors'];
 
+    /** True for the copy a vendor works through: it may only change what the vendor itself proposed, and only until it is submitted. */
+    private bool $asVendor = false;
+
     public function __construct(private readonly TenantStore $store) {}
+
+    public function asVendor(): static
+    {
+        $copy = clone $this;
+        $copy->asVendor = true;
+
+        return $copy;
+    }
 
     private function exists(string $table): Exists
     {
@@ -164,10 +175,16 @@ final class TariffService
         }, 3);
     }
 
-    private function draft(string $id): object
+    private function draft(string $id, bool $review = false): object
     {
         $table = $this->store->find('rate_tables', $id, true);
         abort_unless($table->status === 'DRAFT', 409, 'Hanya draf yang dapat diubah. Buat versi baru untuk mengubah tarif yang sudah disetujui.');
+        if (! $review) {
+            // What a vendor proposed is the vendor's to change; the tenant approves it or sends it back, it does not edit it.
+            abort_if($table->proposed_by_vendor && ! $this->asVendor, 409, 'Tarif ini disusun vendor: setujui atau tolak, jangan ubah.');
+            abort_if(! $table->proposed_by_vendor && $this->asVendor, 403, 'Tarif ini bukan usulan vendor.');
+            abort_if($this->asVendor && $table->submitted_at !== null, 409, 'Tarif sudah diajukan; tarik kembali untuk mengubahnya.');
+        }
 
         return $table;
     }
@@ -297,8 +314,9 @@ final class TariffService
     {
         return DB::transaction(function () use ($id) {
             DB::table('tenants')->where('id', $this->store->tenantId)->lockForUpdate()->firstOrFail();
-            $table = $this->draft($id);
+            $table = $this->draft($id, true);
             abort_if($table->created_by === $this->store->actorId, 403, 'Tarif harus disetujui oleh orang lain, bukan penyusunnya.');
+            abort_if($table->proposed_by_vendor && $table->submitted_at === null, 409, 'Vendor belum mengajukan tarif ini.');
             abort_unless($this->store->query('rate_lines')->where('rate_table_id', $id)->exists(), 422, 'Tarif belum memiliki baris.');
             $others = $this->store->query('rate_tables')->where('code', $table->code)->where('status', 'APPROVED')->where('id', '!=', $id)->get();
             $from = Carbon::parse($table->valid_from);
@@ -315,6 +333,23 @@ final class TariffService
             }
             DB::table('rate_tables')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['status' => 'APPROVED', 'approved_by' => $this->store->actorId, 'approved_at' => now(), 'updated_at' => now()]);
             $this->store->event('tariff.approved', $id, ['code' => $table->code, 'version' => $table->version, 'side' => $table->side, 'created_by' => $table->created_by]);
+
+            return $this->store->find('rate_tables', $id);
+        }, 3);
+    }
+
+    /** Sends a vendor's submitted proposal back to the vendor with the reason; the vendor can then change and submit it again. */
+    public function rejectProposal(string $id, string $note): object
+    {
+        if (mb_strlen(trim($note)) < 5) {
+            $this->fail('note', 'Alasan penolakan wajib diisi (minimal 5 karakter).');
+        }
+
+        return DB::transaction(function () use ($id, $note) {
+            $table = $this->draft($id, true);
+            abort_unless($table->proposed_by_vendor && $table->submitted_at !== null, 409, 'Hanya tarif yang diajukan vendor yang dapat ditolak.');
+            DB::table('rate_tables')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['submitted_at' => null, 'review_note' => $note, 'updated_at' => now()]);
+            $this->store->event('tariff.proposal_rejected', $id, ['code' => $table->code, 'version' => $table->version, 'vendor_id' => $table->vendor_id, 'note' => $note]);
 
             return $this->store->find('rate_tables', $id);
         }, 3);

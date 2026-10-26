@@ -22,6 +22,7 @@ Route::get('/api/v1/csrf', fn () => response()->json(['token' => csrf_token()]))
 Route::get('/api/v1/health', fn () => response()->json(['status' => 'ok', 'service' => 'optideli']));
 Route::post('/api/v1/auth/logout', [AuthController::class, 'logout'])->middleware('auth');
 Route::post('/api/v1/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('/api/v1/auth/external-login', [AuthController::class, 'externalLogin'])->middleware('throttle:login');
 Route::get('/api/v1/auth/sso/status', [SsoController::class, 'status']);
 Route::get('/api/v1/auth/sso/redirect', [SsoController::class, 'redirect'])->middleware('throttle:30,1');
 Route::get('/api/v1/auth/sso/callback', [SsoController::class, 'callback'])->middleware('throttle:30,1');
@@ -75,6 +76,7 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
         require __DIR__.'/billing.php';
         require __DIR__.'/contracts.php';
         require __DIR__.'/cutover.php';
+        require __DIR__.'/fleet.php';
         require __DIR__.'/enterprise.php';
         require __DIR__.'/access.php';
         require __DIR__.'/ledger.php';

@@ -66,16 +66,24 @@ export type Vehicle = {
   length_mm: number;
   width_mm: number;
   height_mm: number;
-  documents_valid_until: string;
-  readiness_checked_at: string;
+  documents_valid_until: string | null;
+  readiness_checked_at: string | null;
+  vendor_id?: string | null;
+  vendor_label?: string | null;
+  carrier_type_label?: string | null;
+  active?: boolean;
+  verification_status?: "PENDING" | "VERIFIED" | "REJECTED";
 };
 export type Driver = {
   id: string;
   name: string;
   license_number: string;
-  license_valid_until: string;
-  eligibility_verified_until: string;
+  license_valid_until: string | null;
+  eligibility_verified_until: string | null;
   active: boolean;
+  vendor_id?: string | null;
+  vendor_label?: string | null;
+  verification_status?: "PENDING" | "VERIFIED" | "REJECTED";
 };
 export type Plan = {
   id: string;

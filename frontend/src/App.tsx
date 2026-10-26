@@ -41,6 +41,7 @@ import { BillingPage, InvoicePage } from "./Billing";
 import { ContractDetailPage, ContractsPage } from "./Contracts";
 import { IntegrationsPage } from "./Integrations";
 import { CutoverDetailPage, CutoverPage } from "./Cutover";
+import { FleetVerificationPage } from "./FleetVerification";
 import { ReportsPage } from "./Reports";
 import { MonitoringPage, SchedulePage } from "./Schedule";
 import { RouteTemplatesPage } from "./RouteTemplates";
@@ -191,6 +192,56 @@ function Login({ onLogin }: { onLogin: () => void }) {
             </Field>
           </Form>
         )}
+        {sso.sso_enabled && (
+          <details className="external-login">
+            <summary>Masuk sebagai vendor atau pelanggan</summary>
+            <p className="muted">
+              Akun vendor dan pelanggan dibuat oleh tenant dan masuk dengan kata
+              sandinya sendiri.
+            </p>
+            <Form
+              label="Masuk"
+              onSubmit={async () => {
+                await api("auth/external-login", "POST", {
+                  email,
+                  password,
+                  tenant,
+                });
+                await csrf();
+                onLogin();
+              }}
+            >
+              <Field label="Kode tenant">
+                <input
+                  autoComplete="organization"
+                  value={tenant}
+                  onChange={(e) => setTenant(e.target.value)}
+                  required
+                  maxLength={80}
+                />
+              </Field>
+              <Field label="Email akun">
+                <input
+                  autoComplete="username"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Kata sandi akun">
+                <input
+                  autoComplete="current-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  maxLength={1024}
+                />
+              </Field>
+            </Form>
+          </details>
+        )}
         <p>
           <Link to="/platform">Masuk sebagai Superadmin</Link>
         </p>
@@ -232,6 +283,12 @@ const navigation: {
       { to: "/trips", label: "Eksekusi perjalanan", icon: "dispatch" },
       { to: "/yard", label: "Dock & yard", icon: "fleet" },
       { to: "/vendors", label: "Vendor & portal", icon: "fleet" },
+      {
+        to: "/vendor-fleet",
+        label: "Verifikasi armada vendor",
+        icon: "fleet",
+        permission: "vendor.fleet.verify",
+      },
       { to: "/freight", label: "Freight audit", icon: "audit" },
     ],
   },
@@ -628,6 +685,7 @@ function TenantApp() {
           <Route path="orders/new" element={<OrderCreate />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="dispatch" element={<DispatchBoard />} />
+          <Route path="vendor-fleet" element={<FleetVerificationPage />} />
           <Route path="cutover" element={<CutoverPage />} />
           <Route path="cutover/:id" element={<CutoverDetailPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />

@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Access\Seats;
 use App\Domain\Access\SystemRoles;
 use App\Domain\Customer\Webhooks;
 use App\Domain\Integration\Optinexus\OptinexusManifest;
@@ -23,6 +24,21 @@ Artisan::command('optideli:webhooks:dispatch {--limit=50}', function (Webhooks $
 })->purpose('Send the customer webhooks that are due, retrying failed ones with a growing delay');
 
 Schedule::command('optideli:webhooks:dispatch')->everyMinute()->withoutOverlapping();
+
+Artisan::command('optideli:seats:snapshot', function () {
+    foreach (DB::table('tenants')->where('active', true)->pluck('id') as $tenantId) {
+        Seats::snapshot($tenantId);
+    }
+    $this->info('Seat counts recorded.');
+})->purpose('Record the number of seats in use per tenant (the day\'s peak)');
+
+Artisan::command('optideli:seats:report', function (Seats $seats) {
+    $r = $seats->report();
+    $this->info("Seats reported to OptiNexus: {$r['sent']} sent, {$r['failed']} failed (retried on the next run).");
+})->purpose('Report each finished month\'s peak seat count to OptiNexus as usage');
+
+Schedule::command('optideli:seats:snapshot')->hourly()->withoutOverlapping();
+Schedule::command('optideli:seats:report')->dailyAt('02:30')->withoutOverlapping();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

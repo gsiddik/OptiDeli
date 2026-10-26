@@ -323,6 +323,43 @@ final class SpmService
         }, 3);
     }
 
+    /**
+     * A vendor's vehicle is assigned: the buying side is priced again from that vendor's approved tariff for the vehicle's type, while the
+     * selling side stays as the customer's order asked. Buying charges already verified are left alone. @return list<string> warnings
+     */
+    public function repriceBuy(string $spmId, string $vendorId, ?string $carrierTypeId, string $carrierLabel): array
+    {
+        $spm = $this->store->find('transport_orders', $spmId, true);
+        if ($this->store->query('spm_charges')->where('transport_order_id', $spmId)->where('side', 'BUY')->where('source', 'RATE')->where('status', 'VERIFIED')->exists()) {
+            return ['Harga beli SPM sudah diverifikasi; tidak dihitung ulang dari tarif vendor.'];
+        }
+        $lines = $this->store->query('shipment_lines')->where('transport_order_id', $spmId)->get();
+        $result = (new TariffResolver($this->store))->resolve(array_filter([
+            'date' => $spm->planned_pickup_at ? substr((string) $spm->planned_pickup_at, 0, 10) : now()->toDateString(),
+            'customer_id' => $spm->customer_id, 'project_id' => $spm->project_id, 'vendor_id' => $vendorId,
+            'origin_location_id' => $spm->origin_location_id, 'destination_location_id' => $spm->destination_location_id,
+            'carrier_type_id' => $carrierTypeId, 'service_id' => $spm->service_id,
+            'quantities' => ['trips' => 1, 'drop' => 1, 'kg' => (float) $lines->sum('weight_kg'), 'cbm' => (float) $lines->sum('volume_cbm'), 'carton' => (float) $lines->sum('quantity')],
+        ], fn ($v) => $v !== null));
+        $buy = array_values(array_filter($result['lines'], fn ($l) => ($l['buy'] ?? null) !== null && $l['buy']['amount_minor'] !== null));
+        if ($buy === []) {
+            return ["Vendor belum memiliki tarif beli yang disetujui untuk tipe {$carrierLabel} pada rute ini; harga beli belum terisi."];
+        }
+        $this->store->query('spm_charges')->where('transport_order_id', $spmId)->where('side', 'BUY')->where('source', 'RATE')->where('status', 'PROPOSED')->delete();
+        foreach ($buy as $line) {
+            $priced = $line['buy'];
+            DB::table('spm_charges')->insert([
+                'id' => (string) Str::uuid(), 'tenant_id' => $this->store->tenantId, 'transport_order_id' => $spmId, 'side' => 'BUY', 'charge_code_id' => $line['charge_code']['id'],
+                'kind' => 'PLAN', 'source' => 'RATE', 'basis' => $priced['basis'], 'quantity' => $priced['quantity'], 'unit_price_minor' => $priced['unit_price_minor'], 'amount_minor' => $priced['amount_minor'],
+                'rate_table_id' => $priced['rate_table_id'] ?? null, 'rate_label' => isset($priced['table_code']) ? $priced['table_code'].' v'.$priced['version'] : null,
+                'markup_code' => null, 'status' => 'PROPOSED', 'created_by' => $this->store->actorId, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+        $this->store->event('spm.buy_repriced', $spmId, ['number' => $spm->number, 'vendor_id' => $vendorId, 'carrier_type_id' => $carrierTypeId]);
+
+        return [];
+    }
+
     /** Checks the SPM is ready to be planned and prices it. @return list<string> warnings */
     private function plan(object $spm): array
     {

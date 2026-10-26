@@ -37,6 +37,9 @@ type Table = {
   status_reason: string | null;
   created_by: number;
   line_count?: number;
+  proposed_by_vendor?: boolean;
+  submitted_at?: string | null;
+  review_note?: string | null;
 };
 type Line = Record<string, string | number | null> & {
   id: string;
@@ -456,7 +459,7 @@ export function TariffDetailPage() {
   const state = useData<{ data: Detail }>(`tariffs/${id}`);
   const navigate = useNavigate();
   const [dialog, setDialog] = useState<
-    "edit" | "line" | "version" | { line: Line } | null
+    "edit" | "line" | "version" | "reject" | { line: Line } | null
   >(null);
   const [retiring, setRetiring] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -504,6 +507,14 @@ export function TariffDetailPage() {
               · berlaku {date(t.valid_from)} – {date(t.valid_until)}
             </p>
             {t.notes && <p>{t.notes}</p>}
+            {t.proposed_by_vendor && (
+              <p className="alert" role="status">
+                Tarif ini diusulkan vendor.{" "}
+                {t.submitted_at
+                  ? "Setujui atau kembalikan kepada vendor dengan alasan; isinya tidak diubah di sini."
+                  : "Vendor belum mengajukannya."}
+              </p>
+            )}
             {t.status_reason && <p>Alasan dihentikan: {t.status_reason}</p>}
             {detail.versions.length > 1 && (
               <p>
@@ -517,7 +528,7 @@ export function TariffDetailPage() {
               </p>
             )}
             <div className="actions">
-              {canManage && draft && (
+              {canManage && draft && !t.proposed_by_vendor && (
                 <>
                   <button onClick={() => setDialog("edit")}>Ubah</button>
                   <button onClick={() => setDialog("line")}>
@@ -534,7 +545,11 @@ export function TariffDetailPage() {
               {canApprove && draft && (
                 <button
                   className="primary"
-                  disabled={t.created_by === session.id || !detail.lines.length}
+                  disabled={
+                    t.created_by === session.id ||
+                    !detail.lines.length ||
+                    (!!t.proposed_by_vendor && !t.submitted_at)
+                  }
                   title={
                     t.created_by === session.id
                       ? "Tarif harus disetujui oleh orang lain."
@@ -545,6 +560,14 @@ export function TariffDetailPage() {
                   Setujui
                 </button>
               )}
+              {canApprove &&
+                draft &&
+                t.proposed_by_vendor &&
+                t.submitted_at && (
+                  <button onClick={() => setDialog("reject")}>
+                    Kembalikan ke vendor
+                  </button>
+                )}
               {canManage && t.status !== "DRAFT" && (
                 <button onClick={() => setDialog("version")}>
                   Buat versi baru
@@ -656,6 +679,25 @@ export function TariffDetailPage() {
                     "PUT",
                   );
                 else await submitRecord(`tariffs/${t.id}/lines`, body, key);
+                setDialog(null);
+                state.refresh();
+              }}
+            />
+          )}
+          {dialog === "reject" && (
+            <EditorDialog
+              title="Kembalikan tarif ke vendor"
+              fields={[
+                {
+                  name: "note",
+                  label: "Alasan (minimal 5 karakter)",
+                  kind: "textarea",
+                  value: "",
+                },
+              ]}
+              onClose={() => setDialog(null)}
+              onSubmit={async (body, key) => {
+                await submitRecord(`tariffs/${t.id}/reject`, body, key);
                 setDialog(null);
                 state.refresh();
               }}

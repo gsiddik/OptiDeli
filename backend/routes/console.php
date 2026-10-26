@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Access\SystemRoles;
+use App\Domain\Customer\Webhooks;
 use App\Domain\Integration\Optinexus\OptinexusManifest;
 use App\Domain\Ledger\FeedCredentials;
 use App\Domain\Ledger\FeedPairing;
@@ -11,9 +12,17 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+
+Artisan::command('optideli:webhooks:dispatch {--limit=50}', function (Webhooks $webhooks) {
+    $r = $webhooks->dispatchDue((int) $this->option('limit'));
+    $this->info("Webhooks: {$r['sent']} terkirim, {$r['failed']} akan diulang, {$r['dead']} gagal permanen.");
+})->purpose('Send the customer webhooks that are due, retrying failed ones with a growing delay');
+
+Schedule::command('optideli:webhooks:dispatch')->everyMinute()->withoutOverlapping();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

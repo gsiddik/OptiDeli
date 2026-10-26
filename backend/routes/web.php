@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CustomerIntegrationController;
 use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\ExecutionController;
 use App\Http\Controllers\Api\FleetController;
@@ -29,6 +30,12 @@ Route::post('/api/v1/integration/optinexus/events', [OptinexusEventController::c
 Route::get('/api/v1/integration/feed', [IntegrationFeedController::class, 'index'])->middleware([FeedAuthentication::class, 'throttle:60,1']);
 Route::post('/api/v1/integration/tracking/positions', [TrackingController::class, 'positions'])->middleware([TrackingAuthentication::class, 'throttle:600,1']);
 Route::post('/api/v1/integration/tracking/events', [TrackingController::class, 'events'])->middleware([TrackingAuthentication::class, 'throttle:600,1']);
+Route::prefix('/api/v1/integration/customer')->middleware('throttle:120,1')->group(function () {
+    Route::get('spm', [CustomerIntegrationController::class, 'spms'])->middleware('api.client:spm.read');
+    Route::get('spm/{id}', [CustomerIntegrationController::class, 'spm'])->whereUuid('id')->middleware('api.client:spm.read');
+    Route::get('invoices', [CustomerIntegrationController::class, 'invoices'])->middleware('api.client:invoice.read');
+    Route::get('invoices/{id}', [CustomerIntegrationController::class, 'invoice'])->whereUuid('id')->middleware('api.client:invoice.read');
+});
 Route::post('/api/v1/platform/auth/login', [PlatformController::class, 'login'])->middleware('throttle:login');
 Route::middleware(['auth', PlatformContext::class, 'throttle:120,1'])->prefix('api/v1/platform')->group(function () {
     Route::get('auth/me', [PlatformController::class, 'me']);

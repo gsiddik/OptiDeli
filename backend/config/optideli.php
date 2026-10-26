@@ -97,6 +97,13 @@ return [
     | Options: 'internal' (OptiDeli Ledger) | 'optientry' (OptiAccounting) | 'edi210' | 'none'
     |--------------------------------------------------------------------------
     */
+    /*
+    | Webhooks to customers: https only and never to an internal address, unless this deployment sits in a closed network.
+    */
+    'webhooks' => [
+        'allow_private' => (bool) env('OPTIDELI_WEBHOOK_ALLOW_PRIVATE', false),
+    ],
+
     'accounting' => [
         'driver' => env('ACCOUNTING_DRIVER', 'internal'),
         'optientry_url' => env('OPTIACCOUNTING_API_URL', 'http://localhost:8003'),

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CustomerIntegrationController;
 use App\Http\Controllers\Api\CustomerPortalController;
 use App\Http\Controllers\Api\ExecutionController as E;
 use App\Http\Controllers\Api\FreightController as F;
@@ -21,6 +22,16 @@ Route::post('yard/appointments/{id}/transition', [E::class, 'yardTransition'])->
 Route::get('vendors', [V::class, 'index']);
 Route::post('vendors', [V::class, 'create']);
 Route::post('vendors/{id}/account', [V::class, 'account'])->whereUuid('id');
+Route::get('api-clients', [CustomerIntegrationController::class, 'clients']);
+Route::post('api-clients', [CustomerIntegrationController::class, 'issueClient']);
+Route::post('api-clients/{id}/rotate', [CustomerIntegrationController::class, 'rotateClient'])->whereUuid('id');
+Route::post('api-clients/{id}/revoke', [CustomerIntegrationController::class, 'revokeClient'])->whereUuid('id');
+Route::get('webhooks', [CustomerIntegrationController::class, 'webhooks']);
+Route::post('webhooks', [CustomerIntegrationController::class, 'subscribe']);
+Route::post('webhooks/{id}/rotate-secret', [CustomerIntegrationController::class, 'rotateSecret'])->whereUuid('id');
+Route::put('webhooks/{id}/active', [CustomerIntegrationController::class, 'setActive'])->whereUuid('id');
+Route::get('webhooks/{id}/deliveries', [CustomerIntegrationController::class, 'deliveries'])->whereUuid('id');
+Route::post('webhook-deliveries/{id}/retry', [CustomerIntegrationController::class, 'retry'])->whereUuid('id');
 Route::post('customers/{id}/portal-account', [CustomerPortalController::class, 'account'])->whereUuid('id');
 Route::get('freight/invoices', [F::class, 'index']);
 Route::post('freight/invoices', [F::class, 'create']);

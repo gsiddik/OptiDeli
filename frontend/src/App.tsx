@@ -39,6 +39,7 @@ import { TripDetailPage, TripListPage } from "./Planning";
 import { CashDetailPage, CashPage } from "./Cash";
 import { BillingPage, InvoicePage } from "./Billing";
 import { ContractDetailPage, ContractsPage } from "./Contracts";
+import { IntegrationsPage } from "./Integrations";
 import { ReportsPage } from "./Reports";
 import { MonitoringPage, SchedulePage } from "./Schedule";
 import { RouteTemplatesPage } from "./RouteTemplates";
@@ -251,6 +252,12 @@ const navigation: {
         label: "Kontrak kendaraan",
         icon: "fleet",
         permission: "contract.manage",
+      },
+      {
+        to: "/integrations",
+        label: "Integrasi pelanggan",
+        icon: "roadmap",
+        permission: "customer.portal.provision",
       },
       { to: "/reports", label: "Laporan", icon: "roadmap" },
     ],
@@ -564,6 +571,7 @@ function TenantApp() {
           <Route path="orders/new" element={<OrderCreate />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="dispatch" element={<DispatchBoard />} />
+          <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="contracts" element={<ContractsPage />} />
           <Route path="contracts/:id" element={<ContractDetailPage />} />
           <Route path="billing" element={<BillingPage />} />

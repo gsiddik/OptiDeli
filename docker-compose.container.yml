@@ -8,7 +8,7 @@
 #   * the runtime environment of the containers is exactly the `environment:` blocks below, identical for every PHP role (x-deli-env),
 #     so a changed secret needs `docker compose up -d` (containers re-created), never an image rebuild.
 # Only the `bootstrap` job migrates. api waits for it (service_completed_successfully, and the entrypoint also waits for a current schema).
-# OptiDeli has no queued jobs or scheduled tasks today, so there is no worker or scheduler container.
+# The scheduler container runs `schedule:work`: today that is the delivery of customer webhooks (optideli:webhooks:dispatch, every minute).
 name: optideli
 
 x-deli-env: &deli-env
@@ -104,6 +104,15 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  scheduler:
+    <<: *php
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    command: ["php", "artisan", "schedule:work"]
 
   web:
     image: ${NGINX_IMAGE:-nginx:1.27-alpine}

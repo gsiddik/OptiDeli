@@ -2,6 +2,7 @@
 
 namespace App\Domain\Billing;
 
+use App\Domain\Customer\Webhooks;
 use App\Domain\Ledger\LedgerService;
 use App\Domain\Ledger\Money;
 use App\Domain\Shared\TenantStore;
@@ -258,6 +259,9 @@ final class BillingService
                 $total += $subtotal + $tax;
             }
             DB::table('billing_batches')->where('tenant_id', $this->store->tenantId)->where('id', $batchId)->update(['invoice_count' => count($invoices), 'total_minor' => $total, 'updated_at' => now()]);
+            foreach ($invoices as $invoice) {
+                Webhooks::publish($this->store->tenantId, $customer->id, 'invoice.issued', $invoice->id, ['invoice' => ['id' => $invoice->id, 'number' => $invoice->number, 'issue_date' => (string) $invoice->issue_date, 'due_date' => (string) $invoice->due_date, 'currency' => $invoice->currency, 'amount_minor' => (int) $invoice->amount_minor]]);
+            }
             $this->store->event('billing.batch_issued', $batchId, ['number' => $batchNumber, 'customer' => $customer->code, 'template' => $template->code, 'invoices' => count($invoices), 'total_minor' => $total]);
 
             return ['batch' => $this->store->find('billing_batches', $batchId), 'invoices' => array_map(fn ($i) => $this->store->find('ledger_documents', $i->id), $invoices)];

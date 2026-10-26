@@ -4,6 +4,7 @@ namespace App\Domain\Master;
 
 use App\Domain\Import\Tabular;
 use App\Domain\Shared\TenantStore;
+use App\Domain\Tariff\TariffService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +21,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class MasterImporter
 {
-    public function __construct(private readonly TenantStore $store, private readonly MasterService $service) {}
+    public function __construct(private readonly TenantStore $store, private readonly MasterService $service, private readonly ?TariffService $tariff = null) {}
 
     private static function key(string $text): string
     {
@@ -170,7 +171,6 @@ final class MasterImporter
         if ($table['rows'] === []) {
             throw ValidationException::withMessages(['file' => 'Berkas tidak berisi baris data.']);
         }
-        $hash = hash_file('sha256', $file->getRealPath());
         $fields = MasterRegistry::fieldsOf($resource);
 
         $refs = [];
@@ -226,13 +226,26 @@ final class MasterImporter
             ];
         }
 
-        return DB::transaction(function () use ($resource, $file, $table, $map, $ignored, $hash, $counts, $records) {
+        return $this->stage($resource, $file, $table, ['map' => $map, 'ignored' => $ignored], $counts, $records);
+    }
+
+    /**
+     * Writes a staged job with its rows; $meta is kept with the job (column map, ignored columns, anything the commit needs).
+     *
+     * @param  array{format: string, headers: list<string>}  $table
+     * @return array<string, mixed>
+     */
+    public function stage(string $resource, UploadedFile $file, array $table, array $meta, array $counts, array $records): array
+    {
+        $hash = hash_file('sha256', $file->getRealPath());
+
+        return DB::transaction(function () use ($resource, $file, $table, $meta, $hash, $counts, $records) {
             $jobId = (string) Str::uuid();
             DB::table('import_jobs')->insert([
                 'id' => $jobId, 'tenant_id' => $this->store->tenantId, 'resource' => $resource, 'filename' => mb_substr($file->getClientOriginalName(), 0, 255), 'format' => $table['format'],
                 'file_hash' => $hash, 'status' => 'PREVIEW', 'total_rows' => count($records), 'rows_new' => $counts['CREATE'], 'rows_update' => $counts['UPDATE'],
                 'rows_unchanged' => $counts['NONE'], 'rows_error' => $counts['ERROR'],
-                'headers' => json_encode(['headers' => $table['headers'], 'map' => $map, 'ignored' => $ignored], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                'headers' => json_encode(['headers' => $table['headers']] + $meta, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                 'created_by' => $this->store->actorId, 'created_at' => now(), 'updated_at' => now(),
             ]);
             foreach (array_chunk($records, 500) as $chunk) {
@@ -440,14 +453,16 @@ final class MasterImporter
 
             $created = $updated = 0;
             $failed = [];
+            $tableId = json_decode($job->headers, true)['table_id'] ?? null;
             foreach (DB::table('import_rows')->where('tenant_id', $this->store->tenantId)->where('job_id', $id)->whereIn('action', ['CREATE', 'UPDATE'])->orderBy('row_number')->cursor() as $row) {
                 $data = json_decode($row->data, true);
                 try {
+                    $lines = $job->resource === 'rate_lines';
                     if ($row->action === 'CREATE') {
-                        $this->service->create($job->resource, $data);
+                        $lines ? $this->tariff->addLine($tableId, $data) : $this->service->create($job->resource, $data);
                         $created++;
                     } else {
-                        $this->service->update($job->resource, $row->target_id, $data);
+                        $lines ? $this->tariff->updateLine($tableId, $row->target_id, $data) : $this->service->update($job->resource, $row->target_id, $data);
                         $updated++;
                     }
                 } catch (ValidationException $e) {

@@ -385,7 +385,7 @@ function MasterList({
       )}
       {importing && (
         <ImportDialog
-          resource={resource.key}
+          uploadPath={`master/${resource.key}/imports`}
           label={resource.label}
           onClose={() => setImporting(false)}
           onDone={state.refresh}

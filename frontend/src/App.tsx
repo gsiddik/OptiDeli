@@ -33,6 +33,12 @@ import { PlatformApp } from "./Platform";
 import { OrderCreate, OrderDetail, OrderList } from "./Orders";
 import { DispatchBoard } from "./Dispatch";
 import { MasterPage } from "./Master";
+import {
+  MarkupPage,
+  ResolverPage,
+  TariffDetailPage,
+  TariffListPage,
+} from "./Tariffs";
 import { PolicyPage } from "./Policy";
 import { TripList, TripDetail } from "./Trips";
 import { YardPage } from "./Yard";
@@ -203,6 +209,17 @@ const navigation: {
   {
     group: "MASTER DATA",
     items: [{ to: "/master", label: "Master data", icon: "master" }],
+  },
+  {
+    group: "TARIF",
+    items: [
+      {
+        to: "/tariffs",
+        label: "Tarif jual & beli",
+        icon: "audit",
+        permission: "rate.view",
+      },
+    ],
   },
   {
     group: "GOVERNANCE",
@@ -498,6 +515,10 @@ function TenantApp() {
           <Route path="dispatch" element={<DispatchBoard />} />
           <Route path="master" element={<MasterPage />} />
           <Route path="master/:resource" element={<MasterPage />} />
+          <Route path="tariffs" element={<TariffListPage />} />
+          <Route path="tariffs/markups" element={<MarkupPage />} />
+          <Route path="tariffs/test" element={<ResolverPage />} />
+          <Route path="tariffs/:id" element={<TariffDetailPage />} />
           <Route path="fleet" element={<FleetPage />} />
           <Route path="trips" element={<TripList />} />
           <Route path="trips/:id" element={<TripDetail />} />

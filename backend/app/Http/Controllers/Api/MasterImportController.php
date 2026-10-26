@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Access\Access;
 use App\Domain\Master\MasterImporter;
 use App\Domain\Master\MasterService;
+use App\Domain\Tariff\TariffService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
@@ -18,14 +19,18 @@ class MasterImportController extends Controller
     {
         $store = OrderController::storeFor($r);
 
-        return new MasterImporter($store, new MasterService($store));
+        return new MasterImporter($store, new MasterService($store), new TariffService($store));
     }
 
-    private function writer(Request $r): MasterImporter
+    private function writer(Request $r, ?string $jobId = null): MasterImporter
     {
-        Access::authorize($r, 'master.manage', 'Akun Anda tidak boleh mengubah master data.');
+        $importer = $this->importer($r);
+        $lines = $jobId !== null && $importer->job($jobId)['resource'] === 'rate_lines';
+        $lines
+            ? Access::authorize($r, 'rate.manage', 'Akun Anda tidak boleh mengubah tarif.')
+            : Access::authorize($r, 'master.manage', 'Akun Anda tidak boleh mengubah master data.');
 
-        return $this->importer($r);
+        return $importer;
     }
 
     private static function format(Request $r): string
@@ -57,30 +62,28 @@ class MasterImportController extends Controller
 
     public function show(Request $r, string $id)
     {
-        $importer = $this->writer($r);
-
-        return response()->json(['data' => $importer->job($id)]);
+        return response()->json(['data' => $this->writer($r, $id)->job($id)]);
     }
 
     public function rows(Request $r, string $id)
     {
-        return response()->json($this->writer($r)->rows($id, $r->query('action'), max(1, (int) $r->query('page', 1))));
+        return response()->json($this->writer($r, $id)->rows($id, $r->query('action'), max(1, (int) $r->query('page', 1))));
     }
 
     public function errors(Request $r, string $id)
     {
-        return $this->download($this->writer($r)->rejected($id, self::format($r)));
+        return $this->download($this->writer($r, $id)->rejected($id, self::format($r)));
     }
 
     public function commit(Request $r, string $id)
     {
         $d = $r->validate(['skip_errors' => 'nullable|boolean']);
 
-        return response()->json(['data' => $this->writer($r)->commit($id, (bool) ($d['skip_errors'] ?? false))]);
+        return response()->json(['data' => $this->writer($r, $id)->commit($id, (bool) ($d['skip_errors'] ?? false))]);
     }
 
     public function discard(Request $r, string $id)
     {
-        return response()->json(['data' => $this->writer($r)->discard($id)]);
+        return response()->json(['data' => $this->writer($r, $id)->discard($id)]);
     }
 }

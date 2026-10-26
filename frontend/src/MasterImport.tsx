@@ -111,12 +111,12 @@ function RowsTable({ job }: { job: Job }) {
 }
 
 export function ImportDialog({
-  resource,
+  uploadPath,
   label,
   onClose,
   onDone,
 }: {
-  resource: string;
+  uploadPath: string;
   label: string;
   onClose: () => void;
   onDone: () => void;
@@ -162,9 +162,7 @@ export function ImportDialog({
     if (!file) return;
     const form = new FormData();
     form.append("file", file);
-    const r = await run(() =>
-      api<{ data: Job }>(`master/${resource}/imports`, "POST", form),
-    );
+    const r = await run(() => api<{ data: Job }>(uploadPath, "POST", form));
     if (r) setJob(r.data);
   }
 

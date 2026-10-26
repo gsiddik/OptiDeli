@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Planning of an SPM onto vehicles (ARK/OP adoption, phase F2, module M4), as the owner defined it: an SPM carries several air
+ * Planning of an SPM onto vehicles (phase F2, module M4), as the owner defined it: an SPM carries several air
  * waybills (AWB), each with its own number, consignee and destination and grouping some of the SPM's shipment lines; every AWB is
  * carried by exactly one trip, so one SPM can have several trips. A trip belongs to one SPM, reserves a vehicle and a driver, has
  * an ordered list of stops (the SPM's origin, then the destinations of its AWBs) whose arrival and departure times are recorded

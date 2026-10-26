@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Tests\Concerns\SignsInTenantMember;
 use Tests\TestCase;
 
-/** Excel/CSV import and export of the master data (ARK/OP adoption, F1/M1). */
+/** Excel/CSV import and export of the master data (F1/M1). */
 class MasterImportTest extends TestCase
 {
     use RefreshDatabase, SignsInTenantMember;

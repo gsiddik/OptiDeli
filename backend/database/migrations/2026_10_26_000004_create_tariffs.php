@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Two-sided, versioned tariffs (ARK/OP adoption, phase F1, module M2). A rate table is one version of one tariff (SELL to a
+ * Two-sided, versioned tariffs (phase F1, module M2). A rate table is one version of one tariff (SELL to a
  * customer or project, or BUY from a vendor or the own fleet) with a validity period; it is drafted, then approved by someone
  * other than its author, and from then on only retired or superseded by a new version. Its lines say what a charge costs on a
  * lane, for a carrier type and service, per trip/kg/CBM/carton/km/day/drop. Markup rules turn a BUY price into a SELL price

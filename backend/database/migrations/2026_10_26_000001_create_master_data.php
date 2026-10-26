@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Master data of the transport operation (ARK/OP adoption, phase F1, module M1): customers and their projects, a location
+ * Master data of the transport operation (phase F1, module M1): customers and their projects, a location
  * directory with coordinates, the regional reference (region, city, zone, area), carrier types, goods with units and
  * categories, services with a service-level target, and the charge catalogue that tariffs and costs will refer to.
  *

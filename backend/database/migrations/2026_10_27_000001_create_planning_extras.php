@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * The rest of the SPM planning (ARK/OP adoption, phase F2) and the first part of tracking (F5): route templates for the stops of a
+ * The rest of the SPM planning (phase F2) and the first part of tracking (F5): route templates for the stops of a
  * trip, vehicle reservations (a booking that is converted into a trip), the queue of requests to re-open an SPM, and what the
  * geofence capture needs - a credential for the machine that sends positions and the log of every ENTER/EXIT decision. Additive.
  */

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Fixed-cost vehicle contracts (ARK/OP adoption, phase F6, module M9): a customer contracts a vehicle for a monthly fee that includes
+ * Fixed-cost vehicle contracts (phase F6, module M9): a customer contracts a vehicle for a monthly fee that includes
  * a number of trips, with a price for each trip above it; the vehicle's own monthly cost (vendor rental) is the buying side. The
  * vehicle's attendance prorates both fees. A monthly run turns a contract into selling and buying charges that are verified like
  * the charges of an SPM, billed with them (a billing line may now point at a contract charge instead of an SPM charge) and counted in the

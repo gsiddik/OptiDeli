@@ -38,7 +38,7 @@ function stub(gate: { open: boolean; blockers: string[] }) {
               code: "CUT-A",
               name: "Cut-over PT Maju",
               status: "PARALLEL",
-              legacy_system: "ARK",
+              legacy_system: "Sistem Lama A",
               customer_label: "PT Maju",
               project_label: null,
               tolerance_minor: 0,

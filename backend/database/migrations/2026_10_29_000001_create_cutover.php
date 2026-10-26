@@ -16,7 +16,7 @@ return new class extends Migration
             $t->string('name', 150);
             $t->uuid('customer_id');
             $t->uuid('project_id')->nullable();
-            $t->string('legacy_system', 12); // ARK | OP | OTHER
+            $t->string('legacy_system', 60); // free text: the name of the system being replaced
             $t->string('status', 10)->default('PLANNING'); // PLANNING -> PARALLEL -> CUT_OVER (back to PARALLEL on rollback)
             $t->date('parallel_from')->nullable();
             $t->date('planned_cutover_on')->nullable();
@@ -33,7 +33,6 @@ return new class extends Migration
             $t->foreign(['tenant_id', 'project_id'])->references(['tenant_id', 'id'])->on('customer_projects');
         });
         DB::statement("ALTER TABLE cutover_projects ADD CONSTRAINT cutover_projects_status_check CHECK (status IN ('PLANNING','PARALLEL','CUT_OVER'))");
-        DB::statement("ALTER TABLE cutover_projects ADD CONSTRAINT cutover_projects_legacy_check CHECK (legacy_system IN ('ARK','OP','OTHER'))");
         DB::statement("CREATE UNIQUE INDEX cutover_one_per_scope ON cutover_projects (tenant_id, customer_id, coalesce(project_id, '00000000-0000-0000-0000-000000000000'::uuid))");
 
         Schema::create('cutover_checks', function (Blueprint $t) {

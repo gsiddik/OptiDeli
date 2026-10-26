@@ -6,11 +6,10 @@ use App\Domain\Shared\TenantStore;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Moving a customer (or one of its projects) from the legacy system (ARK / OP) to OptiDeli: a checklist, a parallel period in which
+ * Moving a customer (or one of its projects) from the system it uses today (the legacy system) to OptiDeli: a checklist, a parallel period in which
  * both systems are compared month by month against control totals taken from the legacy system, and a gate ("Gerbang C") that only
  * opens when everything is ready and someone other than the creator approves. After the cut-over the legacy side is marked frozen.
  *
@@ -72,7 +71,7 @@ final class CutoverService
     {
         $d = Validator::make($input, [
             'code' => ['required', 'string', 'max:40', 'regex:/^[A-Za-z0-9._-]+$/'], 'name' => 'required|string|max:150', 'customer_id' => 'required|uuid', 'project_id' => 'nullable|uuid',
-            'legacy_system' => ['required', Rule::in(['ARK', 'OP', 'OTHER'])], 'parallel_from' => 'nullable|date', 'planned_cutover_on' => 'nullable|date|after_or_equal:parallel_from',
+            'legacy_system' => 'required|string|min:2|max:60', 'parallel_from' => 'nullable|date', 'planned_cutover_on' => 'nullable|date|after_or_equal:parallel_from',
             'tolerance_minor' => 'nullable|integer|min:0|max:1000000000', 'notes' => 'nullable|string|max:2000',
         ])->validate();
         $d['code'] = strtoupper($d['code']);

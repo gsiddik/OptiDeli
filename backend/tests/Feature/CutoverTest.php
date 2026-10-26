@@ -95,12 +95,12 @@ class CutoverTest extends TestCase
 
     private function create(array $o = [])
     {
-        return $this->as($this->supervisor)->postJson('/api/v1/cutover', $o + ['code' => 'cut-a', 'name' => 'Cut-over PT Maju', 'customer_id' => $this->m['cust'], 'legacy_system' => 'ARK', 'parallel_from' => $this->period.'-01']);
+        return $this->as($this->supervisor)->postJson('/api/v1/cutover', $o + ['code' => 'cut-a', 'name' => 'Cut-over PT Maju', 'customer_id' => $this->m['cust'], 'legacy_system' => 'Sistem Lama A', 'parallel_from' => $this->period.'-01']);
     }
 
     private function totals(string $id, array $o = [])
     {
-        return $this->as($this->supervisor)->putJson("/api/v1/cutover/{$id}/totals", $o + ['period' => $this->period, 'spm_count' => 2, 'sell_minor' => 3_000_000_00, 'buy_minor' => 2_000_000_00, 'source_note' => 'ARK rekap '.$this->period]);
+        return $this->as($this->supervisor)->putJson("/api/v1/cutover/{$id}/totals", $o + ['period' => $this->period, 'spm_count' => 2, 'sell_minor' => 3_000_000_00, 'buy_minor' => 2_000_000_00, 'source_note' => 'Rekap sistem lama '.$this->period]);
     }
 
     private function allChecks(string $id): void
@@ -118,7 +118,7 @@ class CutoverTest extends TestCase
     public function test_a_tracker_is_created_per_customer_or_project_with_its_checklist(): void
     {
         $this->as($this->dispatcher)->postJson('/api/v1/cutover', [])->assertForbidden();
-        $this->create(['legacy_system' => 'XYZ'])->assertUnprocessable()->assertJsonValidationErrors('legacy_system');
+        $this->create(['legacy_system' => ''])->assertUnprocessable()->assertJsonValidationErrors('legacy_system');
         $this->create(['project_id' => $this->m['proj'], 'customer_id' => $this->m['other']])->assertUnprocessable()->assertJsonValidationErrors('project_id');
         $r = $this->create()->assertCreated()->assertJsonPath('data.cutover.code', 'CUT-A')->assertJsonPath('data.cutover.status', 'PLANNING');
         $this->assertCount(count(CutoverService::CHECKS), $r->json('data.checks'));
@@ -207,7 +207,7 @@ class CutoverTest extends TestCase
 
     public function test_the_creator_cannot_approve_their_own_cut_over(): void
     {
-        $id = $this->as($this->cfo)->postJson('/api/v1/cutover', ['code' => 'CUT-X', 'name' => 'X', 'customer_id' => $this->m['cust'], 'legacy_system' => 'OP', 'parallel_from' => $this->period.'-01'])->assertCreated()->json('data.cutover.id');
+        $id = $this->as($this->cfo)->postJson('/api/v1/cutover', ['code' => 'CUT-X', 'name' => 'X', 'customer_id' => $this->m['cust'], 'legacy_system' => 'Sistem Lama B', 'parallel_from' => $this->period.'-01'])->assertCreated()->json('data.cutover.id');
         $this->spm($this->m['cust'], 3_000_000_00, 2_000_000_00);
         $this->totals($id, ['spm_count' => 1])->assertOk();
         $this->as($this->cfo)->postJson("/api/v1/cutover/{$id}/status", ['to' => 'PARALLEL'])->assertOk();

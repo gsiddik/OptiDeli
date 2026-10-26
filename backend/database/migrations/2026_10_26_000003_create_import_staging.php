@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Staging for spreadsheet imports (ARK/OP adoption, phase F0, module M12). An uploaded file is read into rows, every row is
+ * Staging for spreadsheet imports (phase F0, module M12). An uploaded file is read into rows, every row is
  * validated and given the action it would cause, and nothing touches the real tables until someone reviews the preview and
  * commits the job. Generic on purpose: masters use it now; tariffs, SPM and opening balances reuse it later.
  */

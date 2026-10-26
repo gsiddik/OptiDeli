@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * The SPM (Surat Perintah Muat, the transport order) between an order and its trips (ARK/OP adoption, phase F2, module M3).
+ * The SPM (Surat Perintah Muat, the transport order) between an order and its trips (phase F2, module M3).
  * An order can be split into several SPMs; each carries its own shipment lines (PO, SO, material, quantities, seal), a status
  * history, and the charges that were priced from the tariffs when it was planned (both sides). Numbers come from a gap-free
  * sequence per tenant and month. Additive: orders, trips and dispatch keep working as they are.

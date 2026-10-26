@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Verification of the charges of an SPM, billing to the customer and the vendor bill per SPM (ARK/OP adoption, phase F4, modules M6
+ * Verification of the charges of an SPM, billing to the customer and the vendor bill per SPM (phase F4, modules M6
  * and M7). A selling charge is verified by someone other than the person who made it, and only a VERIFIED selling charge that is not
  * on a live invoice is ready to bill. A billing run groups the ready charges by the customer's invoice template (per SPM, per project or
  * per period, Plan and Unplan together or apart) into customer invoices of the sub-ledger, each with its lines; the one-live-invoice-per-order

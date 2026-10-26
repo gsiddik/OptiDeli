@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Driver cash (uang jalan) and the cost lines it produces (ARK/OP adoption, phase F3, module M5). A voucher is asked for a trip,
+ * Driver cash (uang jalan) and the cost lines it produces (phase F3, module M5). A voucher is asked for a trip,
  * approved by someone else within a limit that depends on the permission, paid out of a cashbox, and settled with the actual
  * amounts and a receipt for each. Every movement of cash is an append-only ledger entry on the cashbox and on the driver, so
  * the balance of a cashbox and the cash a driver is expected to hold are sums, never edited numbers. This is the counter-party's

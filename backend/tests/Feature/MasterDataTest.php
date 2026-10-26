@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 use Tests\Concerns\SignsInTenantMember;
 use Tests\TestCase;
 
-/** Master data (ARK/OP adoption, F1/M1): customers, projects, locations, regional reference, carrier types, goods, services, charge codes. */
+/** Master data (F1/M1): customers, projects, locations, regional reference, carrier types, goods, services, charge codes. */
 class MasterDataTest extends TestCase
 {
     use RefreshDatabase, SignsInTenantMember;

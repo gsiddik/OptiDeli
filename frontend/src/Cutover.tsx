@@ -164,14 +164,8 @@ export function CutoverPage() {
             }),
             {
               name: "legacy_system",
-              label: "Sistem lama",
-              kind: "select",
-              options: [
-                { value: "ARK", label: "ARK TMS" },
-                { value: "OP", label: "Order Planning" },
-                { value: "OTHER", label: "Lainnya" },
-              ],
-              value: "ARK",
+              label: "Nama sistem lama",
+              value: "",
             },
             optional({
               name: "parallel_from",
@@ -470,7 +464,7 @@ export function CutoverDetailPage() {
             },
             optional({
               name: "source_note",
-              label: "Sumber (mis. nama laporan ARK)",
+              label: "Sumber (mis. nama laporan sistem lama)",
               value: "",
             }),
           ]}

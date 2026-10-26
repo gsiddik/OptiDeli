@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 use Tests\Concerns\SignsInTenantMember;
 use Tests\TestCase;
 
-/** Two-sided versioned tariffs, maker-checker approval, markup and the resolver (ARK/OP adoption, F1/M2). */
+/** Two-sided versioned tariffs, maker-checker approval, markup and the resolver (F1/M2). */
 class TariffTest extends TestCase
 {
     use RefreshDatabase, SignsInTenantMember;

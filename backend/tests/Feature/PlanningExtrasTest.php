@@ -377,6 +377,13 @@ class PlanningExtrasTest extends TestCase
         $this->as($viewer)->postJson("/api/v1/spm-trips/{$trip['id']}/position", ['latitude' => -6.2, 'longitude' => 106.8])->assertForbidden();
     }
 
+    public function test_the_machine_endpoints_are_exempt_from_csrf_checks(): void
+    {
+        // Tests skip CSRF validation altogether, so assert the configuration that production applies.
+        $excluded = app(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class)->getExcludedPaths();
+        $this->assertContains('api/v1/integration/tracking/*', $excluded);
+    }
+
     public function test_distance_between_two_points(): void
     {
         $this->assertEqualsWithDelta(111_195, TrackingService::distanceMeters(0, 0, 1, 0), 200);

@@ -14,7 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias(['tenant' => TenantContext::class]);
         $middleware->web(append: [ApiResponseHeaders::class]);
         // Server-to-server call from OptiNexus, authenticated by the signed logout token instead of a CSRF token.
-        $middleware->validateCsrfTokens(except: ['api/v1/integration/optinexus/backchannel-logout', 'api/v1/integration/optinexus/events']);
+        // The tracking ingest is a machine caller authenticated by its bearer credential.
+        $middleware->validateCsrfTokens(except: ['api/v1/integration/optinexus/backchannel-logout', 'api/v1/integration/optinexus/events', 'api/v1/integration/tracking/*']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn (Request $request) => $request->is('api/*') || $request->expectsJson());

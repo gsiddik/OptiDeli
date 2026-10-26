@@ -38,6 +38,7 @@ class LedgerController extends Controller
         $s = OrderController::storeFor($r);
         $doc = $s->find('ledger_documents', $id);
         $doc->payments = $s->query('ledger_payments')->where('document_id', $id)->orderBy('paid_on')->orderBy('created_at')->get();
+        $doc->lines = $s->query('ledger_document_lines')->where('document_id', $id)->orderBy('created_at')->get();
 
         return response()->json(['data' => $doc]);
     }

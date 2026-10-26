@@ -36,6 +36,8 @@ import { MasterPage } from "./Master";
 import { SpmDetailPage, SpmListPage, SpmPrintPage } from "./Spm";
 import { TripDetailPage, TripListPage } from "./Planning";
 import { CashDetailPage, CashPage } from "./Cash";
+import { BillingPage, InvoicePage } from "./Billing";
+import { ReportsPage } from "./Reports";
 import { MonitoringPage, SchedulePage } from "./Schedule";
 import { RouteTemplatesPage } from "./RouteTemplates";
 import { ReopenQueuePage } from "./Reopen";
@@ -232,6 +234,18 @@ const navigation: {
   {
     group: "MASTER DATA",
     items: [{ to: "/master", label: "Master data", icon: "master" }],
+  },
+  {
+    group: "PENAGIHAN & LAPORAN",
+    items: [
+      {
+        to: "/billing",
+        label: "Penagihan",
+        icon: "orders",
+        permission: "billing.issue",
+      },
+      { to: "/reports", label: "Laporan", icon: "roadmap" },
+    ],
   },
   {
     group: "TARIF",
@@ -536,6 +550,9 @@ function TenantApp() {
           <Route path="orders/new" element={<OrderCreate />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="dispatch" element={<DispatchBoard />} />
+          <Route path="billing" element={<BillingPage />} />
+          <Route path="billing/invoices/:id" element={<InvoicePage />} />
+          <Route path="reports" element={<ReportsPage />} />
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="monitoring" element={<MonitoringPage />} />
           <Route path="route-templates" element={<RouteTemplatesPage />} />

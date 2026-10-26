@@ -98,6 +98,15 @@ const QUEUE_LABEL: Record<string, [string, string]> = {
   ],
   tariffs_to_approve: ["Tarif menunggu persetujuan", "/tariffs?status=DRAFT"],
   reopen_requests: ["Permintaan buka kembali SPM", "/reopen"],
+  charges_to_verify_sell: [
+    "SPM menunggu verifikasi biaya jual",
+    "/spm?status=DISCHARGED",
+  ],
+  charges_to_verify_buy: [
+    "SPM menunggu verifikasi biaya beli",
+    "/spm?status=DISCHARGED",
+  ],
+  ready_to_bill: ["SPM siap ditagih", "/billing"],
 };
 
 /** What is waiting for the user (counts come from the server by permission). */

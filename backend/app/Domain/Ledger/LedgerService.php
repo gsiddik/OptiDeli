@@ -28,6 +28,7 @@ final class LedgerService
             if ($live) {
                 return [$live, false];
             }
+            abort_if($s->query('transport_orders')->where('order_id', $orderId)->where('status', '<>', 'CANCELLED')->exists(), 422, 'Order ini memiliki SPM; tagih lewat Penagihan (biaya SPM yang terverifikasi).');
             abort_unless($order->sell_minor > 0, 422, 'Order tidak memiliki nilai jual.');
             $trip = $s->query('trips')->where('order_id', $orderId)->first();
 
@@ -114,6 +115,7 @@ final class LedgerService
             abort_if($doc->status === 'VOID', 409, 'Dokumen sudah dibatalkan.');
             abort_if($doc->paid_minor > 0, 422, 'Dokumen yang sudah memiliki pembayaran tidak dapat dibatalkan.');
             $s->query('ledger_documents')->where('id', $documentId)->update(['status' => 'VOID', 'void_reason' => $reason, 'updated_at' => now()]);
+            $s->query('ledger_document_lines')->where('document_id', $documentId)->update(['active' => false]);
             $this->feed->record($s->tenantId, 'optideli.document.voided', $doc->id, ['type' => 'ledger_document', 'id' => $doc->id, 'number' => $doc->number], $this->dimensions($doc), [
                 'document_kind' => $doc->kind, 'currency' => $doc->currency, 'amount' => Money::decimal($doc->amount_minor, $doc->currency), 'reason' => $reason,
             ]);
@@ -121,6 +123,29 @@ final class LedgerService
 
             return $s->find('ledger_documents', $documentId);
         }, 3);
+    }
+
+    /**
+     * A document made from SPM charges (a billed customer invoice or a vendor bill per SPM), with its lines, in the caller's transaction.
+     * The lines are what the feed (v1.1) carries and what keeps a charge from being billed twice while the document lives.
+     *
+     * @param  array<string, mixed>  $fields  columns of the document
+     * @param  list<array{charge_id: string, transport_order_id: string, side: string, charge_code: string, kind: string, description: string, quantity: ?string, unit_price_minor: ?int, amount_minor: int}>  $lines
+     * @param  array<string, mixed>  $extra  more payload for the feed event
+     */
+    public function issueFromCharges(TenantStore $s, string $kind, array $fields, array $lines, ?int $termsDays, ?string $dueDate, array $extra): object
+    {
+        $doc = $this->insertDocument($s, $kind, $fields, $termsDays, $dueDate);
+        foreach ($lines as $line) {
+            DB::table('ledger_document_lines')->insert($line + ['id' => (string) Str::uuid(), 'tenant_id' => $s->tenantId, 'document_id' => $doc->id, 'active' => true, 'created_at' => now()]);
+        }
+        $this->publishDocument($s, $doc, $kind === 'CUSTOMER_INVOICE' ? 'optideli.customer_invoice.issued' : 'optideli.vendor_bill.recorded', $extra + ['lines' => array_map(fn ($l) => [
+            'description' => $l['description'], 'charge_code' => $l['charge_code'], 'kind' => $l['kind'], 'quantity' => $l['quantity'], 'unit_price' => $l['unit_price_minor'] === null ? null : Money::decimal($l['unit_price_minor'], $doc->currency),
+            'amount' => Money::decimal($l['amount_minor'], $doc->currency), 'amount_minor' => $l['amount_minor'],
+        ], $lines)]);
+        $s->event($kind === 'CUSTOMER_INVOICE' ? 'ledger.customer_invoice_issued' : 'ledger.vendor_bill_recorded', $doc->id, ['number' => $doc->number, 'lines' => count($lines)]);
+
+        return $doc;
     }
 
     private function insertDocument(TenantStore $s, string $kind, array $fields, ?int $termsDays, ?string $dueDate): object

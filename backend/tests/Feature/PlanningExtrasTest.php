@@ -7,6 +7,7 @@ use App\Domain\Master\MasterDefaults;
 use App\Domain\Tracking\TrackingCredentials;
 use App\Domain\Tracking\TrackingService;
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -380,7 +381,7 @@ class PlanningExtrasTest extends TestCase
     public function test_the_machine_endpoints_are_exempt_from_csrf_checks(): void
     {
         // Tests skip CSRF validation altogether, so assert the configuration that production applies.
-        $excluded = app(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class)->getExcludedPaths();
+        $excluded = app(PreventRequestForgery::class)->getExcludedPaths();
         $this->assertContains('api/v1/integration/tracking/*', $excluded);
     }
 

@@ -95,6 +95,21 @@ are never named; each line carries the **fact key** of its charge code (`DRIVER_
 `correlation_id` is the voucher id; `dimensions` carry `order_id`, `spm_id`, `trip_id`, `driver_id`, `cashbox_id`. Cashbox top-ups and the
 approval steps are not published: they are the counter-party's cash, not the company's books.
 
+### Addendum 2026-10-27: invoice lines (additive, "v1.1" of the payload; `schema_version` stays 1.0)
+
+Customer invoices issued by a billing run (from verified SPM charges) and vendor bills recorded per SPM carry what they consist of, besides
+the totals every document already has:
+
+* `lines[]`: `{description, charge_code, kind (PLAN|UNPLAN), quantity, unit_price, amount, amount_minor}` per charge on the document.
+* On a customer invoice: `spm_numbers[]`, `billing_batch`, `template` (the invoice template code), `subtotal` and `tax`. `amount` is the gross total
+  (`subtotal + tax`). **With OptiNexus (SaaS) `tax` is `0.00`**: OptiDeli never computes tax there and the accounting system derives it from the gross
+  amount; only a standalone installation adds its own PPN.
+* On a vendor bill: `spm_number`, and `freight_invoice_number` carries the vendor's own invoice number (the bill was matched three ways: verified
+  buying charges, AWBs delivered, the vendor's invoiced amount).
+
+A consumer that ignores `lines` keeps working: `amount`, `order_number` and the other v1.0 fields are unchanged. A document is never edited; a
+cancelled billing run voids its unpaid invoices (`optideli.document.voided`) and a new run issues new ones.
+
 ## What the consumer must do
 
 1. Hold one feed credential per producer tenant, stored as a secret.

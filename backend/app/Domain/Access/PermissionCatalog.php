@@ -32,6 +32,12 @@ final class PermissionCatalog
             'cash.settle' => 'Settle driver cash with the actual spending and receipts',
             'cash.manage' => 'Manage cashboxes, top them up and set the approval limit',
         ],
+        'Billing and reports' => [
+            'selling.verify' => 'Verify or reject the selling charges of a delivered SPM (never ones you made yourself)',
+            'cost.verify' => 'Verify or reject the buying charges of an SPM and record the vendor bill per SPM',
+            'billing.issue' => 'See what is ready to bill, issue customer invoices from verified charges and cancel a billing run',
+            'report.pnl.view' => 'View the contribution profit and loss by SPM, customer, project, vehicle, vendor and lane',
+        ],
         'Tariffs' => [
             'rate.view' => 'View selling tariffs and test the tariff resolver',
             'rate.buy.view' => 'View buying tariffs, markups and margins',
@@ -93,11 +99,11 @@ final class PermissionCatalog
     public const SYSTEM_ROLES = [
         'viewer' => ['operations.view'],
         'dispatcher' => ['operations.view', 'cash.view', 'cash.request', 'rate.view', 'rate.buy.view', 'rate.manage', 'operations.manage', 'spm.manage', 'master.manage', 'enterprise.manage'],
-        'supervisor' => ['operations.view', 'cash.view', 'cash.request', 'cash.approve', 'cash.settle', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'freight.approve.logistics_manager'],
-        'head_of_logistics' => ['operations.view', 'cash.view', 'cash.request', 'cash.approve', 'cash.approve.large', 'cash.settle', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'freight.approve.logistics_manager'],
-        'cfo' => ['operations.view', 'cash.view', 'cash.request', 'cash.approve', 'cash.approve.large', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'dispatch.approve.level3', 'finance.access', 'freight.approve.cfo', 'freight.escalation.resolve', 'policy.manage', 'vendor.portal.provision'],
-        'finance' => ['operations.view', 'cash.view', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance'],
-        'finance_supervisor' => ['operations.view', 'cash.view', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance', 'freight.approve.finance_supervisor'],
+        'supervisor' => ['operations.view', 'selling.verify', 'cash.view', 'cash.request', 'cash.approve', 'cash.settle', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'freight.approve.logistics_manager'],
+        'head_of_logistics' => ['operations.view', 'selling.verify', 'report.pnl.view', 'cash.view', 'cash.request', 'cash.approve', 'cash.approve.large', 'cash.settle', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'freight.approve.logistics_manager'],
+        'cfo' => ['operations.view', 'selling.verify', 'cost.verify', 'billing.issue', 'report.pnl.view', 'cash.view', 'cash.request', 'cash.approve', 'cash.approve.large', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'dispatch.approve.level3', 'finance.access', 'freight.approve.cfo', 'freight.escalation.resolve', 'policy.manage', 'vendor.portal.provision'],
+        'finance' => ['operations.view', 'selling.verify', 'cost.verify', 'billing.issue', 'report.pnl.view', 'cash.view', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance'],
+        'finance_supervisor' => ['operations.view', 'selling.verify', 'cost.verify', 'billing.issue', 'report.pnl.view', 'cash.view', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance', 'freight.approve.finance_supervisor'],
         'vendor' => ['vendor.portal'],
         'tenant_administrator' => ['*'],
     ];

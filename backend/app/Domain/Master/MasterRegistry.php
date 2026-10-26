@@ -18,6 +18,7 @@ final class MasterRegistry
         'regional' => 'Wilayah',
         'network' => 'Jaringan',
         'cargo' => 'Muatan & layanan',
+        'billing' => 'Penagihan',
     ];
 
     private const CODE = ['name' => 'code', 'label' => 'Kode', 'kind' => 'text', 'required' => true, 'max' => 40, 'immutable' => true, 'upper' => true, 'list' => true,
@@ -39,6 +40,7 @@ final class MasterRegistry
                     ['name' => 'pic_phone', 'label' => 'Telepon PIC', 'kind' => 'text', 'max' => 40],
                     ['name' => 'pic_email', 'label' => 'Email PIC', 'kind' => 'text', 'max' => 254, 'rules' => ['email']],
                     ['name' => 'address', 'label' => 'Alamat', 'kind' => 'textarea', 'max' => 1000],
+                    ['name' => 'invoice_template_id', 'label' => 'Template invoice', 'kind' => 'ref', 'ref' => 'invoice_templates', 'hint' => 'Kosong = template standar (satu invoice per SPM).'],
                     ['name' => 'notes', 'label' => 'Catatan', 'kind' => 'textarea', 'max' => 1000],
                 ],
             ],
@@ -51,6 +53,7 @@ final class MasterRegistry
                     ['name' => 'valid_from', 'label' => 'Berlaku dari', 'kind' => 'date'],
                     ['name' => 'valid_until', 'label' => 'Berlaku sampai', 'kind' => 'date', 'rules' => ['after_or_equal:valid_from']],
                     ['name' => 'payment_terms_days', 'label' => 'Termin bayar (hari)', 'kind' => 'number', 'min' => 0, 'max' => 365, 'hint' => 'Kosong = ikut termin pelanggan.'],
+                    ['name' => 'invoice_template_id', 'label' => 'Template invoice', 'kind' => 'ref', 'ref' => 'invoice_templates', 'hint' => 'Kosong = ikut template pelanggan.'],
                 ],
             ],
             'regions' => [
@@ -134,6 +137,20 @@ final class MasterRegistry
                     self::CODE, self::NAME,
                     ['name' => 'sla_hours', 'label' => 'Target waktu (jam)', 'kind' => 'number', 'min' => 1, 'max' => 720, 'list' => true],
                     ['name' => 'description', 'label' => 'Keterangan', 'kind' => 'text', 'max' => 300],
+                ],
+            ],
+            'invoice_templates' => [
+                'label' => 'Template invoice', 'singular' => 'template invoice', 'group' => 'billing', 'search' => ['code', 'name'],
+                'fields' => [
+                    self::CODE, self::NAME,
+                    ['name' => 'grouping', 'label' => 'Pengelompokan', 'kind' => 'select', 'required' => true, 'list' => true, 'default' => 'PER_SPM',
+                        'options' => ['PER_SPM' => 'Satu invoice per SPM', 'PER_PROJECT' => 'Satu invoice per proyek', 'PER_PERIOD' => 'Satu invoice per periode (semua SPM siap tagih)']],
+                    ['name' => 'split_plan_unplan', 'label' => 'Pisahkan Plan dan Unplan', 'kind' => 'boolean', 'required' => true, 'default' => false, 'list' => true, 'hint' => 'Biaya sesuai tarif (Plan) dan di luar tarif (Unplan) ditagih di invoice terpisah.'],
+                    ['name' => 'columns', 'label' => 'Kolom rincian', 'kind' => 'text', 'required' => true, 'max' => 200, 'default' => 'spm,route,description,amount',
+                        'rules' => ['regex:/^(spm|order|route|date|description|qty|unit_price|amount)(,(spm|order|route|date|description|qty|unit_price|amount))*$/'],
+                        'hint' => 'Daftar dipisah koma, urut tampil: spm, order, route, date, description, qty, unit_price, amount.'],
+                    ['name' => 'due_days', 'label' => 'Jatuh tempo (hari)', 'kind' => 'number', 'min' => 0, 'max' => 365, 'hint' => 'Kosong = ikut termin proyek atau pelanggan.'],
+                    ['name' => 'footer', 'label' => 'Catatan kaki invoice', 'kind' => 'text', 'max' => 500],
                 ],
             ],
             'charge_codes' => [

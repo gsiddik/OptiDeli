@@ -14,6 +14,7 @@ import {
 import { dateTime, money } from "./commercial";
 import { can } from "./opsTypes";
 import { SpmAwbSection } from "./SpmAwbs";
+import { SpmFinance } from "./SpmFinance";
 import type { Awb } from "./SpmAwbs";
 import { EditorDialog, submitRecord } from "./RecordEditor";
 import type { EditorField } from "./RecordEditor";
@@ -782,6 +783,13 @@ export function SpmDetailPage() {
           </Empty>
         )}
       </section>
+      <SpmFinance
+        spmId={s.id}
+        status={s.status}
+        charges={d.charges}
+        hasVendor={!!s.vendor_id}
+        onChange={state.refresh}
+      />
       <section className="card block">
         <h2>Riwayat status</h2>
         <ol className="timeline">

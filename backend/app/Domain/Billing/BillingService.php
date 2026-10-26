@@ -1,0 +1,274 @@
+<?php
+
+namespace App\Domain\Billing;
+
+use App\Domain\Ledger\LedgerService;
+use App\Domain\Ledger\Money;
+use App\Domain\Shared\TenantStore;
+use App\Domain\Spm\DocumentNumbers;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Billing the customer from verified SPM charges. Ready to Bill = a SELL charge that is VERIFIED and on no live invoice line. A run
+ * takes the ready charges of one customer (optionally one project, some SPMs, a period), groups them by the customer's invoice template
+ * - one invoice per SPM, per project or per period, Plan and Unplan together or apart - and issues each group as a customer invoice
+ * of the sub-ledger with its lines. Tax is computed here only when OptiDeli runs standalone; with OptiNexus the accounting system
+ * derives it from the gross amounts, as the feed contract says. Cancelling a run voids its unpaid invoices and frees the charges.
+ */
+final class BillingService
+{
+    public const DEFAULT_TEMPLATE = 'STD-SPM';
+
+    public function __construct(private readonly TenantStore $store, private readonly LedgerService $ledger) {}
+
+    private function fail(string $field, string $message): never
+    {
+        throw ValidationException::withMessages([$field => $message]);
+    }
+
+    // ---------------------------------------------------------------- ready to bill
+
+    private function readyQuery()
+    {
+        return DB::table('spm_charges as c')->join('transport_orders as t', fn ($j) => $j->on('t.id', '=', 'c.transport_order_id')->on('t.tenant_id', '=', 'c.tenant_id'))
+            ->where('c.tenant_id', $this->store->tenantId)->where('c.side', 'SELL')->where('c.status', 'VERIFIED')->where('t.status', '<>', 'CANCELLED')
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('ledger_document_lines as l')->whereColumn('l.charge_id', 'c.id')->where('l.active', true));
+    }
+
+    /** @return list<array<string, mixed>> the ready SPMs with their charges */
+    public function ready(?string $customerId, ?string $projectId): array
+    {
+        $query = $this->readyQuery()->select('c.*', 't.number as spm_number', 't.customer_id', 't.project_id', 't.origin_text', 't.destination_text', 't.order_id');
+        if ($customerId !== null && Str::isUuid($customerId)) {
+            $query->where('t.customer_id', $customerId);
+        }
+        if ($projectId !== null && Str::isUuid($projectId)) {
+            $query->where('t.project_id', $projectId);
+        }
+        $rows = $query->orderBy('t.number')->orderBy('c.created_at')->limit(2000)->get();
+        $customers = $this->store->query('customers')->whereIn('id', $rows->pluck('customer_id')->filter())->pluck('name', 'id');
+        $projects = $this->store->query('customer_projects')->whereIn('id', $rows->pluck('project_id')->filter())->pluck('name', 'id');
+        $codes = $this->store->query('charge_codes')->whereIn('id', $rows->pluck('charge_code_id'))->get(['id', 'code', 'name'])->keyBy('id');
+
+        return $rows->groupBy('transport_order_id')->map(function ($group) use ($customers, $projects, $codes) {
+            $first = $group->first();
+
+            return [
+                'spm_id' => $first->transport_order_id, 'spm_number' => $first->spm_number, 'customer_id' => $first->customer_id, 'customer_label' => $customers[$first->customer_id] ?? null,
+                'project_id' => $first->project_id, 'project_label' => $first->project_id ? ($projects[$first->project_id] ?? null) : null,
+                'route' => $first->origin_text.' → '.$first->destination_text, 'total_minor' => (int) $group->sum('amount_minor'),
+                'charges' => $group->map(fn ($c) => ['id' => $c->id, 'charge_code' => ($codes[$c->charge_code_id]->code ?? ''), 'name' => ($codes[$c->charge_code_id]->name ?? ''), 'kind' => $c->kind, 'amount_minor' => (int) $c->amount_minor, 'verified_at' => $c->verified_at])->values()->all(),
+            ];
+        })->values()->all();
+    }
+
+    // ---------------------------------------------------------------- settings
+
+    public function taxRateBps(): int
+    {
+        return config('optideli.deployment_mode') === 'standalone' ? (int) ($this->store->query('billing_settings')->value('tax_rate_bps') ?? 1100) : 0;
+    }
+
+    public function settings(): array
+    {
+        return ['deployment_mode' => (string) config('optideli.deployment_mode'), 'tax_rate_bps' => (int) ($this->store->query('billing_settings')->value('tax_rate_bps') ?? 1100), 'tax_applied' => config('optideli.deployment_mode') === 'standalone'];
+    }
+
+    public function setTaxRate(int $bps): array
+    {
+        Validator::make(['bps' => $bps], ['bps' => 'required|integer|min:0|max:5000'], [], ['bps' => 'Tarif pajak'])->validate();
+        DB::table('billing_settings')->upsert([['tenant_id' => $this->store->tenantId, 'tax_rate_bps' => $bps, 'updated_by' => $this->store->actorId, 'updated_at' => now()]], ['tenant_id'], ['tax_rate_bps', 'updated_by', 'updated_at']);
+        $this->store->event('billing.tax_rate_changed', $this->store->tenantId, ['tax_rate_bps' => $bps]);
+
+        return $this->settings();
+    }
+
+    // ---------------------------------------------------------------- a run
+
+    private function template(?string $explicit, ?object $project, object $customer): object
+    {
+        $id = $explicit ?? $project?->invoice_template_id ?? $customer->invoice_template_id;
+        $template = $id ? $this->store->query('invoice_templates')->where('id', $id)->first() : $this->store->query('invoice_templates')->where('code', self::DEFAULT_TEMPLATE)->first();
+        if ($template === null) {
+            $this->fail('template_id', 'Template invoice tidak ditemukan.');
+        }
+        if (! $template->active) {
+            $this->fail('template_id', 'Template invoice tidak aktif.');
+        }
+
+        return $template;
+    }
+
+    /** @return array<string, mixed> the batch with its invoices */
+    public function run(array $input): array
+    {
+        $d = Validator::make($input, [
+            'customer_id' => ['required', 'uuid', Rule::exists('customers', 'id')->where('tenant_id', $this->store->tenantId)],
+            'project_id' => ['nullable', 'uuid', Rule::exists('customer_projects', 'id')->where('tenant_id', $this->store->tenantId)],
+            'template_id' => ['nullable', 'uuid', Rule::exists('invoice_templates', 'id')->where('tenant_id', $this->store->tenantId)],
+            'spm_ids' => 'nullable|array|max:500', 'spm_ids.*' => 'uuid', 'period_from' => 'nullable|date_format:Y-m-d', 'period_to' => 'nullable|date_format:Y-m-d|after_or_equal:period_from',
+            'due_date' => 'nullable|date_format:Y-m-d', 'notes' => 'nullable|string|max:1000',
+        ], [], ['customer_id' => 'Pelanggan', 'period_to' => 'Sampai'])->validate();
+
+        return DB::transaction(function () use ($d) {
+            DB::table('tenants')->where('id', $this->store->tenantId)->lockForUpdate()->firstOrFail();
+            $customer = $this->store->find('customers', $d['customer_id']);
+            $project = ! empty($d['project_id']) ? $this->store->find('customer_projects', $d['project_id']) : null;
+            if ($project !== null && $project->customer_id !== $customer->id) {
+                $this->fail('project_id', 'Proyek bukan milik pelanggan ini.');
+            }
+            $template = $this->template($d['template_id'] ?? null, $project, $customer);
+
+            $query = $this->readyQuery()->where('t.customer_id', $customer->id)->select('c.*', 't.number as spm_number', 't.project_id', 't.origin_text', 't.destination_text', 't.order_id')->lockForUpdate();
+            if ($project !== null) {
+                $query->where('t.project_id', $project->id);
+            }
+            if (! empty($d['spm_ids'])) {
+                $query->whereIn('t.id', $d['spm_ids']);
+            }
+            if (! empty($d['period_from'])) {
+                $query->where('c.verified_at', '>=', $d['period_from'].' 00:00:00');
+            }
+            if (! empty($d['period_to'])) {
+                $query->where('c.verified_at', '<=', $d['period_to'].' 23:59:59');
+            }
+            $charges = $query->orderBy('t.number')->orderBy('c.created_at')->get();
+            if ($charges->isEmpty()) {
+                $this->fail('customer_id', 'Tidak ada biaya yang siap ditagih untuk pilihan ini.');
+            }
+            $legacy = $this->store->query('ledger_documents')->where('kind', 'CUSTOMER_INVOICE')->whereNull('billing_batch_id')->where('status', '<>', 'VOID')->whereIn('order_id', $charges->pluck('order_id')->unique())->pluck('number');
+            if ($legacy->isNotEmpty()) {
+                $this->fail('spm_ids', 'Order dari SPM ini sudah ditagih lewat invoice order: '.$legacy->implode(', ').'.');
+            }
+
+            $codes = $this->store->query('charge_codes')->whereIn('id', $charges->pluck('charge_code_id'))->get(['id', 'code', 'name'])->keyBy('id');
+            $groups = $charges->groupBy(function ($c) use ($template) {
+                $key = match ($template->grouping) {
+                    'PER_SPM' => $c->transport_order_id, 'PER_PROJECT' => $c->project_id ?? 'none', default => 'all',
+                };
+
+                return $key.($template->split_plan_unplan ? '|'.$c->kind : '');
+            });
+
+            $period = now()->format('Ym');
+            $batchId = (string) Str::uuid();
+            $batchNumber = sprintf('BB-%s-%05d', $period, DocumentNumbers::next($this->store->tenantId, 'BILLING', $period));
+            DB::table('billing_batches')->insert([
+                'id' => $batchId, 'tenant_id' => $this->store->tenantId, 'number' => $batchNumber, 'customer_id' => $customer->id, 'project_id' => $project?->id, 'template_id' => $template->id,
+                'period_from' => $d['period_from'] ?? null, 'period_to' => $d['period_to'] ?? null, 'status' => 'ISSUED', 'notes' => $d['notes'] ?? null,
+                'created_by' => $this->store->actorId, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            $taxBps = $this->taxRateBps();
+            $terms = $template->due_days ?? ($project?->payment_terms_days ?? $customer->payment_terms_days);
+            $orders = $this->store->query('orders')->whereIn('id', $charges->pluck('order_id')->unique())->pluck('number', 'id');
+            $invoices = [];
+            $total = 0;
+            foreach ($groups as $group) {
+                $lines = $group->map(fn ($c) => [
+                    'charge_id' => $c->id, 'transport_order_id' => $c->transport_order_id, 'side' => 'SELL', 'charge_code' => $codes[$c->charge_code_id]->code, 'kind' => $c->kind,
+                    'description' => mb_substr(($codes[$c->charge_code_id]->name).' — '.$c->spm_number.' ('.$c->origin_text.' → '.$c->destination_text.')', 0, 255),
+                    'quantity' => $c->quantity, 'unit_price_minor' => $c->unit_price_minor === null ? null : (int) $c->unit_price_minor, 'amount_minor' => (int) $c->amount_minor,
+                ])->all();
+                $subtotal = array_sum(array_column($lines, 'amount_minor'));
+                if ($subtotal <= 0) {
+                    $this->fail('customer_id', 'Jumlah invoice harus lebih dari nol; periksa koreksi negatif pada SPM '.$group->first()->spm_number.'.');
+                }
+                $tax = (int) round($subtotal * $taxBps / 10000);
+                $first = $group->first();
+                $single = $group->pluck('transport_order_id')->unique()->count() === 1;
+                $doc = $this->ledger->issueFromCharges($this->store, 'CUSTOMER_INVOICE', [
+                    'order_id' => $single ? $first->order_id : null, 'counterparty_name' => $customer->name, 'currency' => 'IDR', 'amount_minor' => $subtotal + $tax,
+                    'subtotal_minor' => $subtotal, 'tax_minor' => $tax, 'billing_batch_id' => $batchId, 'customer_id' => $customer->id, 'project_id' => $template->grouping === 'PER_PROJECT' || $single ? $first->project_id : null,
+                    'template_id' => $template->id, 'transport_order_id' => $single ? $first->transport_order_id : null,
+                ], $lines, $terms === null ? null : (int) $terms, $d['due_date'] ?? null, [
+                    'customer_name' => $customer->name, 'order_number' => $group->pluck('order_id')->unique()->map(fn ($o) => $orders[$o] ?? '')->filter()->implode(', '),
+                    'spm_numbers' => $group->pluck('spm_number')->unique()->values()->all(), 'billing_batch' => $batchNumber, 'template' => $template->code,
+                    'subtotal' => Money::decimal($subtotal, 'IDR'), 'tax' => Money::decimal($tax, 'IDR'),
+                ]);
+                $invoices[] = $doc;
+                $total += $subtotal + $tax;
+            }
+            DB::table('billing_batches')->where('tenant_id', $this->store->tenantId)->where('id', $batchId)->update(['invoice_count' => count($invoices), 'total_minor' => $total, 'updated_at' => now()]);
+            $this->store->event('billing.batch_issued', $batchId, ['number' => $batchNumber, 'customer' => $customer->code, 'template' => $template->code, 'invoices' => count($invoices), 'total_minor' => $total]);
+
+            return ['batch' => $this->store->find('billing_batches', $batchId), 'invoices' => array_map(fn ($i) => $this->store->find('ledger_documents', $i->id), $invoices)];
+        }, 3);
+    }
+
+    // ---------------------------------------------------------------- reading
+
+    /** @return array{data: list<object>, current_page: int, last_page: int, total: int} */
+    public function batches(int $page, int $perPage = 50): array
+    {
+        $query = $this->store->query('billing_batches');
+        $total = (clone $query)->count();
+        $rows = $query->orderByDesc('created_at')->forPage($page, $perPage)->get();
+        $customers = $this->store->query('customers')->whereIn('id', $rows->pluck('customer_id'))->pluck('name', 'id');
+        $templates = $this->store->query('invoice_templates')->whereIn('id', $rows->pluck('template_id')->filter())->pluck('name', 'id');
+        foreach ($rows as $row) {
+            $row->customer_label = $customers[$row->customer_id] ?? null;
+            $row->template_label = $row->template_id ? ($templates[$row->template_id] ?? null) : null;
+        }
+
+        return ['data' => $rows->all(), 'current_page' => $page, 'last_page' => max(1, (int) ceil($total / $perPage)), 'total' => $total];
+    }
+
+    public function batch(string $id): array
+    {
+        $batch = $this->store->find('billing_batches', $id);
+        $invoices = $this->store->query('ledger_documents')->where('billing_batch_id', $id)->orderBy('number')->get();
+
+        return ['batch' => $batch, 'invoices' => $invoices->all()];
+    }
+
+    /** The invoice with the lines laid out the way its template says. */
+    public function invoice(string $id): array
+    {
+        $doc = $this->store->find('ledger_documents', $id);
+        $template = $doc->template_id ? $this->store->query('invoice_templates')->where('id', $doc->template_id)->first() : null;
+        $lines = $this->store->query('ledger_document_lines')->where('document_id', $id)->orderBy('created_at')->get();
+        $spms = $this->store->query('transport_orders')->whereIn('id', $lines->pluck('transport_order_id'))->get(['id', 'number', 'order_id', 'origin_text', 'destination_text', 'created_at'])->keyBy('id');
+        $orders = $this->store->query('orders')->whereIn('id', $spms->pluck('order_id'))->pluck('number', 'id');
+        foreach ($lines as $line) {
+            $spm = $spms[$line->transport_order_id] ?? null;
+            $line->spm_number = $spm?->number;
+            $line->order_number = $spm ? ($orders[$spm->order_id] ?? null) : null;
+            $line->route = $spm ? $spm->origin_text.' → '.$spm->destination_text : null;
+            $line->date = $spm ? substr((string) $spm->created_at, 0, 10) : null;
+        }
+        $customer = $doc->customer_id ? $this->store->query('customers')->where('id', $doc->customer_id)->first(['name', 'tax_id', 'address']) : null;
+        $batch = $doc->billing_batch_id ? $this->store->query('billing_batches')->where('id', $doc->billing_batch_id)->value('number') : null;
+
+        return [
+            'document' => $doc, 'lines' => $lines->all(), 'customer' => $customer, 'batch_number' => $batch,
+            'columns' => $template ? explode(',', $template->columns) : ['spm', 'route', 'description', 'amount'], 'footer' => $template?->footer, 'template' => $template?->name,
+        ];
+    }
+
+    public function cancelBatch(string $id, string $reason): array
+    {
+        if (mb_strlen(trim($reason)) < 5) {
+            $this->fail('reason', 'Alasan wajib diisi (minimal 5 karakter).');
+        }
+
+        return DB::transaction(function () use ($id, $reason) {
+            DB::table('tenants')->where('id', $this->store->tenantId)->lockForUpdate()->firstOrFail();
+            $batch = $this->store->find('billing_batches', $id, true);
+            abort_unless($batch->status === 'ISSUED', 409, 'Penagihan ini sudah dibatalkan.');
+            $documents = $this->store->query('ledger_documents')->where('billing_batch_id', $id)->where('status', '<>', 'VOID')->get();
+            abort_if($documents->contains(fn ($d) => $d->paid_minor > 0), 422, 'Ada invoice yang sudah menerima pembayaran; penagihan ini tidak dapat dibatalkan.');
+            foreach ($documents as $doc) {
+                $this->ledger->void($this->store, $doc->id, mb_substr('Penagihan '.$batch->number.' dibatalkan: '.$reason, 0, 500));
+            }
+            DB::table('billing_batches')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['status' => 'CANCELLED', 'cancel_reason' => $reason, 'updated_at' => now()]);
+            $this->store->event('billing.batch_cancelled', $id, ['number' => $batch->number, 'reason' => $reason, 'invoices' => $documents->count()]);
+
+            return $this->batch($id);
+        }, 3);
+    }
+}

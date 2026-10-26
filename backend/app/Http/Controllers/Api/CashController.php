@@ -129,6 +129,18 @@ class CashController extends Controller
         if (Access::can($r, 'cash.settle')) {
             $q['vouchers_to_settle'] = $s->query('cash_vouchers')->where('status', 'DISBURSED')->count();
         }
+        $waiting = fn (string $side) => $s->query('spm_charges')->where('side', $side)->where('status', 'PROPOSED')->where('created_by', '!=', $me)
+            ->whereIn('transport_order_id', $s->query('transport_orders')->whereIn('status', ['DISCHARGED', 'DOC_VERIFIED', 'CLOSED'])->select('id'))->distinct()->count('transport_order_id');
+        if (Access::can($r, 'selling.verify')) {
+            $q['charges_to_verify_sell'] = $waiting('SELL');
+        }
+        if (Access::can($r, 'cost.verify')) {
+            $q['charges_to_verify_buy'] = $waiting('BUY');
+        }
+        if (Access::can($r, 'billing.issue')) {
+            $q['ready_to_bill'] = $s->query('spm_charges')->where('side', 'SELL')->where('status', 'VERIFIED')
+                ->whereNotExists(fn ($x) => $x->selectRaw('1')->from('ledger_document_lines as l')->whereColumn('l.charge_id', 'spm_charges.id')->where('l.active', true))->distinct()->count('transport_order_id');
+        }
         if (Access::can($r, 'rate.approve')) {
             $q['tariffs_to_approve'] = $s->query('rate_tables')->where('status', 'DRAFT')->where('created_by', '!=', $me)->whereExists(fn ($x) => $x->selectRaw('1')->from('rate_lines')->whereColumn('rate_lines.rate_table_id', 'rate_tables.id'))->count();
         }

@@ -40,6 +40,7 @@ import { CashDetailPage, CashPage } from "./Cash";
 import { BillingPage, InvoicePage } from "./Billing";
 import { ContractDetailPage, ContractsPage } from "./Contracts";
 import { IntegrationsPage } from "./Integrations";
+import { CutoverDetailPage, CutoverPage } from "./Cutover";
 import { ReportsPage } from "./Reports";
 import { MonitoringPage, SchedulePage } from "./Schedule";
 import { RouteTemplatesPage } from "./RouteTemplates";
@@ -252,6 +253,12 @@ const navigation: {
         label: "Kontrak kendaraan",
         icon: "fleet",
         permission: "contract.manage",
+      },
+      {
+        to: "/cutover",
+        label: "Cut-over ARK/OP",
+        icon: "roadmap",
+        permission: "cutover.manage",
       },
       {
         to: "/integrations",
@@ -571,6 +578,8 @@ function TenantApp() {
           <Route path="orders/new" element={<OrderCreate />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="dispatch" element={<DispatchBoard />} />
+          <Route path="cutover" element={<CutoverPage />} />
+          <Route path="cutover/:id" element={<CutoverDetailPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="contracts" element={<ContractsPage />} />
           <Route path="contracts/:id" element={<ContractDetailPage />} />

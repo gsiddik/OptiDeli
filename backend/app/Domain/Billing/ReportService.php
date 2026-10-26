@@ -28,48 +28,82 @@ final class ReportService
         ];
     }
 
+    private const ZERO = ['sell' => 0, 'buy' => 0, 'sell_plan' => 0, 'sell_unplan' => 0, 'buy_plan' => 0, 'buy_unplan' => 0, 'unverified_sell' => 0, 'unverified_buy' => 0];
+
+    /** One result unit per SPM and per fixed-cost contract: its verified amounts, and what still waits. @return array<string, array<string, mixed>> */
+    private function units(?string $from, ?string $to): array
+    {
+        $within = function ($query) use ($from, $to) {
+            $query->whereIn('status', ['VERIFIED', 'PROPOSED']);
+            if ($from) {
+                $query->where(fn ($q) => $q->where('status', 'PROPOSED')->orWhere('verified_at', '>=', $from.' 00:00:00'));
+            }
+            if ($to) {
+                $query->where(fn ($q) => $q->where('status', 'PROPOSED')->orWhere('verified_at', '<=', $to.' 23:59:59'));
+            }
+
+            return $query;
+        };
+        $add = function (array &$m, object $c, string $kind) {
+            $side = strtolower($c->side);
+            if ($c->status === 'VERIFIED') {
+                $m[$side] += (int) $c->amount_minor;
+                $m[$side.'_'.$kind] += (int) $c->amount_minor;
+            } else {
+                $m['unverified_'.$side] += (int) $c->amount_minor;
+            }
+        };
+
+        $units = [];
+        $charges = $within($this->store->query('spm_charges'))->get();
+        $spms = $this->store->query('transport_orders')->whereIn('id', $charges->pluck('transport_order_id')->unique())->get()->keyBy('id');
+        $trips = $this->store->query('spm_trips')->where('status', '<>', 'CANCELLED')->whereIn('transport_order_id', $spms->keys())->get()->groupBy('transport_order_id');
+        foreach ($charges as $c) {
+            $spm = $spms[$c->transport_order_id] ?? null;
+            if ($spm === null) {
+                continue;
+            }
+            $u = &$units['spm:'.$spm->id];
+            $u ??= ['id' => $spm->id, 'label' => $spm->number, 'customer_id' => $spm->customer_id, 'project_id' => $spm->project_id, 'vendor_id' => $spm->vendor_id, 'lane' => $spm->origin_text.' → '.$spm->destination_text,
+                'trips' => $trips[$spm->id] ?? collect(), 'm' => self::ZERO];
+            $add($u['m'], $c, strtolower($c->kind));
+            unset($u);
+        }
+
+        $kcharges = $within($this->store->query('contract_charges'))->get();
+        $contracts = $this->store->query('fixcost_contracts')->whereIn('id', $kcharges->pluck('contract_id')->unique())->get()->keyBy('id');
+        foreach ($kcharges as $k) {
+            $contract = $contracts[$k->contract_id] ?? null;
+            if ($contract === null) {
+                continue;
+            }
+            $u = &$units['contract:'.$contract->id];
+            $u ??= ['id' => $contract->id, 'label' => 'Kontrak '.$contract->code, 'customer_id' => $contract->customer_id, 'project_id' => $contract->project_id, 'vendor_id' => $contract->vendor_id, 'lane' => 'Kontrak '.$contract->code,
+                'trips' => collect([(object) ['vehicle_id' => $contract->vehicle_id, 'sell_minor' => 1]]), 'm' => self::ZERO];
+            $add($u['m'], $k, 'plan');
+            unset($u);
+        }
+
+        return $units;
+    }
+
     /**
      * @return array{group_by: string, from: ?string, to: ?string, rows: list<array<string, mixed>>, totals: array<string, int|float|null>}
      */
     public function pnl(string $groupBy, ?string $from, ?string $to): array
     {
         abort_unless(isset(self::DIMENSIONS[$groupBy]), 422, 'Dimensi laporan tidak dikenal.');
-        $query = $this->store->query('spm_charges')->whereIn('status', ['VERIFIED', 'PROPOSED']);
-        if ($from) {
-            $query->where(fn ($q) => $q->where('status', 'PROPOSED')->orWhere('verified_at', '>=', $from.' 00:00:00'));
-        }
-        if ($to) {
-            $query->where(fn ($q) => $q->where('status', 'PROPOSED')->orWhere('verified_at', '<=', $to.' 23:59:59'));
-        }
-        $charges = $query->get();
-        $spms = $this->store->query('transport_orders')->whereIn('id', $charges->pluck('transport_order_id')->unique())->get()->keyBy('id');
+        $units = $this->units($from, $to);
         $customers = $this->store->query('customers')->pluck('name', 'id');
         $projects = $this->store->query('customer_projects')->pluck('name', 'id');
         $vendors = $this->store->query('vendors')->pluck('name', 'id');
-
-        // Per SPM first: verified amounts by side and kind, and what still waits.
-        $per = [];
-        foreach ($charges as $c) {
-            $row = &$per[$c->transport_order_id];
-            $row ??= ['sell' => 0, 'buy' => 0, 'sell_plan' => 0, 'sell_unplan' => 0, 'buy_plan' => 0, 'buy_unplan' => 0, 'unverified_sell' => 0, 'unverified_buy' => 0];
-            $side = strtolower($c->side);
-            if ($c->status === 'VERIFIED') {
-                $row[$side] += (int) $c->amount_minor;
-                $row[$side.'_'.strtolower($c->kind)] += (int) $c->amount_minor;
-            } else {
-                $row['unverified_'.$side] += (int) $c->amount_minor;
-            }
-            unset($row);
-        }
-
-        $trips = $groupBy === 'vehicle' ? $this->store->query('spm_trips')->where('status', '<>', 'CANCELLED')->whereIn('transport_order_id', array_keys($per))->get()->groupBy('transport_order_id') : collect();
         $plates = $groupBy === 'vehicle' ? $this->store->query('vehicles')->pluck('plate', 'id') : collect();
 
         $rows = [];
-        $add = function (string $key, string $label, int $spmShare, array $m, float $fraction) use (&$rows) {
+        $add = function (string $key, string $label, int $count, array $m, float $fraction) use (&$rows) {
             $r = &$rows[$key];
             $r ??= ['key' => $key, 'label' => $label, 'spm_count' => 0, 'sell_minor' => 0, 'buy_minor' => 0, 'sell_plan_minor' => 0, 'sell_unplan_minor' => 0, 'buy_plan_minor' => 0, 'buy_unplan_minor' => 0, 'unverified_sell_minor' => 0, 'unverified_buy_minor' => 0];
-            $r['spm_count'] += $spmShare;
+            $r['spm_count'] += $count;
             foreach (['sell', 'buy', 'sell_plan', 'sell_unplan', 'buy_plan', 'buy_unplan'] as $f) {
                 $r[$f.'_minor'] += (int) round($m[$f] * $fraction);
             }
@@ -77,18 +111,15 @@ final class ReportService
             $r['unverified_buy_minor'] += (int) round($m['unverified_buy'] * $fraction);
             unset($r);
         };
-        foreach ($per as $spmId => $m) {
-            $spm = $spms[$spmId] ?? null;
-            if ($spm === null) {
-                continue;
-            }
+        foreach ($units as $u) {
+            $m = $u['m'];
             match ($groupBy) {
-                'spm' => $add($spm->id, $spm->number, 1, $m, 1.0),
-                'customer' => $add($spm->customer_id ?? 'none', $spm->customer_id ? ($customers[$spm->customer_id] ?? '—') : 'Tanpa pelanggan master', 1, $m, 1.0),
-                'project' => $add($spm->project_id ?? 'none', $spm->project_id ? ($projects[$spm->project_id] ?? '—') : 'Tanpa proyek', 1, $m, 1.0),
-                'vendor' => $add($spm->vendor_id ?? 'own', $spm->vendor_id ? ($vendors[$spm->vendor_id] ?? '—') : 'Armada sendiri', 1, $m, 1.0),
-                'lane' => $add($spm->origin_text.'|'.$spm->destination_text, $spm->origin_text.' → '.$spm->destination_text, 1, $m, 1.0),
-                'vehicle' => $this->byVehicle($spm, $m, $trips[$spmId] ?? collect(), $plates, $add),
+                'spm' => $add($u['id'], $u['label'], 1, $m, 1.0),
+                'customer' => $add($u['customer_id'] ?? 'none', $u['customer_id'] ? ($customers[$u['customer_id']] ?? '—') : 'Tanpa pelanggan master', 1, $m, 1.0),
+                'project' => $add($u['project_id'] ?? 'none', $u['project_id'] ? ($projects[$u['project_id']] ?? '—') : 'Tanpa proyek', 1, $m, 1.0),
+                'vendor' => $add($u['vendor_id'] ?? 'own', $u['vendor_id'] ? ($vendors[$u['vendor_id']] ?? '—') : 'Armada sendiri', 1, $m, 1.0),
+                'lane' => $add($u['lane'], $u['lane'], 1, $m, 1.0),
+                'vehicle' => $this->byVehicle($u, $plates, $add),
             };
         }
         $rows = array_values($rows);
@@ -107,21 +138,19 @@ final class ReportService
         ]];
     }
 
-    /** The result of an SPM goes to the vehicles of its trips in proportion to the part of the price each trip carries. */
-    private function byVehicle(object $spm, array $m, $trips, $plates, \Closure $add): void
+    /** The result goes to the vehicles of the trips in proportion to the part of the price each trip carries; a unit counts once. */
+    private function byVehicle(array $u, $plates, \Closure $add): void
     {
+        $trips = $u['trips'];
         if ($trips->isEmpty()) {
-            $add('none', 'Tanpa kendaraan', 1, $m, 1.0);
+            $add('none', 'Tanpa kendaraan', 1, $u['m'], 1.0);
 
             return;
         }
         $weight = $trips->sum(fn ($t) => max(1, (int) $t->sell_minor));
-        foreach ($trips as $t) {
-            $add($t->vehicle_id, $plates[$t->vehicle_id] ?? '—', 0, $m, max(1, (int) $t->sell_minor) / $weight);
+        foreach ($trips as $i => $t) {
+            $add($t->vehicle_id, $plates[$t->vehicle_id] ?? '—', $i === 0 ? 1 : 0, $u['m'], max(1, (int) $t->sell_minor) / $weight);
         }
-        // The SPM counts once, for its first vehicle.
-        $first = $trips->first();
-        $add($first->vehicle_id, $plates[$first->vehicle_id] ?? '—', 1, array_fill_keys(array_keys($m), 0), 0.0);
     }
 
     /** @return list<array<string, mixed>> */

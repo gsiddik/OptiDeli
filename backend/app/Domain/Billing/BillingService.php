@@ -39,7 +39,14 @@ final class BillingService
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('ledger_document_lines as l')->whereColumn('l.charge_id', 'c.id')->where('l.active', true));
     }
 
-    /** @return list<array<string, mixed>> the ready SPMs with their charges */
+    private function contractReadyQuery()
+    {
+        return DB::table('contract_charges as k')->join('fixcost_contracts as f', fn ($j) => $j->on('f.id', '=', 'k.contract_id')->on('f.tenant_id', '=', 'k.tenant_id'))
+            ->where('k.tenant_id', $this->store->tenantId)->where('k.side', 'SELL')->where('k.status', 'VERIFIED')
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('ledger_document_lines as l')->whereColumn('l.contract_charge_id', 'k.id')->where('l.active', true));
+    }
+
+    /** @return list<array<string, mixed>> the ready SPMs and contract months with their charges */
     public function ready(?string $customerId, ?string $projectId): array
     {
         $query = $this->readyQuery()->select('c.*', 't.number as spm_number', 't.customer_id', 't.project_id', 't.origin_text', 't.destination_text', 't.order_id');
@@ -50,20 +57,41 @@ final class BillingService
             $query->where('t.project_id', $projectId);
         }
         $rows = $query->orderBy('t.number')->orderBy('c.created_at')->limit(2000)->get();
-        $customers = $this->store->query('customers')->whereIn('id', $rows->pluck('customer_id')->filter())->pluck('name', 'id');
-        $projects = $this->store->query('customer_projects')->whereIn('id', $rows->pluck('project_id')->filter())->pluck('name', 'id');
+        $customers = $this->store->query('customers')->pluck('name', 'id');
+        $projects = $this->store->query('customer_projects')->pluck('name', 'id');
         $codes = $this->store->query('charge_codes')->whereIn('id', $rows->pluck('charge_code_id'))->get(['id', 'code', 'name'])->keyBy('id');
 
-        return $rows->groupBy('transport_order_id')->map(function ($group) use ($customers, $projects, $codes) {
+        $items = $rows->groupBy('transport_order_id')->map(function ($group) use ($customers, $projects, $codes) {
             $first = $group->first();
 
             return [
-                'spm_id' => $first->transport_order_id, 'spm_number' => $first->spm_number, 'customer_id' => $first->customer_id, 'customer_label' => $customers[$first->customer_id] ?? null,
+                'type' => 'SPM', 'spm_id' => $first->transport_order_id, 'spm_number' => $first->spm_number, 'customer_id' => $first->customer_id, 'customer_label' => $customers[$first->customer_id] ?? null,
                 'project_id' => $first->project_id, 'project_label' => $first->project_id ? ($projects[$first->project_id] ?? null) : null,
                 'route' => $first->origin_text.' → '.$first->destination_text, 'total_minor' => (int) $group->sum('amount_minor'),
                 'charges' => $group->map(fn ($c) => ['id' => $c->id, 'charge_code' => ($codes[$c->charge_code_id]->code ?? ''), 'name' => ($codes[$c->charge_code_id]->name ?? ''), 'kind' => $c->kind, 'amount_minor' => (int) $c->amount_minor, 'verified_at' => $c->verified_at])->values()->all(),
             ];
         })->values()->all();
+
+        $contracts = $this->contractReadyQuery()->select('k.*', 'f.code as contract_code', 'f.customer_id', 'f.project_id', 'f.vehicle_id');
+        if ($customerId !== null && Str::isUuid($customerId)) {
+            $contracts->where('f.customer_id', $customerId);
+        }
+        if ($projectId !== null && Str::isUuid($projectId)) {
+            $contracts->where('f.project_id', $projectId);
+        }
+        $krows = $contracts->orderBy('f.code')->orderBy('k.period')->limit(2000)->get();
+        $plates = $this->store->query('vehicles')->pluck('plate', 'id');
+        foreach ($krows->groupBy(fn ($k) => $k->contract_id.'|'.$k->period) as $group) {
+            $first = $group->first();
+            $items[] = [
+                'type' => 'CONTRACT', 'spm_id' => null, 'spm_number' => "Kontrak {$first->contract_code} · {$first->period}", 'customer_id' => $first->customer_id, 'customer_label' => $customers[$first->customer_id] ?? null,
+                'project_id' => $first->project_id, 'project_label' => $first->project_id ? ($projects[$first->project_id] ?? null) : null,
+                'route' => 'Kendaraan '.($plates[$first->vehicle_id] ?? ''), 'total_minor' => (int) $group->sum('amount_minor'),
+                'charges' => $group->map(fn ($k) => ['id' => $k->id, 'charge_code' => $k->kind === 'FIXED' ? 'FIXCOST' : 'TRIP_LEBIH', 'name' => $k->description, 'kind' => 'PLAN', 'amount_minor' => (int) $k->amount_minor, 'verified_at' => $k->verified_at])->values()->all(),
+            ];
+        }
+
+        return $items;
     }
 
     // ---------------------------------------------------------------- settings
@@ -110,7 +138,8 @@ final class BillingService
             'customer_id' => ['required', 'uuid', Rule::exists('customers', 'id')->where('tenant_id', $this->store->tenantId)],
             'project_id' => ['nullable', 'uuid', Rule::exists('customer_projects', 'id')->where('tenant_id', $this->store->tenantId)],
             'template_id' => ['nullable', 'uuid', Rule::exists('invoice_templates', 'id')->where('tenant_id', $this->store->tenantId)],
-            'spm_ids' => 'nullable|array|max:500', 'spm_ids.*' => 'uuid', 'period_from' => 'nullable|date_format:Y-m-d', 'period_to' => 'nullable|date_format:Y-m-d|after_or_equal:period_from',
+            'spm_ids' => 'nullable|array|max:500', 'spm_ids.*' => 'uuid', 'contract_charge_ids' => 'nullable|array|max:500', 'contract_charge_ids.*' => 'uuid',
+            'period_from' => 'nullable|date_format:Y-m-d', 'period_to' => 'nullable|date_format:Y-m-d|after_or_equal:period_from',
             'due_date' => 'nullable|date_format:Y-m-d', 'notes' => 'nullable|string|max:1000',
         ], [], ['customer_id' => 'Pelanggan', 'period_to' => 'Sampai'])->validate();
 
@@ -123,35 +152,73 @@ final class BillingService
             }
             $template = $this->template($d['template_id'] ?? null, $project, $customer);
 
-            $query = $this->readyQuery()->where('t.customer_id', $customer->id)->select('c.*', 't.number as spm_number', 't.project_id', 't.origin_text', 't.destination_text', 't.order_id')->lockForUpdate();
-            if ($project !== null) {
-                $query->where('t.project_id', $project->id);
+            // Without a selection everything that is ready for the customer is billed; with one, only what was chosen.
+            $chosen = isset($d['spm_ids']) || isset($d['contract_charge_ids']);
+            $spmCharges = collect();
+            if (! $chosen || ! empty($d['spm_ids'])) {
+                $query = $this->readyQuery()->where('t.customer_id', $customer->id)->select('c.*', 't.number as spm_number', 't.project_id', 't.origin_text', 't.destination_text', 't.order_id')->lockForUpdate();
+                if ($project !== null) {
+                    $query->where('t.project_id', $project->id);
+                }
+                if (! empty($d['spm_ids'])) {
+                    $query->whereIn('t.id', $d['spm_ids']);
+                }
+                if (! empty($d['period_from'])) {
+                    $query->where('c.verified_at', '>=', $d['period_from'].' 00:00:00');
+                }
+                if (! empty($d['period_to'])) {
+                    $query->where('c.verified_at', '<=', $d['period_to'].' 23:59:59');
+                }
+                $spmCharges = $query->orderBy('t.number')->orderBy('c.created_at')->get();
             }
-            if (! empty($d['spm_ids'])) {
-                $query->whereIn('t.id', $d['spm_ids']);
+            $contractCharges = collect();
+            if (! $chosen || ! empty($d['contract_charge_ids'])) {
+                $query = $this->contractReadyQuery()->where('f.customer_id', $customer->id)->select('k.*', 'f.code as contract_code', 'f.project_id')->lockForUpdate();
+                if ($project !== null) {
+                    $query->where('f.project_id', $project->id);
+                }
+                if (! empty($d['contract_charge_ids'])) {
+                    $query->whereIn('k.id', $d['contract_charge_ids']);
+                }
+                if (! empty($d['period_from'])) {
+                    $query->where('k.verified_at', '>=', $d['period_from'].' 00:00:00');
+                }
+                if (! empty($d['period_to'])) {
+                    $query->where('k.verified_at', '<=', $d['period_to'].' 23:59:59');
+                }
+                $contractCharges = $query->orderBy('f.code')->orderBy('k.period')->get();
             }
-            if (! empty($d['period_from'])) {
-                $query->where('c.verified_at', '>=', $d['period_from'].' 00:00:00');
-            }
-            if (! empty($d['period_to'])) {
-                $query->where('c.verified_at', '<=', $d['period_to'].' 23:59:59');
-            }
-            $charges = $query->orderBy('t.number')->orderBy('c.created_at')->get();
-            if ($charges->isEmpty()) {
+            if ($spmCharges->isEmpty() && $contractCharges->isEmpty()) {
                 $this->fail('customer_id', 'Tidak ada biaya yang siap ditagih untuk pilihan ini.');
             }
-            $legacy = $this->store->query('ledger_documents')->where('kind', 'CUSTOMER_INVOICE')->whereNull('billing_batch_id')->where('status', '<>', 'VOID')->whereIn('order_id', $charges->pluck('order_id')->unique())->pluck('number');
+            $legacy = $this->store->query('ledger_documents')->where('kind', 'CUSTOMER_INVOICE')->whereNull('billing_batch_id')->where('status', '<>', 'VOID')->whereIn('order_id', $spmCharges->pluck('order_id')->unique())->pluck('number');
             if ($legacy->isNotEmpty()) {
                 $this->fail('spm_ids', 'Order dari SPM ini sudah ditagih lewat invoice order: '.$legacy->implode(', ').'.');
             }
 
-            $codes = $this->store->query('charge_codes')->whereIn('id', $charges->pluck('charge_code_id'))->get(['id', 'code', 'name'])->keyBy('id');
-            $groups = $charges->groupBy(function ($c) use ($template) {
+            $codes = $this->store->query('charge_codes')->whereIn('id', $spmCharges->pluck('charge_code_id'))->get(['id', 'code', 'name'])->keyBy('id');
+            // One shape for both sources, so grouping and issuing do not care where a line came from.
+            $units = $spmCharges->map(fn ($c) => [
+                'group' => $c->transport_order_id, 'project_id' => $c->project_id, 'order_id' => $c->order_id, 'spm_id' => $c->transport_order_id, 'label' => $c->spm_number, 'charge_kind' => $c->kind,
+                'line' => [
+                    'charge_id' => $c->id, 'contract_charge_id' => null, 'transport_order_id' => $c->transport_order_id, 'side' => 'SELL', 'charge_code' => $codes[$c->charge_code_id]->code, 'kind' => $c->kind,
+                    'description' => mb_substr(($codes[$c->charge_code_id]->name).' — '.$c->spm_number.' ('.$c->origin_text.' → '.$c->destination_text.')', 0, 255),
+                    'quantity' => $c->quantity, 'unit_price_minor' => $c->unit_price_minor === null ? null : (int) $c->unit_price_minor, 'amount_minor' => (int) $c->amount_minor,
+                ],
+            ])->concat($contractCharges->map(fn ($k) => [
+                'group' => 'contract:'.$k->contract_id.'|'.$k->period, 'project_id' => $k->project_id, 'order_id' => null, 'spm_id' => null, 'label' => "Kontrak {$k->contract_code} {$k->period}", 'charge_kind' => 'PLAN',
+                'line' => [
+                    'charge_id' => null, 'contract_charge_id' => $k->id, 'transport_order_id' => null, 'side' => 'SELL', 'charge_code' => $k->kind === 'FIXED' ? 'FIXCOST' : 'TRIP_LEBIH', 'kind' => 'PLAN',
+                    'description' => mb_substr($k->description, 0, 255), 'quantity' => $k->quantity, 'unit_price_minor' => $k->unit_price_minor === null ? null : (int) $k->unit_price_minor, 'amount_minor' => (int) $k->amount_minor,
+                ],
+            ]));
+
+            $groups = $units->groupBy(function ($u) use ($template) {
                 $key = match ($template->grouping) {
-                    'PER_SPM' => $c->transport_order_id, 'PER_PROJECT' => $c->project_id ?? 'none', default => 'all',
+                    'PER_SPM' => $u['group'], 'PER_PROJECT' => $u['project_id'] ?? 'none', default => 'all',
                 };
 
-                return $key.($template->split_plan_unplan ? '|'.$c->kind : '');
+                return $key.($template->split_plan_unplan ? '|'.$u['charge_kind'] : '');
             });
 
             $period = now()->format('Ym');
@@ -165,30 +232,27 @@ final class BillingService
 
             $taxBps = $this->taxRateBps();
             $terms = $template->due_days ?? ($project?->payment_terms_days ?? $customer->payment_terms_days);
-            $orders = $this->store->query('orders')->whereIn('id', $charges->pluck('order_id')->unique())->pluck('number', 'id');
+            $orders = $this->store->query('orders')->whereIn('id', $spmCharges->pluck('order_id')->unique())->pluck('number', 'id');
             $invoices = [];
             $total = 0;
             foreach ($groups as $group) {
-                $lines = $group->map(fn ($c) => [
-                    'charge_id' => $c->id, 'transport_order_id' => $c->transport_order_id, 'side' => 'SELL', 'charge_code' => $codes[$c->charge_code_id]->code, 'kind' => $c->kind,
-                    'description' => mb_substr(($codes[$c->charge_code_id]->name).' — '.$c->spm_number.' ('.$c->origin_text.' → '.$c->destination_text.')', 0, 255),
-                    'quantity' => $c->quantity, 'unit_price_minor' => $c->unit_price_minor === null ? null : (int) $c->unit_price_minor, 'amount_minor' => (int) $c->amount_minor,
-                ])->all();
+                $lines = $group->pluck('line')->all();
                 $subtotal = array_sum(array_column($lines, 'amount_minor'));
                 if ($subtotal <= 0) {
-                    $this->fail('customer_id', 'Jumlah invoice harus lebih dari nol; periksa koreksi negatif pada SPM '.$group->first()->spm_number.'.');
+                    $this->fail('customer_id', 'Jumlah invoice harus lebih dari nol; periksa koreksi negatif pada '.$group->first()['label'].'.');
                 }
                 $tax = (int) round($subtotal * $taxBps / 10000);
                 $first = $group->first();
-                $single = $group->pluck('transport_order_id')->unique()->count() === 1;
+                $spmIds = $group->pluck('spm_id')->filter()->unique();
+                $single = $spmIds->count() === 1 && $group->pluck('spm_id')->unique()->count() === 1;
                 $doc = $this->ledger->issueFromCharges($this->store, 'CUSTOMER_INVOICE', [
-                    'order_id' => $single ? $first->order_id : null, 'counterparty_name' => $customer->name, 'currency' => 'IDR', 'amount_minor' => $subtotal + $tax,
-                    'subtotal_minor' => $subtotal, 'tax_minor' => $tax, 'billing_batch_id' => $batchId, 'customer_id' => $customer->id, 'project_id' => $template->grouping === 'PER_PROJECT' || $single ? $first->project_id : null,
-                    'template_id' => $template->id, 'transport_order_id' => $single ? $first->transport_order_id : null,
+                    'order_id' => $single ? $first['order_id'] : null, 'counterparty_name' => $customer->name, 'currency' => 'IDR', 'amount_minor' => $subtotal + $tax,
+                    'subtotal_minor' => $subtotal, 'tax_minor' => $tax, 'billing_batch_id' => $batchId, 'customer_id' => $customer->id, 'project_id' => $template->grouping === 'PER_PROJECT' || $single ? $first['project_id'] : null,
+                    'template_id' => $template->id, 'transport_order_id' => $single ? $first['spm_id'] : null,
                 ], $lines, $terms === null ? null : (int) $terms, $d['due_date'] ?? null, [
-                    'customer_name' => $customer->name, 'order_number' => $group->pluck('order_id')->unique()->map(fn ($o) => $orders[$o] ?? '')->filter()->implode(', '),
-                    'spm_numbers' => $group->pluck('spm_number')->unique()->values()->all(), 'billing_batch' => $batchNumber, 'template' => $template->code,
-                    'subtotal' => Money::decimal($subtotal, 'IDR'), 'tax' => Money::decimal($tax, 'IDR'),
+                    'customer_name' => $customer->name, 'order_number' => $group->pluck('order_id')->filter()->unique()->map(fn ($o) => $orders[$o] ?? '')->filter()->implode(', '),
+                    'spm_numbers' => $group->filter(fn ($u) => $u['spm_id'])->pluck('label')->unique()->values()->all(), 'contracts' => $group->filter(fn ($u) => ! $u['spm_id'])->pluck('label')->unique()->values()->all(),
+                    'billing_batch' => $batchNumber, 'template' => $template->code, 'subtotal' => \App\Domain\Ledger\Money::decimal($subtotal, 'IDR'), 'tax' => \App\Domain\Ledger\Money::decimal($tax, 'IDR'),
                 ]);
                 $invoices[] = $doc;
                 $total += $subtotal + $tax;

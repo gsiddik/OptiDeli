@@ -66,6 +66,7 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
         require __DIR__.'/planning.php';
         require __DIR__.'/cash.php';
         require __DIR__.'/billing.php';
+        require __DIR__.'/contracts.php';
         require __DIR__.'/enterprise.php';
         require __DIR__.'/access.php';
         require __DIR__.'/ledger.php';

@@ -22,7 +22,8 @@ type ReadyCharge = {
   amount_minor: number;
 };
 type Ready = {
-  spm_id: string;
+  type: "SPM" | "CONTRACT";
+  spm_id: string | null;
   spm_number: string;
   customer_id: string;
   customer_label: string | null;
@@ -127,7 +128,8 @@ function ReadyPanel() {
     };
   }, []);
   const rows = state.data?.data ?? [];
-  const chosen = rows.filter((r) => picked.includes(r.spm_id));
+  const keyOf = (r: Ready) => r.spm_id ?? `k:${r.charges[0].id}`;
+  const chosen = rows.filter((r) => picked.includes(keyOf(r)));
   const customerIds = [...new Set(chosen.map((r) => r.customer_id))];
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -186,17 +188,21 @@ function ReadyPanel() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.spm_id}>
+                  <tr key={keyOf(r)}>
                     <td>
                       <input
                         type="checkbox"
                         aria-label={`Pilih ${r.spm_number}`}
-                        checked={picked.includes(r.spm_id)}
-                        onChange={() => toggle(r.spm_id)}
+                        checked={picked.includes(keyOf(r))}
+                        onChange={() => toggle(keyOf(r))}
                       />
                     </td>
                     <td>
-                      <Link to={`/spm/${r.spm_id}`}>{r.spm_number}</Link>
+                      {r.spm_id ? (
+                        <Link to={`/spm/${r.spm_id}`}>{r.spm_number}</Link>
+                      ) : (
+                        r.spm_number
+                      )}
                     </td>
                     <td>
                       {r.customer_label}
@@ -233,7 +239,10 @@ function ReadyPanel() {
                 data: { batch: Batch; invoices: Doc[] };
               }>("billing/batches", "POST", {
                 customer_id: customerIds[0],
-                spm_ids: picked,
+                spm_ids: chosen.filter((r) => r.spm_id).map((r) => r.spm_id),
+                contract_charge_ids: chosen
+                  .filter((r) => !r.spm_id)
+                  .flatMap((r) => r.charges.map((c) => c.id)),
                 template_id: template || null,
                 due_date: due || null,
               });

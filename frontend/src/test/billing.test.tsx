@@ -310,11 +310,67 @@ describe("Billing", () => {
       ).toEqual({
         customer_id: CUST,
         spm_ids: [SPM],
+        contract_charge_ids: [],
         template_id: TPL,
         due_date: null,
       }),
     );
     expect(await screen.findByText(/BB-202610-00001: 2 invoice/)).toBeTruthy();
+  });
+
+  it("bills a fixed-cost contract month by its charge ids", async () => {
+    const calls = stub(["operations.view", "billing.issue"], {
+      "billing/ready": {
+        data: [
+          {
+            type: "CONTRACT",
+            spm_id: null,
+            spm_number: "Kontrak FX-1 · 2026-09",
+            customer_id: CUST,
+            customer_label: "PT Maju",
+            project_id: null,
+            project_label: null,
+            route: "Kontrak FX-1",
+            delivered_at: null,
+            total_minor: 1000000,
+            charges: [
+              {
+                id: "cc1",
+                charge_code: "FIXCOST",
+                name: "Biaya tetap",
+                kind: "PLAN",
+                amount_minor: 1000000,
+              },
+            ],
+          },
+        ],
+      },
+      "billing/batches": {
+        data: {
+          batch: { id: "b1", number: "BB-1", total_minor: 1000000 },
+          invoices: [{ id: INV, number: "AR-000001" }],
+        },
+      },
+      "billing/templates": { data: [{ id: TPL, name: "Standar" }] },
+    });
+    open("/billing");
+    await userEvent.click(
+      await screen.findByLabelText("Pilih Kontrak FX-1 · 2026-09"),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /Terbitkan invoice \(1 SPM\)/ }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: /Terbitkan/ }),
+    );
+    await waitFor(() => {
+      const body = calls.find(
+        (c) => c.method === "POST" && c.path === "billing/batches",
+      )?.body as Record<string, unknown>;
+      expect(body.spm_ids).toEqual([]);
+      expect(body.contract_charge_ids).toEqual(["cc1"]);
+    });
   });
 
   it("is closed to those who may not bill", async () => {

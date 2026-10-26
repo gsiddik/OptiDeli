@@ -414,6 +414,7 @@ class PlanningExtrasTest extends TestCase
 
         $disbursed = collect($feed)->firstWhere('event_type', 'optideli.cash.disbursed');
         $this->assertSame(300_000_00, $disbursed['payload']['amount_minor']);
+        $this->assertSame('300000.00', $disbursed['payload']['amount']);
         $this->assertSame('TOLL', $disbursed['payload']['lines'][0]['fact_key']);
         $this->assertSame($v['voucher']['id'], $disbursed['correlation_id']);
         $this->assertSame($trip, $disbursed['dimensions']['trip_id']);
@@ -421,6 +422,9 @@ class PlanningExtrasTest extends TestCase
         $settled = collect($feed)->firstWhere('event_type', 'optideli.cash.settled');
         $this->assertSame(280_000_00, $settled['payload']['actual_minor']);
         $this->assertSame(20_000_00, $settled['payload']['returned_minor']);
+        $this->assertSame('280000.00', $settled['payload']['actual']);
+        $this->assertSame('20000.00', $settled['payload']['returned']);
+        $this->assertSame('0.00', $settled['payload']['reimbursed']);
         $this->assertSame('Struk tol', $settled['payload']['lines'][0]['receipt_ref']);
         $this->assertArrayNotHasKey('account', $settled['payload']);
     }

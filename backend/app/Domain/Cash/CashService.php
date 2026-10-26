@@ -3,6 +3,7 @@
 namespace App\Domain\Cash;
 
 use App\Domain\Ledger\FeedRecorder;
+use App\Domain\Ledger\Money;
 use App\Domain\Shared\TenantStore;
 use App\Domain\Spm\DocumentNumbers;
 use Illuminate\Support\Facades\DB;
@@ -60,7 +61,7 @@ final class CashService
 
         return $lines->map(fn ($l) => [
             'charge_code' => $codes[$l->charge_code_id]->code, 'fact_key' => $codes[$l->charge_code_id]->fact_key, 'kind' => $l->kind,
-            'amount_minor' => (int) $l->{$amountColumn}, 'receipt_ref' => $l->receipt_ref,
+            'amount_minor' => (int) $l->{$amountColumn}, 'amount' => Money::decimal((int) $l->{$amountColumn}, 'IDR'), 'receipt_ref' => $l->receipt_ref,
         ])->all();
     }
 
@@ -341,7 +342,7 @@ final class CashService
             DB::table('cash_vouchers')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['status' => 'DISBURSED', 'cashbox_id' => $box->id, 'disbursed_minor' => $voucher->approved_minor, 'disbursed_by' => $this->store->actorId, 'disbursed_at' => now(), 'updated_at' => now()]);
             $this->store->event('cash.disbursed', $id, ['number' => $voucher->number, 'cashbox' => $box->code, 'amount_minor' => $voucher->approved_minor]);
             $disbursed = $this->store->find('cash_vouchers', $id);
-            $this->publish('optideli.cash.disbursed', $disbursed, ['amount_minor' => (int) $voucher->approved_minor, 'purpose' => $voucher->purpose, 'lines' => $this->factLines($id, 'approved_minor')]);
+            $this->publish('optideli.cash.disbursed', $disbursed, ['amount_minor' => (int) $voucher->approved_minor, 'amount' => Money::decimal((int) $voucher->approved_minor, 'IDR'), 'purpose' => $voucher->purpose, 'lines' => $this->factLines($id, 'approved_minor')]);
 
             return $this->show($id);
         }, 3);
@@ -410,6 +411,7 @@ final class CashService
             $this->store->event('cash.settled', $id, ['number' => $voucher->number, 'disbursed_minor' => $disbursed, 'actual_minor' => $actual, 'returned_minor' => $returned, 'reimbursed_minor' => $reimbursed, 'driver_holds_minor' => max(0, $disbursed - $actual - $returned)]);
             $this->publish('optideli.cash.settled', $this->store->find('cash_vouchers', $id), [
                 'disbursed_minor' => $disbursed, 'actual_minor' => $actual, 'returned_minor' => $returned, 'reimbursed_minor' => $reimbursed,
+                'disbursed' => Money::decimal($disbursed, 'IDR'), 'actual' => Money::decimal($actual, 'IDR'), 'returned' => Money::decimal($returned, 'IDR'), 'reimbursed' => Money::decimal($reimbursed, 'IDR'),
                 'driver_holds_minor' => max(0, $disbursed - $actual - $returned), 'lines' => $this->factLines($id, 'actual_minor'),
             ]);
 

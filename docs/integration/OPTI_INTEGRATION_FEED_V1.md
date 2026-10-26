@@ -89,8 +89,8 @@ are never named; each line carries the **fact key** of its charge code (`DRIVER_
 
 | `event_type` | When | `source` | Payload |
 |---|---|---|---|
-| `optideli.cash.disbursed` | Approved driver cash is paid out of a cashbox | `cash_voucher` + voucher number | `voucher_number`, `amount_minor`, `currency`, `purpose`, `driver{name}`, `cashbox{code,name}`, `lines[]{charge_code,fact_key,kind,amount_minor}` |
-| `optideli.cash.settled` | The driver's spending is settled with receipts | `cash_voucher` + voucher number | `voucher_number`, `disbursed_minor`, `actual_minor`, `returned_minor` (given back to the cashbox), `reimbursed_minor` (paid to the driver above what was given), `driver_holds_minor`, `driver`, `cashbox`, `lines[]{charge_code,fact_key,kind,amount_minor,receipt_ref}` |
+| `optideli.cash.disbursed` | Approved driver cash is paid out of a cashbox | `cash_voucher` + voucher number | `voucher_number`, `amount` (decimal string), `amount_minor`, `currency`, `purpose`, `driver{name}`, `cashbox{code,name}`, `lines[]{charge_code,fact_key,kind,amount,amount_minor}` |
+| `optideli.cash.settled` | The driver's spending is settled with receipts | `cash_voucher` + voucher number | `voucher_number`, `disbursed`, `actual`, `returned` (given back to the cashbox), `reimbursed` (paid to the driver above what was given) as decimal strings and the same in `*_minor` integers, `driver_holds_minor`, `driver`, `cashbox`, `lines[]{charge_code,fact_key,kind,amount,amount_minor,receipt_ref}` |
 
 `correlation_id` is the voucher id; `dimensions` carry `order_id`, `spm_id`, `trip_id`, `driver_id`, `cashbox_id`. Cashbox top-ups and the
 approval steps are not published: they are the counter-party's cash, not the company's books.

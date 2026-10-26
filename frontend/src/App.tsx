@@ -256,7 +256,7 @@ const navigation: {
       },
       {
         to: "/cutover",
-        label: "Cut-over ARK/OP",
+        label: "Cut-Over dari Sistem Lama",
         icon: "roadmap",
         permission: "cutover.manage",
       },

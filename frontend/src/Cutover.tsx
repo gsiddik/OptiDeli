@@ -83,7 +83,7 @@ export function CutoverPage() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">CUT-OVER</span>
-          <h1 tabIndex={-1}>Cut-over dari ARK / OP</h1>
+          <h1 tabIndex={-1}>Cut-Over dari Sistem Lama</h1>
           <p>
             Satu pelacak per pelanggan atau proyek: daftar periksa, masa paralel
             yang direkonsiliasi dengan total kontrol sistem lama, lalu Gerbang C

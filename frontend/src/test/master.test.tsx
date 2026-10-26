@@ -192,26 +192,31 @@ function open(path = "/master") {
 }
 
 describe("Master data screen", () => {
-  it("lists a master with its status and moves between masters by tabs", async () => {
+  it("lists a master with its status and moves between masters from the Master data menu", async () => {
     stubApi(["operations.view", "master.manage"]);
     open();
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Master data" }),
+      await screen.findByRole("heading", { level: 1, name: "Pelanggan" }),
     ).toBeTruthy();
     expect(await screen.findByText("PT Maju Jaya")).toBeTruthy();
     expect(screen.getByText("ACTIVE")).toBeTruthy();
-    expect(
-      screen
-        .getByRole("button", { name: "Pelanggan" })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Lokasi" }));
+    const menu = within(
+      screen.getByRole("navigation", { name: "Navigasi utama" }),
+    );
+    const customers = await menu.findByRole("link", { name: "Pelanggan" });
+    expect(customers.getAttribute("aria-current")).toBe("page");
+    expect(menu.getByRole("group", { name: "Jaringan" })).toBeTruthy();
+
+    fireEvent.click(menu.getByRole("link", { name: "Lokasi" }));
     expect(
-      await screen.findByRole("heading", { level: 2, name: "Lokasi" }),
+      await screen.findByRole("heading", { level: 1, name: "Lokasi" }),
     ).toBeTruthy();
     expect(await screen.findByText("Belum ada lokasi.")).toBeTruthy();
+    expect(
+      menu.getByRole("link", { name: "Lokasi" }).getAttribute("aria-current"),
+    ).toBe("page");
   });
 
   it("creates a record: fields come from the schema and the body is what the API expects", async () => {

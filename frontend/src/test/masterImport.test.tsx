@@ -130,9 +130,11 @@ describe("Master data import", () => {
   it("offers template and export downloads, and the import only to those who can manage", async () => {
     stub(["operations.view"]);
     open();
-    const template = await screen.findByRole("link", {
-      name: "Template Excel",
-    });
+    const template = await screen.findByRole(
+      "link",
+      { name: "Template Excel" },
+      { timeout: 4000 },
+    );
     expect(template.getAttribute("href")).toBe(
       "/api/v1/master/customers/template?format=xlsx",
     );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { api, useData } from "./api";
 import { useSession } from "./App";
 import {
@@ -461,51 +461,38 @@ function MasterList({
 
 export function MasterPage() {
   const session = useSession();
-  const navigate = useNavigate();
   const params = useParams();
   const schema = useData<{ data: Schema }>("master/schema");
   const canWrite = can(session, "master.manage");
   const resources = schema.data?.data.resources ?? [];
-  const resource =
-    resources.find((r) => r.key === params.resource) ?? resources[0];
+  const resource = resources.find((r) => r.key === params.resource);
+  // The list is chosen in the sidebar (Master data > group > list); the bare address opens the first one.
+  if (schema.data && !resource && resources.length > 0)
+    return <Navigate to={`/master/${resources[0].key}`} replace />;
+  const group = resource ? schema.data?.data.groups[resource.group] : undefined;
   return (
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">MASTER DATA</span>
-          <h1 tabIndex={-1}>Master data</h1>
+          <span className="eyebrow">
+            MASTER DATA{group ? ` · ${group.toUpperCase()}` : ""}
+          </span>
+          <h1 tabIndex={-1}>{resource?.label ?? "Master data"}</h1>
           <p>
             Pelanggan, lokasi, wilayah, tipe armada, barang, layanan, dan kode
-            biaya yang menjadi acuan order, tarif, dan biaya.
+            biaya yang menjadi acuan order, tarif, dan biaya. Pilih daftar lewat
+            menu Master data di samping.
           </p>
         </div>
       </div>
       <ErrorBox error={schema.error} />
       {schema.loading && <Loading />}
       {schema.data && resource && (
-        <>
-          {Object.entries(schema.data.data.groups).map(([group, label]) => (
-            <div className="tabs" role="group" aria-label={label} key={group}>
-              <strong>{label}</strong>
-              {resources
-                .filter((r) => r.group === group)
-                .map((r) => (
-                  <button
-                    key={r.key}
-                    aria-pressed={r.key === resource.key}
-                    onClick={() => navigate(`/master/${r.key}`)}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-            </div>
-          ))}
-          <MasterList
-            key={resource.key}
-            resource={resource}
-            canWrite={canWrite}
-          />
-        </>
+        <MasterList
+          key={resource.key}
+          resource={resource}
+          canWrite={canWrite}
+        />
       )}
     </>
   );

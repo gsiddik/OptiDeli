@@ -321,6 +321,29 @@ function Shell({ onLogout }: { onLogout: () => Promise<void> }) {
   const [groups, setGroups] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [logoutError, setLogoutError] = useState<unknown>();
+  const masterSchema = useData<{
+    data: {
+      groups?: Record<string, string>;
+      resources?: { key: string; label: string; group: string }[];
+    };
+  }>("master/schema");
+  // The Master data menu is built from the same schema as the pages it opens, so a new master list appears here by itself.
+  const masterNav = Object.entries(masterSchema.data?.data.groups ?? {})
+    .map(([key, label]) => ({
+      label,
+      items: (masterSchema.data?.data.resources ?? [])
+        .filter(
+          (r) =>
+            r.group === key &&
+            (r.label.toLowerCase().includes(query.toLowerCase()) ||
+              label.toLowerCase().includes(query.toLowerCase())),
+        )
+        .map((r) => ({ to: `/master/${r.key}`, label: r.label })),
+    }))
+    .filter((g) => g.items.length > 0);
+  const masterLabel = masterSchema.data?.data.resources?.find(
+    (r) => `/master/${r.key}` === location.pathname,
+  )?.label;
   useEffect(() => {
     setMobile(false);
     document.querySelector<HTMLElement>("main h1")?.focus();
@@ -343,7 +366,7 @@ function Shell({ onLogout }: { onLogout: () => Promise<void> }) {
       ? "Buat order"
       : /^\/orders\/[^/]+$/.test(location.pathname)
         ? "Detail order"
-        : (section?.label ?? "Ringkasan");
+        : (masterLabel ?? section?.label ?? "Ringkasan");
   return (
     <div className={`shell ${compact ? "compact" : ""}`}>
       <a href="#content" className="skip">
@@ -378,11 +401,17 @@ function Shell({ onLogout }: { onLogout: () => Promise<void> }) {
         </div>
         <nav aria-label="Navigasi utama">
           {navigation.map((group) => {
-            const items = group.items.filter(
+            const own = group.items.filter(
               (i) =>
                 (!i.permission || can(session, i.permission)) &&
                 i.label.toLowerCase().includes(query.toLowerCase()),
             );
+            const tree = group.group === "MASTER DATA" && masterNav.length > 0;
+            const items = tree
+              ? masterNav.flatMap((g) => g.items)
+              : group.group === "MASTER DATA" && query
+                ? []
+                : own;
             return (
               items.length > 0 && (
                 <div className="nav-group" key={group.group}>
@@ -400,17 +429,38 @@ function Shell({ onLogout }: { onLogout: () => Promise<void> }) {
                     <span>{(groups[group.group] ?? true) ? "−" : "+"}</span>
                   </button>
                   {((groups[group.group] ?? true) || query || compact) &&
-                    items.map((item) => (
-                      <NavLink
-                        end={item.to === "/"}
-                        title={item.label}
-                        to={item.to}
-                        key={item.to}
-                      >
-                        <Icon name={item.icon} />
-                        <span>{item.label}</span>
-                      </NavLink>
-                    ))}
+                    (tree
+                      ? masterNav.map((sub) => (
+                          <div
+                            className="nav-sub"
+                            role="group"
+                            aria-label={sub.label}
+                            key={sub.label}
+                          >
+                            <span className="nav-sub-title">{sub.label}</span>
+                            {sub.items.map((item) => (
+                              <NavLink
+                                className="sub-link"
+                                title={`${sub.label}: ${item.label}`}
+                                to={item.to}
+                                key={item.to}
+                              >
+                                <span>{item.label}</span>
+                              </NavLink>
+                            ))}
+                          </div>
+                        ))
+                      : own.map((item) => (
+                          <NavLink
+                            end={item.to === "/"}
+                            title={item.label}
+                            to={item.to}
+                            key={item.to}
+                          >
+                            <Icon name={item.icon} />
+                            <span>{item.label}</span>
+                          </NavLink>
+                        )))}
                 </div>
               )
             );

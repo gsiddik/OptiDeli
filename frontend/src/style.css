@@ -1621,3 +1621,55 @@ code {
 .stat strong {
   font-size: 1.6rem;
 }
+
+/* Master data menu: lists grouped under the group they belong to. */
+.nav-sub {
+  margin: 2px 0 8px;
+}
+.nav-sub-title {
+  display: block;
+  padding: 8px 22px 3px;
+  color: #7e9bb0;
+  font-size: 10px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+.nav-group > .nav-sub > a.sub-link {
+  display: flex;
+  align-items: center;
+  margin: 1px 10px;
+  padding: 7px 14px 7px 26px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #c8dce9;
+  font-size: 13px;
+}
+.nav-group > .nav-sub > a.sub-link:hover {
+  background: #204a63;
+  color: white;
+}
+.nav-group > .nav-sub > a.sub-link.active {
+  color: white;
+  background: #206181;
+  box-shadow: inset 3px 0 #ff893f;
+}
+.compact .nav-sub-title {
+  display: none;
+}
+.compact .nav-group > .nav-sub > a.sub-link {
+  justify-content: center;
+  padding: 7px 4px;
+  margin: 1px 6px;
+  font-size: 10px;
+  text-align: center;
+}
+@media (max-width: 900px) {
+  .compact .nav-sub-title {
+    display: block;
+  }
+  .compact .nav-group > .nav-sub > a.sub-link {
+    justify-content: flex-start;
+    padding: 7px 14px 7px 26px;
+    font-size: 13px;
+  }
+}

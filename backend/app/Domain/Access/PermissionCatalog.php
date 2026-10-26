@@ -19,6 +19,10 @@ final class PermissionCatalog
         'Master data' => [
             'master.manage' => 'Create and change master data: customers, projects, locations, regions, carrier types, goods, services and charge codes',
         ],
+        'Transport orders' => [
+            'spm.manage' => 'Create SPMs from orders, edit their lines and move them through planning, loading and delivery',
+            'spm.reopen' => 'Re-open an SPM after delivery or change its destination (with a reason)',
+        ],
         'Tariffs' => [
             'rate.view' => 'View selling tariffs and test the tariff resolver',
             'rate.buy.view' => 'View buying tariffs, markups and margins',
@@ -79,10 +83,10 @@ final class PermissionCatalog
     /** System role templates: name => permission codes. Names match the former membership roles. */
     public const SYSTEM_ROLES = [
         'viewer' => ['operations.view'],
-        'dispatcher' => ['operations.view', 'rate.view', 'rate.buy.view', 'rate.manage', 'operations.manage', 'master.manage', 'enterprise.manage'],
-        'supervisor' => ['operations.view', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'freight.approve.logistics_manager'],
-        'head_of_logistics' => ['operations.view', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'freight.approve.logistics_manager'],
-        'cfo' => ['operations.view', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'dispatch.approve.level3', 'finance.access', 'freight.approve.cfo', 'freight.escalation.resolve', 'policy.manage', 'vendor.portal.provision'],
+        'dispatcher' => ['operations.view', 'rate.view', 'rate.buy.view', 'rate.manage', 'operations.manage', 'spm.manage', 'master.manage', 'enterprise.manage'],
+        'supervisor' => ['operations.view', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'freight.approve.logistics_manager'],
+        'head_of_logistics' => ['operations.view', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'freight.approve.logistics_manager'],
+        'cfo' => ['operations.view', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'dispatch.approve.level3', 'finance.access', 'freight.approve.cfo', 'freight.escalation.resolve', 'policy.manage', 'vendor.portal.provision'],
         'finance' => ['operations.view', 'rate.view', 'rate.buy.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance'],
         'finance_supervisor' => ['operations.view', 'rate.view', 'rate.buy.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance', 'freight.approve.finance_supervisor'],
         'vendor' => ['vendor.portal'],

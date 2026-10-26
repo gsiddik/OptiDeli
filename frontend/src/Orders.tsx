@@ -1,3 +1,4 @@
+import { OrderSpmSection } from "./Spm";
 import { canOperate } from "./opsTypes";
 import { newId } from "./uuid";
 import { useEffect, useState } from "react";
@@ -706,6 +707,7 @@ export function OrderDetail() {
           </table>
         </div>
       </section>
+      <OrderSpmSection orderId={o.id} status={o.status} />
       {action && (
         <Confirm
           title={action === "confirm" ? "Konfirmasi order?" : "Batalkan order?"}

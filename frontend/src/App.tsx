@@ -33,6 +33,7 @@ import { PlatformApp } from "./Platform";
 import { OrderCreate, OrderDetail, OrderList } from "./Orders";
 import { DispatchBoard } from "./Dispatch";
 import { MasterPage } from "./Master";
+import { SpmDetailPage, SpmListPage, SpmPrintPage } from "./Spm";
 import {
   MarkupPage,
   ResolverPage,
@@ -198,6 +199,7 @@ const navigation: {
     items: [
       { to: "/", label: "Ringkasan", icon: "home" },
       { to: "/orders", label: "Pemesanan", icon: "orders" },
+      { to: "/spm", label: "SPM", icon: "orders" },
       { to: "/dispatch", label: "Board dispatch", icon: "dispatch" },
       { to: "/fleet", label: "Armada & pengemudi", icon: "fleet" },
       { to: "/trips", label: "Eksekusi perjalanan", icon: "dispatch" },
@@ -513,6 +515,9 @@ function TenantApp() {
           <Route path="orders/new" element={<OrderCreate />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="dispatch" element={<DispatchBoard />} />
+          <Route path="spm" element={<SpmListPage />} />
+          <Route path="spm/:id" element={<SpmDetailPage />} />
+          <Route path="spm/:id/print" element={<SpmPrintPage />} />
           <Route path="master" element={<MasterPage />} />
           <Route path="master/:resource" element={<MasterPage />} />
           <Route path="tariffs" element={<TariffListPage />} />

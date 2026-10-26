@@ -1501,3 +1501,55 @@ code {
   font-weight: 700;
   color: var(--navy);
 }
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.print-sheet {
+  max-width: 800px;
+  margin: 0 auto;
+  background: #fff;
+  color: #111;
+  padding: 1.5rem;
+}
+.print-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+.print-sheet th,
+.print-sheet td {
+  border: 1px solid #999;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+.print-sheet .signatures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 4rem;
+  text-align: center;
+}
+.print-sheet .signatures div {
+  border-top: 1px solid #111;
+  padding-top: 0.4rem;
+}
+@media print {
+  .no-print,
+  .shell > aside,
+  .shell header,
+  .skip {
+    display: none !important;
+  }
+  .shell {
+    display: block;
+  }
+  .print-sheet {
+    padding: 0;
+    max-width: none;
+  }
+}

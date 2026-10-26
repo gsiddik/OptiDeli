@@ -65,6 +65,10 @@ final class PermissionCatalog
             'policy.manage' => 'Change the margin policy',
             'vendor.portal.provision' => 'Provision vendor portal accounts',
         ],
+        'Customer portal' => [
+            'customer.portal' => 'Use the customer portal (requires a customer-bound membership)',
+            'customer.portal.provision' => 'Provision customer portal accounts and manage API clients and webhooks',
+        ],
         'Vendor portal' => [
             'vendor.portal' => 'Use the vendor portal (requires a vendor-bound membership)',
         ],
@@ -85,7 +89,7 @@ final class PermissionCatalog
     ];
 
     /** Permissions an Admin Tenant may not hand out from OptiNexus (vendor access needs a vendor-bound membership; access is governed centrally). */
-    public const NOT_DELEGABLE = ['vendor.portal', 'access.role.manage', 'access.user.manage'];
+    public const NOT_DELEGABLE = ['vendor.portal', 'customer.portal', 'access.role.manage', 'access.user.manage'];
 
     /** Module (without application prefix) of a permission, or null for the core. */
     public static function moduleOf(string $code): ?string
@@ -105,10 +109,11 @@ final class PermissionCatalog
         'dispatcher' => ['operations.view', 'attendance.manage', 'cash.view', 'cash.request', 'rate.view', 'rate.buy.view', 'rate.manage', 'operations.manage', 'spm.manage', 'master.manage', 'enterprise.manage'],
         'supervisor' => ['operations.view', 'attendance.manage', 'contract.manage', 'selling.verify', 'cash.view', 'cash.request', 'cash.approve', 'cash.settle', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'freight.approve.logistics_manager'],
         'head_of_logistics' => ['operations.view', 'attendance.manage', 'contract.manage', 'selling.verify', 'report.pnl.view', 'cash.view', 'cash.request', 'cash.approve', 'cash.approve.large', 'cash.settle', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'freight.approve.logistics_manager'],
-        'cfo' => ['operations.view', 'attendance.manage', 'contract.manage', 'selling.verify', 'cost.verify', 'billing.issue', 'report.pnl.view', 'cash.view', 'cash.request', 'cash.approve', 'cash.approve.large', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'dispatch.approve.level3', 'finance.access', 'freight.approve.cfo', 'freight.escalation.resolve', 'policy.manage', 'vendor.portal.provision'],
+        'cfo' => ['operations.view', 'attendance.manage', 'contract.manage', 'selling.verify', 'cost.verify', 'billing.issue', 'report.pnl.view', 'cash.view', 'cash.request', 'cash.approve', 'cash.approve.large', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'rate.manage', 'rate.approve', 'operations.manage', 'spm.manage', 'spm.reopen', 'master.manage', 'enterprise.manage', 'execution.verify', 'dispatch.approve.level1', 'dispatch.approve.level2', 'dispatch.approve.level3', 'finance.access', 'freight.approve.cfo', 'freight.escalation.resolve', 'policy.manage', 'vendor.portal.provision', 'customer.portal.provision'],
         'finance' => ['operations.view', 'contract.manage', 'selling.verify', 'cost.verify', 'billing.issue', 'report.pnl.view', 'cash.view', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance'],
         'finance_supervisor' => ['operations.view', 'contract.manage', 'selling.verify', 'cost.verify', 'billing.issue', 'report.pnl.view', 'cash.view', 'cash.disburse', 'cash.settle', 'cash.manage', 'rate.view', 'rate.buy.view', 'enterprise.manage', 'finance.access', 'freight.approve.finance', 'freight.approve.finance_supervisor'],
         'vendor' => ['vendor.portal'],
+        'customer' => ['customer.portal'],
         'tenant_administrator' => ['*'],
     ];
 
@@ -136,6 +141,6 @@ final class PermissionCatalog
     {
         $codes = self::SYSTEM_ROLES[$role] ?? [];
 
-        return $codes === ['*'] ? array_values(array_diff(self::codes(), ['vendor.portal'])) : $codes;
+        return $codes === ['*'] ? array_values(array_diff(self::codes(), ['vendor.portal', 'customer.portal'])) : $codes;
     }
 }

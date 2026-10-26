@@ -11,7 +11,7 @@ class InternalAccess
 {
     public function handle(Request $r, Closure $next): Response
     {
-        abort_if(Access::isVendor($r) || ! Access::can($r, 'operations.view'), 403, 'Gunakan portal vendor.');
+        abort_if(Access::isVendor($r) || Access::isCustomer($r) || ! Access::can($r, 'operations.view'), 403, 'Gunakan portal Anda.');
 
         return $next($r);
     }

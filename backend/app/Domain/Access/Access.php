@@ -41,6 +41,12 @@ final class Access
         return 0;
     }
 
+    /** True for a membership bound to a customer: it only sees that customer's own SPMs and invoices. */
+    public static function isCustomer(Request $r): bool
+    {
+        return $r->attributes->get('customer_id') !== null;
+    }
+
     /** True for a membership bound to a vendor: its data is limited to that vendor. */
     public static function isVendor(Request $r): bool
     {

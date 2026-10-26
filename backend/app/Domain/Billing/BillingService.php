@@ -252,7 +252,7 @@ final class BillingService
                 ], $lines, $terms === null ? null : (int) $terms, $d['due_date'] ?? null, [
                     'customer_name' => $customer->name, 'order_number' => $group->pluck('order_id')->filter()->unique()->map(fn ($o) => $orders[$o] ?? '')->filter()->implode(', '),
                     'spm_numbers' => $group->filter(fn ($u) => $u['spm_id'])->pluck('label')->unique()->values()->all(), 'contracts' => $group->filter(fn ($u) => ! $u['spm_id'])->pluck('label')->unique()->values()->all(),
-                    'billing_batch' => $batchNumber, 'template' => $template->code, 'subtotal' => \App\Domain\Ledger\Money::decimal($subtotal, 'IDR'), 'tax' => \App\Domain\Ledger\Money::decimal($tax, 'IDR'),
+                    'billing_batch' => $batchNumber, 'template' => $template->code, 'subtotal' => Money::decimal($subtotal, 'IDR'), 'tax' => Money::decimal($tax, 'IDR'),
                 ]);
                 $invoices[] = $doc;
                 $total += $subtotal + $tax;

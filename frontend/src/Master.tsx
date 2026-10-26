@@ -14,7 +14,7 @@ import {
 } from "./components";
 import { ImportDialog } from "./MasterImport";
 import { can } from "./opsTypes";
-import { EditorDialog, submitRecord } from "./RecordEditor";
+import { Action, EditorDialog, submitRecord } from "./RecordEditor";
 import type { EditorField } from "./RecordEditor";
 import type { Page } from "./types";
 
@@ -196,6 +196,7 @@ function MasterList({
   const state = useData<Page<Row>>(
     `master/${resource.key}?q=${encodeURIComponent(q)}&active=${active}&page=${page}`,
   );
+  const session = useSession();
   const [dialog, setDialog] = useState<{ row?: Row } | null>(null);
   const [deactivating, setDeactivating] = useState<Row | null>(null);
   const [reason, setReason] = useState("");
@@ -322,6 +323,31 @@ function MasterList({
                               <button onClick={() => setDialog({ row })}>
                                 Ubah
                               </button>
+                              {resource.key === "customers" &&
+                                row.active &&
+                                can(session, "customer.portal.provision") && (
+                                  <Action
+                                    label={`Akun portal ${row.code}`}
+                                    path={`customers/${row.id}/portal-account`}
+                                    fields={[
+                                      {
+                                        name: "name",
+                                        label: "Nama pengguna pelanggan",
+                                      },
+                                      {
+                                        name: "email",
+                                        label: "Email akun baru",
+                                      },
+                                      {
+                                        name: "password",
+                                        label:
+                                          "Kata sandi awal (min. 12 karakter, huruf besar/kecil, angka, simbol)",
+                                        kind: "password",
+                                      },
+                                    ]}
+                                    onDone={state.refresh}
+                                  />
+                                )}
                               {row.active ? (
                                 <button
                                   onClick={() => {

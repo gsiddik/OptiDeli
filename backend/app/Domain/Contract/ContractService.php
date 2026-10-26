@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -26,7 +27,7 @@ final class ContractService
         throw ValidationException::withMessages([$field => $message]);
     }
 
-    private function exists(string $table): \Illuminate\Validation\Rules\Exists
+    private function exists(string $table): Exists
     {
         return Rule::exists($table, 'id')->where('tenant_id', $this->store->tenantId);
     }

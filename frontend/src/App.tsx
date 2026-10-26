@@ -27,7 +27,8 @@ import {
 } from "./components";
 import type { Session } from "./types";
 import { roles } from "./types";
-import { can, isVendorSession } from "./opsTypes";
+import { can, isCustomerSession, isVendorSession } from "./opsTypes";
+import { CustomerPortal } from "./CustomerPortal";
 import { AccessPage } from "./Access";
 import { PlatformApp } from "./Platform";
 import { OrderCreate, OrderDetail, OrderList } from "./Orders";
@@ -540,6 +541,12 @@ function TenantApp() {
       />
     );
   }
+  if (isCustomerSession(auth.data.data))
+    return (
+      <SessionContext.Provider value={auth.data.data}>
+        <CustomerPortal onLogout={() => signOut(() => setLoggedOut(true))} />
+      </SessionContext.Provider>
+    );
   if (isVendorSession(auth.data.data))
     return (
       <SessionContext.Provider value={auth.data.data}>

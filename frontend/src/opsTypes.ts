@@ -111,6 +111,7 @@ export const canOperate = (s: Perms) => can(s, "operations.manage");
 export const canFinance = (s: Perms) => can(s, "finance.access");
 export const canVerify = (s: Perms) => can(s, "execution.verify");
 export const isVendorSession = (s: Perms) => can(s, "vendor.portal");
+export const isCustomerSession = (s: Perms) => can(s, "customer.portal");
 export const dispatchApprovalLevel = (s: Perms) =>
   [3, 2, 1].find((level) => can(s, `dispatch.approve.level${level}`)) ?? 0;
 const tierPermissions: Record<string, string[]> = {

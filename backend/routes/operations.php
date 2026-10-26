@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CustomerPortalController;
 use App\Http\Controllers\Api\ExecutionController as E;
 use App\Http\Controllers\Api\FreightController as F;
 use App\Http\Controllers\Api\VendorController as V;
@@ -20,6 +21,7 @@ Route::post('yard/appointments/{id}/transition', [E::class, 'yardTransition'])->
 Route::get('vendors', [V::class, 'index']);
 Route::post('vendors', [V::class, 'create']);
 Route::post('vendors/{id}/account', [V::class, 'account'])->whereUuid('id');
+Route::post('customers/{id}/portal-account', [CustomerPortalController::class, 'account'])->whereUuid('id');
 Route::get('freight/invoices', [F::class, 'index']);
 Route::post('freight/invoices', [F::class, 'create']);
 Route::get('freight/invoices/{id}', [F::class, 'show'])->whereUuid('id');

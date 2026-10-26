@@ -57,6 +57,11 @@ class TenantContext
             $request->attributes->set('vendor_id', $membership->vendor_id);
         }
 
+        if ($membership->customer_id !== null || in_array('customer.portal', $permissions, true)) {
+            abort_unless($membership->customer_id && ! $membership->vendor_id && DB::table('customers')->where('id', $membership->customer_id)->where('tenant_id', $tenant->id)->where('active', true)->exists(), 403, 'Keanggotaan pelanggan tidak aktif.');
+            $request->attributes->set('customer_id', $membership->customer_id);
+        }
+
         return $next($request);
     }
 }

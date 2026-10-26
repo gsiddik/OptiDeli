@@ -72,4 +72,5 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
         require __DIR__.'/ledger.php';
     });
     require __DIR__.'/vendor.php';
+    require __DIR__.'/customer.php';
 });

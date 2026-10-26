@@ -87,6 +87,7 @@ class RoleService
             $current = Access::permissionsFor($membershipId);
             abort_unless(array_diff($current, $own) === [], 403, 'Anggota ini memiliki izin di luar kewenangan Anda.');
             abort_if(in_array('vendor.portal', $codes, true) !== ($membership->vendor_id !== null), 422, 'Akses portal vendor hanya untuk keanggotaan vendor, dan keanggotaan vendor hanya untuk portal vendor.');
+            abort_if(in_array('customer.portal', $codes, true) !== ($membership->customer_id !== null), 422, 'Akses portal pelanggan hanya untuk keanggotaan pelanggan, dan keanggotaan pelanggan hanya untuk portal pelanggan.');
             DB::table('membership_roles')->where('membership_id', $membershipId)->delete();
             DB::table('membership_roles')->insert(array_map(fn ($r) => ['membership_id' => $membershipId, 'role_id' => $r], $roles));
             DB::table('memberships')->where('id', $membershipId)->update(['roles_bootstrapped' => true]);

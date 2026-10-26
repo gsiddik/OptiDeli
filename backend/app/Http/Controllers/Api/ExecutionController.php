@@ -186,6 +186,7 @@ class ExecutionController extends Controller
         $table = match ($kind) {
             'pods' => 'proofs_of_delivery','invoices' => 'freight_invoices',default => abort(404)
         };
+        abort_if(Access::isCustomer($r), 403);
         $record = $s->find($table, $id);
         if (Access::isVendor($r)) {
             $trip = $s->find('trips', $record->trip_id);

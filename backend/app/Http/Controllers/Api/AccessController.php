@@ -59,7 +59,7 @@ class AccessController extends Controller
 
         return response()->json(['data' => DB::table('memberships')->join('users', 'users.id', '=', 'memberships.user_id')
             ->where('memberships.tenant_id', $s->tenantId)->orderBy('users.name')
-            ->get(['memberships.id', 'memberships.user_id', 'users.name', 'users.email', 'memberships.active', 'memberships.vendor_id'])
+            ->get(['memberships.id', 'memberships.user_id', 'users.name', 'users.email', 'memberships.active', 'memberships.vendor_id', 'memberships.customer_id'])
             ->map(function ($m) use ($roles) {
                 $m->roles = ($roles[$m->id] ?? collect())->map(fn ($x) => ['id' => $x->id, 'name' => $x->name])->values();
 

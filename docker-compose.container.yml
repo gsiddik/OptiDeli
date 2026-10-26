@@ -122,6 +122,7 @@ services:
         condition: service_healthy
     environment:
       BACKEND_HOST: api
+      NGINX_ENTRYPOINT_LOCAL_RESOLVERS: "1"
       LISTEN_PORT: ${DELI_API_PORT:-8300}
       CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-20m}
     volumes:
@@ -150,6 +151,7 @@ services:
     environment:
       LISTEN_PORT: ${DELI_UI_PORT:-5200}
       API_UPSTREAM: http://web:${DELI_API_PORT:-8300}
+      NGINX_ENTRYPOINT_LOCAL_RESOLVERS: "1"
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${DELI_UI_PORT:-5200}:${DELI_UI_PORT:-5200}"
     healthcheck:

@@ -292,8 +292,10 @@ final class SpmService
     // ---------------------------------------------------------------- status
 
     /** @return array{spm: array<string, mixed>, warnings: list<string>} */
-    public function transition(string $id, string $to, ?string $reason): array
+    public function transition(string $id, string $to, ?string $reason, bool $viaQueue = false): array
     {
+        abort_if($to === 'REOPENED' && ! $viaQueue, 422, 'SPM dibuka kembali lewat permintaan buka kembali yang disetujui orang lain.');
+
         return DB::transaction(function () use ($id, $to, $reason) {
             DB::table('tenants')->where('id', $this->store->tenantId)->lockForUpdate()->firstOrFail();
             $spm = $this->store->find('transport_orders', $id, true);

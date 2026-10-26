@@ -115,6 +115,46 @@ export function SpmAwbSection({
   const [dialog, setDialog] = useState<
     "awb" | "trip" | { edit: Awb } | { cancel: Awb } | null
   >(null);
+  const [extras, setExtras] = useState<{ templates: Opt[]; bookings: Opt[] }>({
+    templates: [],
+    bookings: [],
+  });
+  useEffect(() => {
+    if (dialog !== "trip") return;
+    let live = true;
+    Promise.all([
+      api<{ data: { id: string; code: string; name: string }[] }>(
+        "route-templates?active=1",
+      ),
+      api<{
+        data: {
+          id: string;
+          vehicle_label: string;
+          starts_at: string;
+          ends_at: string;
+          purpose: string | null;
+          status: string;
+        }[];
+      }>("reservations?status=BOOKED"),
+    ])
+      .then(([t, b]) => {
+        if (!live) return;
+        setExtras({
+          templates: t.data.map((x) => ({
+            value: x.id,
+            label: `${x.code} · ${x.name}`,
+          })),
+          bookings: b.data.map((x) => ({
+            value: x.id,
+            label: `${x.vehicle_label} · ${new Date(x.starts_at).toLocaleString("id-ID")} – ${new Date(x.ends_at).toLocaleString("id-ID")}${x.purpose ? ` · ${x.purpose}` : ""}`,
+          })),
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [dialog]);
   const live = awbs.filter((a) => a.status !== "CANCELLED");
   const toggle = (list: string[], set: (v: string[]) => void, id: string) =>
     set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -352,6 +392,20 @@ export function SpmAwbSection({
               label: "Vendor (kosong = armada sendiri)",
               kind: "select",
               options: resources.vendors,
+              value: "",
+            }),
+            optional({
+              name: "route_template_id",
+              label: "Template rute (opsional)",
+              kind: "select",
+              options: extras.templates,
+              value: "",
+            }),
+            optional({
+              name: "reservation_id",
+              label: "Pakai booking (opsional)",
+              kind: "select",
+              options: extras.bookings,
               value: "",
             }),
             { name: "starts_at", label: "Mulai", kind: "datetime", value: "" },

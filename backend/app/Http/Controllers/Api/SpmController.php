@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Access\Access;
+use App\Domain\Spm\ReopenService;
 use App\Domain\Spm\SpmService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -33,7 +34,10 @@ class SpmController extends Controller
 
     public function show(Request $r, string $id)
     {
-        return response()->json(['data' => $this->service($r)->show($id, Access::can($r, 'rate.buy.view'))]);
+        $data = $this->service($r)->show($id, Access::can($r, 'rate.buy.view'));
+        $data['reopen_request'] = $this->reopen($r)->pendingFor($id);
+
+        return response()->json(['data' => $data]);
     }
 
     public function store(Request $r, string $orderId)
@@ -80,6 +84,39 @@ class SpmController extends Controller
         Access::authorize($r, 'spm.reopen', 'Akun Anda tidak boleh mengganti tujuan SPM.');
 
         return response()->json(['data' => $this->service($r)->changeDestination($id, (string) $r->input('destination_location_id'), (string) $r->input('reason'))]);
+    }
+
+    private function reopen(Request $r): ReopenService
+    {
+        $store = OrderController::storeFor($r);
+
+        return new ReopenService($store, new SpmService($store));
+    }
+
+    public function reopenQueue(Request $r)
+    {
+        return response()->json($this->reopen($r)->list($r->query('status'), max(1, (int) $r->query('page', 1))));
+    }
+
+    public function requestReopen(Request $r, string $id)
+    {
+        Access::authorize($r, 'spm.manage', 'Akun Anda tidak boleh mengajukan buka kembali SPM.');
+
+        return response()->json(['data' => $this->reopen($r)->request($id, (string) $r->input('reason'))], 201);
+    }
+
+    public function decideReopen(Request $r, string $id, string $decision)
+    {
+        Access::authorize($r, 'spm.reopen', 'Akun Anda tidak boleh memutuskan permintaan buka kembali.');
+
+        return response()->json(['data' => $this->reopen($r)->decide($id, $decision === 'approve', $r->input('note'))]);
+    }
+
+    public function cancelReopen(Request $r, string $id)
+    {
+        Access::authorize($r, 'spm.manage', 'Akun Anda tidak boleh menarik permintaan buka kembali.');
+
+        return response()->json(['data' => $this->reopen($r)->cancel($id)]);
     }
 
     public function addCharge(Request $r, string $id)

@@ -1553,3 +1553,71 @@ code {
     max-width: none;
   }
 }
+
+.gantt {
+  overflow-x: auto;
+}
+.gantt-head,
+.gantt-row {
+  display: grid;
+  grid-template-columns: 9rem minmax(36rem, 1fr);
+  align-items: stretch;
+}
+.gantt-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 0.8rem;
+}
+.gantt-row {
+  border-top: 1px solid var(--line, #ddd);
+  min-height: 2.6rem;
+}
+.gantt-name {
+  padding: 0.4rem 0.5rem;
+}
+.gantt-track {
+  position: relative;
+  min-height: 2.6rem;
+  background-image: linear-gradient(
+    to right,
+    var(--line, #ddd) 1px,
+    transparent 1px
+  );
+  background-size: calc(100% / 7) 100%;
+}
+.gantt-bar {
+  position: absolute;
+  top: 0.35rem;
+  height: 1.9rem;
+  padding: 0 0.4rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.78rem;
+  border-radius: 0.35rem;
+  border: 1px solid transparent;
+  color: #fff;
+  background: #2f6fed;
+}
+.gantt-bar.dispatch {
+  background: #6b7280;
+}
+.gantt-bar.booking {
+  background: #f2c94c;
+  color: #3a2f00;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.stat {
+  display: grid;
+  text-align: left;
+  gap: 0.15rem;
+}
+.stat strong {
+  font-size: 1.6rem;
+}

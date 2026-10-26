@@ -90,6 +90,7 @@ final class MasterRegistry
                     ['name' => 'latitude', 'label' => 'Lintang (latitude)', 'kind' => 'decimal', 'min' => -90, 'max' => 90, 'rules' => ['required_with:longitude,geofence_radius_m'], 'hint' => 'Contoh -6.175110. Isi bersama bujur.'],
                     ['name' => 'longitude', 'label' => 'Bujur (longitude)', 'kind' => 'decimal', 'min' => -180, 'max' => 180, 'rules' => ['required_with:latitude,geofence_radius_m'], 'hint' => 'Contoh 106.865039.'],
                     ['name' => 'geofence_radius_m', 'label' => 'Radius geofence (meter)', 'kind' => 'number', 'min' => 10, 'max' => 50000, 'hint' => 'Dipakai untuk jam masuk/keluar otomatis; perlu koordinat.'],
+                    ['name' => 'radar_geofence_id', 'label' => 'ID geofence OptiRadar', 'kind' => 'text', 'max' => 80, 'hint' => 'Diisi bila geofence stop ini dikelola di OptiRadar; dipakai untuk mencocokkan kejadian ENTER/EXIT.'],
                     ['name' => 'contact_name', 'label' => 'Kontak', 'kind' => 'text', 'max' => 150],
                     ['name' => 'contact_phone', 'label' => 'Telepon kontak', 'kind' => 'text', 'max' => 40],
                 ],

@@ -14,7 +14,7 @@ import {
 } from "./components";
 import { dateTime, money } from "./commercial";
 import { can } from "./opsTypes";
-import { EditorDialog } from "./RecordEditor";
+import { EditorDialog, submitRecord } from "./RecordEditor";
 import type { Page } from "./types";
 import { TripCashSection } from "./Cash";
 
@@ -75,6 +75,13 @@ type TripDetail = {
 };
 type Queue = Record<string, number>;
 
+const SOURCE: Record<string, string> = {
+  MANUAL: "Manual",
+  GEOFENCE: "Geofence",
+  RADAR: "OptiRadar",
+  DRIVER: "Driver",
+};
+
 const QUEUE_LABEL: Record<string, [string, string]> = {
   spm_draft: ["SPM draf", "/spm?status=DRAFT"],
   spm_reopened: ["SPM dibuka kembali", "/spm?status=REOPENED"],
@@ -90,6 +97,7 @@ const QUEUE_LABEL: Record<string, [string, string]> = {
     "/cash?status=DISBURSED",
   ],
   tariffs_to_approve: ["Tarif menunggu persetujuan", "/tariffs?status=DRAFT"],
+  reopen_requests: ["Permintaan buka kembali SPM", "/reopen"],
 };
 
 /** What is waiting for the user (counts come from the server by permission). */
@@ -233,8 +241,23 @@ export function TripDetailPage() {
   const navigate = useNavigate();
   const state = useData<{ data: TripDetail }>(`spm-trips/${id}`);
   const [dialog, setDialog] = useState<
-    { stop: Stop; event: "arrive" | "depart" } | "cancel" | null
+    | { stop: Stop; event: "arrive" | "depart" }
+    | "cancel"
+    | "position"
+    | "template"
+    | null
   >(null);
+  const signals = useData<{
+    data: {
+      id: string;
+      event: string;
+      source: string;
+      occurred_at: string;
+      distance_m: number | null;
+      applied: boolean;
+      ignored_reason: string | null;
+    }[];
+  }>(`spm-trips/${id}/signals`);
   const [notice, setNotice] = useState<string[]>([]);
   const [failure, setFailure] = useState<string>();
   const d = state.data?.data;
@@ -367,6 +390,16 @@ export function TripDetailPage() {
                 Selesaikan perjalanan
               </button>
             )}
+            {t.status === "IN_TRANSIT" && manage && (
+              <button onClick={() => setDialog("position")}>
+                Kirim posisi (uji geofence)
+              </button>
+            )}
+            {manage && (
+              <button onClick={() => setDialog("template")}>
+                Simpan sebagai template rute
+              </button>
+            )}
             {editable && manage && (
               <button
                 className="danger-button"
@@ -395,6 +428,7 @@ export function TripDetailPage() {
                 <th>AWB</th>
                 <th>Tiba</th>
                 <th>Berangkat</th>
+                <th>Sumber jam</th>
                 {manage && <th>Aksi</th>}
               </tr>
             </thead>
@@ -407,6 +441,11 @@ export function TripDetailPage() {
                   <td>{s.awb_numbers.join(", ") || "—"}</td>
                   <td>{s.arrived_at ? dateTime(s.arrived_at) : "—"}</td>
                   <td>{s.departed_at ? dateTime(s.departed_at) : "—"}</td>
+                  <td>
+                    {s.time_source
+                      ? (SOURCE[s.time_source] ?? s.time_source)
+                      : "—"}
+                  </td>
                   {manage && (
                     <td>
                       <div className="actions">
@@ -499,6 +538,39 @@ export function TripDetailPage() {
           <Empty>Tidak ada AWB.</Empty>
         )}
       </section>
+      {signals.data && signals.data.data.length > 0 && (
+        <section className="card block">
+          <h2>Kejadian geofence &amp; jam stop</h2>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Kejadian</th>
+                  <th>Sumber</th>
+                  <th>Jarak</th>
+                  <th>Hasil</th>
+                </tr>
+              </thead>
+              <tbody>
+                {signals.data.data.map((e) => (
+                  <tr key={e.id}>
+                    <td>{dateTime(e.occurred_at)}</td>
+                    <td>{e.event === "ENTER" ? "Masuk" : "Keluar"}</td>
+                    <td>{SOURCE[e.source] ?? e.source}</td>
+                    <td>{e.distance_m === null ? "—" : `${e.distance_m} m`}</td>
+                    <td>
+                      {e.applied
+                        ? "Diterapkan"
+                        : `Diabaikan: ${e.ignored_reason ?? ""}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <TripCashSection tripId={t.id} status={t.status} />
       {typeof dialog === "object" && dialog && (
         <EditorDialog
@@ -522,6 +594,59 @@ export function TripDetailPage() {
             setNotice(res.data.warnings ?? []);
             setDialog(null);
             state.refresh();
+          }}
+        />
+      )}
+      {dialog === "position" && (
+        <EditorDialog
+          title="Kirim posisi kendaraan (uji geofence)"
+          fields={[
+            {
+              name: "latitude",
+              label: "Lintang (latitude)",
+              kind: "decimal",
+              value: "",
+            },
+            {
+              name: "longitude",
+              label: "Bujur (longitude)",
+              kind: "decimal",
+              value: "",
+            },
+          ]}
+          onClose={() => setDialog(null)}
+          onSubmit={async (body) => {
+            const res = await api<{
+              data: {
+                applied: boolean;
+                action: string | null;
+                reason: string | null;
+                distance_m?: number;
+              };
+            }>(`spm-trips/${t.id}/position`, "POST", body);
+            setNotice([
+              res.data.applied
+                ? `Posisi diterapkan: ${res.data.action === "ENTER" ? "tiba" : "berangkat"} dicatat (jarak ${res.data.distance_m} m, sumber manual).`
+                : `Posisi tidak mengubah stop: ${res.data.reason}${res.data.distance_m !== undefined ? ` (jarak ${res.data.distance_m} m)` : ""}`,
+            ]);
+            setDialog(null);
+            state.refresh();
+            signals.refresh();
+          }}
+        />
+      )}
+      {dialog === "template" && (
+        <EditorDialog
+          title="Simpan sebagai template rute"
+          fields={[
+            { name: "code", label: "Kode template", value: "" },
+            { name: "name", label: "Nama template", value: "" },
+          ]}
+          onClose={() => setDialog(null)}
+          onSubmit={async (body, key) => {
+            await submitRecord(`spm-trips/${t.id}/save-template`, body, key);
+            setNotice(["Template rute disimpan. Lihat di menu Template rute."]);
+            setDialog(null);
           }}
         />
       )}

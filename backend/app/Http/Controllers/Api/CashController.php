@@ -114,6 +114,9 @@ class CashController extends Controller
             $q['spm_reopened'] = $s->query('transport_orders')->where('status', 'REOPENED')->count();
             $q['awb_pending'] = $s->query('awbs')->where('status', 'PENDING')->whereIn('transport_order_id', $s->query('transport_orders')->whereIn('status', ['PLANNED', 'LOADING', 'IN_TRANSIT'])->select('id'))->count();
         }
+        if (Access::can($r, 'spm.reopen')) {
+            $q['reopen_requests'] = $s->query('spm_reopen_requests')->where('status', 'PENDING')->where('requested_by', '!=', $me)->count();
+        }
         if (($level = Access::approvalLevel($r)) > 0) {
             $q['trips_to_approve'] = $s->query('spm_trips')->where('status', 'PENDING_APPROVAL')->where('required_level', '<=', $level)->where('created_by', '!=', $me)->count();
         }

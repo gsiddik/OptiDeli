@@ -98,6 +98,8 @@ final class TripPlanner
             'vehicle_id' => ['required', 'uuid', Rule::exists('vehicles', 'id')->where('tenant_id', $this->store->tenantId)],
             'driver_id' => ['required', 'uuid', Rule::exists('drivers', 'id')->where('tenant_id', $this->store->tenantId)],
             'vendor_id' => ['nullable', 'uuid', Rule::exists('vendors', 'id')->where('tenant_id', $this->store->tenantId)],
+            'route_template_id' => ['nullable', 'uuid', Rule::exists('route_templates', 'id')->where('tenant_id', $this->store->tenantId)->where('active', true)],
+            'reservation_id' => ['nullable', 'uuid', Rule::exists('vehicle_reservations', 'id')->where('tenant_id', $this->store->tenantId)],
             'starts_at' => 'required|date', 'ends_at' => 'required|date|after:starts_at', 'reason_code' => 'nullable|string|max:60', 'notes' => 'nullable|string|max:2000',
         ], [], ['starts_at' => 'Mulai', 'ends_at' => 'Selesai', 'awb_ids' => 'AWB'])->validate();
 
@@ -127,6 +129,15 @@ final class TripPlanner
                 || $this->store->query('spm_trips')->where('active', true)->where(fn ($q) => $q->where('vehicle_id', $vehicle->id)->orWhere('driver_id', $driver->id))->exists()) {
                 abort(409, 'Kendaraan atau pengemudi telah dialokasikan.');
             }
+            $reservations = new ReservationService($this->store);
+            $reservationId = $d['reservation_id'] ?? null;
+            if ($clash = $reservations->clash($vehicle->id, $driver->id, $start, $end, $reservationId)) {
+                if ($reservationId === null && $clash->transport_order_id === $spm->id && $clash->vehicle_id === $vehicle->id) {
+                    $reservationId = $clash->id; // the booking was made for this very SPM: the trip uses it up
+                } else {
+                    abort(409, 'Kendaraan atau pengemudi sudah dibooking pada periode ini'.($clash->purpose ? ' ('.$clash->purpose.')' : '').'.');
+                }
+            }
             $lines = $this->store->query('shipment_lines')->whereIn('awb_id', $d['awb_ids'])->get();
             abort_if((float) $lines->sum('weight_kg') * 1000 > $vehicle->capacity_g, 422, 'Berat muatan melebihi kapasitas kendaraan.');
             abort_if((float) $lines->sum('volume_cbm') * 1e9 > $vehicle->length_mm * $vehicle->width_mm * $vehicle->height_mm, 422, 'Volume muatan melebihi box kendaraan.');
@@ -148,7 +159,11 @@ final class TripPlanner
             ]);
             DB::table('awbs')->where('tenant_id', $this->store->tenantId)->whereIn('id', $d['awb_ids'])->update(['trip_id' => $id, 'status' => 'ON_TRIP', 'updated_at' => now()]);
             $this->store->query('orders')->where('id', $spm->order_id)->where('status', 'CONFIRMED')->update(['status' => 'DISPATCHED', 'updated_at' => now()]);
-            $this->buildStops($id, $spm, $awbs, $start, $end);
+            if ($reservationId !== null) {
+                $reservations->convert($reservationId, $id, $vehicle->id, $driver->id, $start, $end);
+            }
+            $stopWarnings = $this->buildStops($id, $spm, $awbs, $start, $end, $d['route_template_id'] ?? null);
+            $warnings = array_merge($warnings, $stopWarnings);
             $this->store->event('spm_trip.planned', $id, ['number' => $number, 'spm' => $spm->number, 'awbs' => $awbs->pluck('number')->all(), 'required_level' => $level, 'sell_minor' => $sell, 'cost_minor' => $cost]);
 
             return ['trip' => $this->show($id), 'warnings' => $warnings];
@@ -184,14 +199,43 @@ final class TripPlanner
         return [Margin::requiredLevel($sell, max(0, $cost), $threshold), $threshold, $warnings];
     }
 
-    /** The SPM's origin first, then one drop per destination of the AWBs. */
-    private function buildStops(string $tripId, object $spm, $awbs, CarbonImmutable $start, CarbonImmutable $end): void
+    /**
+     * The stops of a new trip: the SPM's origin first, then one drop per destination of the AWBs. With a route template the drops
+     * follow its order and times; drops the template does not know are added at the end, template drops nobody needs are left out.
+     *
+     * @return list<string> warnings
+     */
+    private function buildStops(string $tripId, object $spm, $awbs, CarbonImmutable $start, CarbonImmutable $end, ?string $templateId = null): array
     {
-        $sequence = 0;
-        DB::table('spm_trip_stops')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $this->store->tenantId, 'trip_id' => $tripId, 'sequence' => ++$sequence, 'location_id' => $spm->origin_location_id, 'type' => 'PICKUP', 'planned_from' => $start, 'created_at' => now(), 'updated_at' => now()]);
-        foreach ($awbs->pluck('destination_location_id')->unique()->values() as $location) {
-            DB::table('spm_trip_stops')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $this->store->tenantId, 'trip_id' => $tripId, 'sequence' => ++$sequence, 'location_id' => $location, 'type' => 'DROP', 'planned_to' => $end, 'created_at' => now(), 'updated_at' => now()]);
+        $warnings = [];
+        $destinations = $awbs->pluck('destination_location_id')->unique()->values()->all();
+        $plan = [['PICKUP', $spm->origin_location_id, $start, null]];
+        if ($templateId !== null) {
+            $stops = $this->store->query('route_template_stops')->where('template_id', $templateId)->orderBy('sequence')->get();
+            $left = $destinations;
+            foreach ($stops->where('type', 'DROP') as $stop) {
+                if (in_array($stop->location_id, $left, true)) {
+                    $plan[] = ['DROP', $stop->location_id, null, $start->addMinutes((int) $stop->offset_minutes)];
+                    $left = array_values(array_diff($left, [$stop->location_id]));
+                }
+            }
+            foreach ($left as $location) {
+                $plan[] = ['DROP', $location, null, $end];
+                $warnings[] = 'Template rute tidak memuat salah satu tujuan AWB; stop tersebut ditambahkan di akhir.';
+            }
+            if ($stops->first() && $stops->first()->location_id !== $spm->origin_location_id) {
+                $warnings[] = 'Lokasi muat template berbeda dari asal SPM; asal SPM yang dipakai.';
+            }
+        } else {
+            foreach ($destinations as $location) {
+                $plan[] = ['DROP', $location, null, $end];
+            }
         }
+        foreach ($plan as $i => [$type, $location, $from, $to]) {
+            DB::table('spm_trip_stops')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $this->store->tenantId, 'trip_id' => $tripId, 'sequence' => $i + 1, 'location_id' => $location, 'type' => $type, 'planned_from' => $from, 'planned_to' => $to, 'created_at' => now(), 'updated_at' => now()]);
+        }
+
+        return $warnings;
     }
 
     /** Puts the drops in a new order; the pickup stays first. */
@@ -298,11 +342,11 @@ final class TripPlanner
      *
      * @return array{trip: array<string, mixed>, warnings: list<string>}
      */
-    public function recordStop(string $tripId, string $stopId, string $event, ?string $at): array
+    public function recordStop(string $tripId, string $stopId, string $event, ?string $at, string $source = 'MANUAL', array $signal = []): array
     {
         $when = Validator::make(['at' => $at], ['at' => 'nullable|date'], [], ['at' => 'Waktu'])->validate()['at'] ?? null;
 
-        return DB::transaction(function () use ($tripId, $stopId, $event, $when) {
+        return DB::transaction(function () use ($tripId, $stopId, $event, $when, $source, $signal) {
             DB::table('tenants')->where('id', $this->store->tenantId)->lockForUpdate()->firstOrFail();
             $trip = $this->store->find('spm_trips', $tripId, true);
             abort_unless($trip->status === 'IN_TRANSIT', 409, 'Jam stop hanya dapat dicatat setelah perjalanan berangkat.');
@@ -318,16 +362,20 @@ final class TripPlanner
                 if ($previous && $time->lessThan(CarbonImmutable::parse($previous->departed_at))) {
                     $this->fail('at', 'Waktu tiba tidak boleh sebelum keberangkatan dari stop sebelumnya.');
                 }
-                DB::table('spm_trip_stops')->where('tenant_id', $this->store->tenantId)->where('id', $stopId)->update(['arrived_at' => $time, 'time_source' => 'MANUAL', 'updated_at' => now()]);
+                DB::table('spm_trip_stops')->where('tenant_id', $this->store->tenantId)->where('id', $stopId)->update(['arrived_at' => $time, 'time_source' => $source, 'updated_at' => now()]);
             } else {
                 abort_if($stop->arrived_at === null, 409, 'Catat kedatangan sebelum keberangkatan.');
                 abort_if($stop->departed_at !== null, 409, 'Keberangkatan stop ini sudah dicatat.');
                 if ($time->lessThan(CarbonImmutable::parse($stop->arrived_at))) {
                     $this->fail('at', 'Waktu berangkat tidak boleh sebelum waktu tiba.');
                 }
-                DB::table('spm_trip_stops')->where('tenant_id', $this->store->tenantId)->where('id', $stopId)->update(['departed_at' => $time, 'time_source' => 'MANUAL', 'updated_at' => now()]);
+                DB::table('spm_trip_stops')->where('tenant_id', $this->store->tenantId)->where('id', $stopId)->update(['departed_at' => $time, 'time_source' => $source, 'updated_at' => now()]);
             }
             $stop = $this->store->find('spm_trip_stops', $stopId);
+            DB::table('stop_events')->insert([
+                'id' => (string) Str::uuid(), 'tenant_id' => $this->store->tenantId, 'trip_id' => $tripId, 'stop_id' => $stopId, 'vehicle_id' => $trip->vehicle_id, 'event' => $event === 'arrive' ? 'ENTER' : 'EXIT',
+                'source' => $source, 'occurred_at' => $time, 'latitude' => $signal['latitude'] ?? null, 'longitude' => $signal['longitude'] ?? null, 'distance_m' => $signal['distance_m'] ?? null, 'applied' => true, 'created_at' => now(),
+            ]);
             $this->advanceSpm($trip, $stop, $event, $time);
             $warnings = $event === 'depart' ? (new StopCharges($this->store))->apply($trip, $stop) : [];
             $this->store->event('spm_trip.stop_'.$event, $stopId, ['trip' => $trip->number, 'sequence' => $stop->sequence, 'at' => $time->toIso8601String()]);

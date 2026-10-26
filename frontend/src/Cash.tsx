@@ -87,7 +87,7 @@ const rupiah = (v: number | null | undefined) =>
 const asInput = (m: number | null | undefined) =>
   m === null || m === undefined ? "" : String(m / 100);
 
-function Modal({
+export function Modal({
   title,
   onClose,
   children,

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Cash;
 
+use App\Domain\Ledger\FeedRecorder;
 use App\Domain\Shared\TenantStore;
 use App\Domain\Spm\DocumentNumbers;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,36 @@ final class CashService
     private function lock(): void
     {
         DB::table('tenants')->where('id', $this->store->tenantId)->lockForUpdate()->firstOrFail();
+    }
+
+    /**
+     * Publishes a cash fact to the Opti Integration Feed in the caller's transaction (the sequence is gap-free and a rolled-back
+     * change publishes nothing). Only facts go out - who, how much, which charge code and its fact key - never accounts.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function publish(string $type, object $voucher, array $payload): void
+    {
+        $spm = $this->store->find('transport_orders', $voucher->transport_order_id);
+        $box = $voucher->cashbox_id ? $this->store->find('cashboxes', $voucher->cashbox_id) : null;
+        app(FeedRecorder::class)->record(
+            $this->store->tenantId, $type, $voucher->id, ['type' => 'cash_voucher', 'id' => $voucher->id, 'number' => $voucher->number],
+            ['order_id' => $spm->order_id, 'spm_id' => $spm->id, 'trip_id' => $voucher->trip_id, 'driver_id' => $voucher->driver_id, 'cashbox_id' => $voucher->cashbox_id],
+            ['voucher_number' => $voucher->number, 'currency' => 'IDR', 'driver' => ['name' => $this->store->query('drivers')->where('id', $voucher->driver_id)->value('name')],
+                'cashbox' => $box ? ['code' => $box->code, 'name' => $box->name] : null] + $payload,
+        );
+    }
+
+    /** @return list<array<string, mixed>> the lines of a voucher with the fact key of their charge code */
+    private function factLines(string $voucherId, string $amountColumn): array
+    {
+        $lines = $this->store->query('cash_voucher_lines')->where('voucher_id', $voucherId)->orderBy('created_at')->get();
+        $codes = $this->store->query('charge_codes')->whereIn('id', $lines->pluck('charge_code_id'))->get(['id', 'code', 'fact_key'])->keyBy('id');
+
+        return $lines->map(fn ($l) => [
+            'charge_code' => $codes[$l->charge_code_id]->code, 'fact_key' => $codes[$l->charge_code_id]->fact_key, 'kind' => $l->kind,
+            'amount_minor' => (int) $l->{$amountColumn}, 'receipt_ref' => $l->receipt_ref,
+        ])->all();
     }
 
     // ---------------------------------------------------------------- settings and cashboxes
@@ -309,6 +340,8 @@ final class CashService
             $this->entry('DISBURSE', $voucher->approved_minor, null, $voucher->driver_id, $id, "Pencairan {$voucher->number}");
             DB::table('cash_vouchers')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['status' => 'DISBURSED', 'cashbox_id' => $box->id, 'disbursed_minor' => $voucher->approved_minor, 'disbursed_by' => $this->store->actorId, 'disbursed_at' => now(), 'updated_at' => now()]);
             $this->store->event('cash.disbursed', $id, ['number' => $voucher->number, 'cashbox' => $box->code, 'amount_minor' => $voucher->approved_minor]);
+            $disbursed = $this->store->find('cash_vouchers', $id);
+            $this->publish('optideli.cash.disbursed', $disbursed, ['amount_minor' => (int) $voucher->approved_minor, 'purpose' => $voucher->purpose, 'lines' => $this->factLines($id, 'approved_minor')]);
 
             return $this->show($id);
         }, 3);
@@ -375,6 +408,10 @@ final class CashService
             }
             DB::table('cash_vouchers')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['status' => 'SETTLED', 'actual_minor' => $actual, 'returned_minor' => $returned, 'reimbursed_minor' => $reimbursed, 'settled_by' => $this->store->actorId, 'settled_at' => now(), 'updated_at' => now()]);
             $this->store->event('cash.settled', $id, ['number' => $voucher->number, 'disbursed_minor' => $disbursed, 'actual_minor' => $actual, 'returned_minor' => $returned, 'reimbursed_minor' => $reimbursed, 'driver_holds_minor' => max(0, $disbursed - $actual - $returned)]);
+            $this->publish('optideli.cash.settled', $this->store->find('cash_vouchers', $id), [
+                'disbursed_minor' => $disbursed, 'actual_minor' => $actual, 'returned_minor' => $returned, 'reimbursed_minor' => $reimbursed,
+                'driver_holds_minor' => max(0, $disbursed - $actual - $returned), 'lines' => $this->factLines($id, 'actual_minor'),
+            ]);
 
             return $this->show($id);
         }, 3);

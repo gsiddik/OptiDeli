@@ -151,9 +151,11 @@ class SpmTest extends TestCase
         $this->move($spm, 'DOC_VERIFIED', $this->supervisor)->assertOk();
         $this->move($spm, 'CLOSED')->assertOk();
 
-        $this->move($spm, 'REOPENED', $this->dispatcher, 'Dokumen salah')->assertForbidden();
-        $this->move($spm, 'REOPENED', $this->supervisor)->assertUnprocessable()->assertJsonValidationErrors('reason');
-        $this->move($spm, 'REOPENED', $this->supervisor, 'Nota bongkar salah')->assertOk()->assertJsonPath('data.spm.spm.status', 'REOPENED');
+        // Nobody re-opens directly: it goes through the request queue, decided by someone else.
+        $this->move($spm, 'REOPENED', $this->supervisor, 'Nota bongkar salah')->assertUnprocessable();
+        $request = $this->as($this->dispatcher)->postJson("/api/v1/spm/{$spm['spm']['id']}/reopen-requests", ['reason' => 'Nota bongkar salah'])->assertCreated()->json('data.id');
+        $this->as($this->supervisor)->postJson("/api/v1/spm-reopen-requests/{$request}/approve")->assertOk();
+        $this->assertSame('REOPENED', DB::table('transport_orders')->where('id', $spm['spm']['id'])->value('status'));
         $this->move($spm, 'DOC_VERIFIED', $this->supervisor)->assertOk();
 
         $history = $this->getJson("/api/v1/spm/{$spm['spm']['id']}")->json('data.history');

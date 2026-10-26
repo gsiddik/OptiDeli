@@ -5,6 +5,7 @@ use App\Domain\Integration\Optinexus\OptinexusManifest;
 use App\Domain\Ledger\FeedCredentials;
 use App\Domain\Ledger\FeedPairing;
 use App\Domain\Platform\PlatformAccess;
+use App\Domain\Tracking\TrackingCredentials;
 use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -125,3 +126,45 @@ Artisan::command('optideli:feed:revoke-credential {id} {--reason=revoked by oper
 
     return 0;
 })->purpose('Revoke an Opti Integration Feed credential');
+
+Artisan::command('optideli:tracking:issue-credential {tenant : Tenant slug or id} {--acts-as= : Email of the member the recorded stop times are attributed to} {--name=Geofence feed} {--expires= : Expiry date (Y-m-d)} {--output= : Write the token to this file (mode 600) instead of printing it}', function (TrackingCredentials $credentials, string $tenant) {
+    // Credential for the system that sends vehicle positions and geofence events (docs/integration/TRACKING_INGEST.md). The token is shown once; only its hash is stored.
+    $row = DB::table('tenants')->where(fn ($q) => $q->where('slug', $tenant)->orWhere('id', Str::isUuid($tenant) ? $tenant : null))->first();
+    if (! $row) {
+        $this->error("Tenant '{$tenant}' not found.");
+
+        return 1;
+    }
+    $user = DB::table('users')->where('email', (string) $this->option('acts-as'))->first();
+    if (! $user || ! DB::table('memberships')->where('tenant_id', $row->id)->where('user_id', $user->id)->where('active', true)->exists()) {
+        $this->error('--acts-as must be the email of an active member of the tenant.');
+
+        return 1;
+    }
+    $issued = $credentials->issue($row->id, (string) $this->option('name'), $user->id, $this->option('expires') ?: null);
+    PlatformAccess::audit(null, 'platform.tracking_credential_issued', $row->id, ['credential_id' => $issued['id'], 'acts_as' => $user->email]);
+    if ($path = $this->option('output')) {
+        file_put_contents($path, $issued['token'].PHP_EOL);
+        chmod($path, 0600);
+        $this->info("Credential {$issued['id']} issued for {$row->slug}; token written to {$path}.");
+
+        return 0;
+    }
+    $this->info("Credential {$issued['id']} issued for {$row->slug}. Token (shown once):");
+    $this->line($issued['token']);
+
+    return 0;
+})->purpose('Issue a tracking (geofence) ingest credential for a tenant');
+
+Artisan::command('optideli:tracking:revoke-credential {id}', function (TrackingCredentials $credentials, string $id) {
+    if (! $credentials->revoke($id)) {
+        $this->error('Credential not found or already revoked.');
+
+        return 1;
+    }
+    $tenantId = DB::table('tracking_credentials')->where('id', $id)->value('tenant_id');
+    PlatformAccess::audit(null, 'platform.tracking_credential_revoked', $tenantId, ['credential_id' => $id]);
+    $this->info('Credential revoked.');
+
+    return 0;
+})->purpose('Revoke a tracking ingest credential');

@@ -10,9 +10,11 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PlatformController;
 use App\Http\Controllers\Api\PolicyController;
 use App\Http\Controllers\Api\SsoController;
+use App\Http\Controllers\Api\TrackingController;
 use App\Http\Middleware\FeedAuthentication;
 use App\Http\Middleware\InternalAccess;
 use App\Http\Middleware\PlatformContext;
+use App\Http\Middleware\TrackingAuthentication;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/api/v1/csrf', fn () => response()->json(['token' => csrf_token()]));
@@ -25,6 +27,8 @@ Route::get('/api/v1/auth/sso/callback', [SsoController::class, 'callback'])->mid
 Route::post('/api/v1/integration/optinexus/backchannel-logout', [SsoController::class, 'backchannelLogout'])->middleware('throttle:120,1');
 Route::post('/api/v1/integration/optinexus/events', [OptinexusEventController::class, 'receive'])->middleware('throttle:600,1');
 Route::get('/api/v1/integration/feed', [IntegrationFeedController::class, 'index'])->middleware([FeedAuthentication::class, 'throttle:60,1']);
+Route::post('/api/v1/integration/tracking/positions', [TrackingController::class, 'positions'])->middleware([TrackingAuthentication::class, 'throttle:600,1']);
+Route::post('/api/v1/integration/tracking/events', [TrackingController::class, 'events'])->middleware([TrackingAuthentication::class, 'throttle:600,1']);
 Route::post('/api/v1/platform/auth/login', [PlatformController::class, 'login'])->middleware('throttle:login');
 Route::middleware(['auth', PlatformContext::class, 'throttle:120,1'])->prefix('api/v1/platform')->group(function () {
     Route::get('auth/me', [PlatformController::class, 'me']);

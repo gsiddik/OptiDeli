@@ -36,6 +36,9 @@ import { MasterPage } from "./Master";
 import { SpmDetailPage, SpmListPage, SpmPrintPage } from "./Spm";
 import { TripDetailPage, TripListPage } from "./Planning";
 import { CashDetailPage, CashPage } from "./Cash";
+import { MonitoringPage, SchedulePage } from "./Schedule";
+import { RouteTemplatesPage } from "./RouteTemplates";
+import { ReopenQueuePage } from "./Reopen";
 import {
   MarkupPage,
   ResolverPage,
@@ -203,6 +206,15 @@ const navigation: {
       { to: "/orders", label: "Pemesanan", icon: "orders" },
       { to: "/spm", label: "SPM", icon: "orders" },
       { to: "/planning", label: "Perjalanan SPM", icon: "dispatch" },
+      { to: "/schedule", label: "Jadwal & booking", icon: "dispatch" },
+      { to: "/monitoring", label: "Papan monitoring", icon: "roadmap" },
+      { to: "/route-templates", label: "Template rute", icon: "dispatch" },
+      {
+        to: "/reopen",
+        label: "Antrean buka kembali",
+        icon: "audit",
+        permission: "spm.manage",
+      },
       {
         to: "/cash",
         label: "Uang jalan",
@@ -524,6 +536,10 @@ function TenantApp() {
           <Route path="orders/new" element={<OrderCreate />} />
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="dispatch" element={<DispatchBoard />} />
+          <Route path="schedule" element={<SchedulePage />} />
+          <Route path="monitoring" element={<MonitoringPage />} />
+          <Route path="route-templates" element={<RouteTemplatesPage />} />
+          <Route path="reopen" element={<ReopenQueuePage />} />
           <Route path="planning" element={<TripListPage />} />
           <Route path="planning/:id" element={<TripDetailPage />} />
           <Route path="cash" element={<CashPage />} />

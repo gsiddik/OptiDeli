@@ -93,6 +93,7 @@ type Detail = {
   }[];
   totals: { sell_minor: number; buy_minor?: number; margin_minor?: number };
   siblings: { id: string; number: string; sequence: number; status: string }[];
+  reopen_request?: { id: string; reason: string; requested_by: number } | null;
 };
 
 export const SPM_STATUS: Record<string, string> = {
@@ -130,13 +131,8 @@ const STEPS: Record<string, [string, string, string, boolean][]> = {
   IN_TRANSIT: [["DISCHARGED", "Selesai bongkar", "spm.manage", false]],
   DISCHARGED: [
     ["DOC_VERIFIED", "Verifikasi dokumen", "execution.verify", false],
-    ["REOPENED", "Buka kembali", "spm.reopen", true],
   ],
-  DOC_VERIFIED: [
-    ["CLOSED", "Tutup SPM", "spm.manage", false],
-    ["REOPENED", "Buka kembali", "spm.reopen", true],
-  ],
-  CLOSED: [["REOPENED", "Buka kembali", "spm.reopen", true]],
+  DOC_VERIFIED: [["CLOSED", "Tutup SPM", "spm.manage", false]],
   REOPENED: [
     ["DOC_VERIFIED", "Verifikasi ulang dokumen", "execution.verify", false],
     ["DISCHARGED", "Kembali ke selesai bongkar", "spm.manage", false],
@@ -480,6 +476,7 @@ export function SpmDetailPage() {
     | "line"
     | "destination"
     | "charge"
+    | "reopen"
     | { line: Line }
     | { step: [string, string, string, boolean] }
     | null
@@ -547,6 +544,17 @@ export function SpmDetailPage() {
           {n}
         </div>
       ))}
+      {d.reopen_request && (
+        <div className="alert" role="status">
+          Ada permintaan buka kembali yang menunggu keputusan:{" "}
+          {d.reopen_request.reason}.{" "}
+          {can(session, "spm.reopen") ? (
+            <Link to="/reopen">Buka antrean</Link>
+          ) : (
+            "Menunggu persetujuan pejabat yang berwenang."
+          )}
+        </div>
+      )}
       <div className="split">
         <section className="card">
           <h2>Rute & armada</h2>
@@ -582,6 +590,13 @@ export function SpmDetailPage() {
               ["DRAFT", "PLANNED", "LOADING"].includes(s.status) && (
                 <button onClick={() => setDialog("destination")}>
                   Ganti tujuan
+                </button>
+              )}
+            {manage &&
+              ["DISCHARGED", "DOC_VERIFIED", "CLOSED"].includes(s.status) &&
+              !d.reopen_request && (
+                <button onClick={() => setDialog("reopen")}>
+                  Ajukan buka kembali
                 </button>
               )}
             <Link className="button" to={`/spm/${s.id}/print`}>
@@ -850,6 +865,25 @@ export function SpmDetailPage() {
               key,
             )) as { data: { warnings: string[] } };
             setNotice(res.data.warnings);
+            setDialog(null);
+            state.refresh();
+          }}
+        />
+      )}
+      {dialog === "reopen" && (
+        <EditorDialog
+          title="Ajukan buka kembali SPM"
+          fields={[
+            {
+              name: "reason",
+              label: "Alasan (minimal 5 karakter)",
+              kind: "textarea",
+              value: "",
+            },
+          ]}
+          onClose={() => setDialog(null)}
+          onSubmit={async (body, key) => {
+            await submitRecord(`spm/${s.id}/reopen-requests`, body, key);
             setDialog(null);
             state.refresh();
           }}

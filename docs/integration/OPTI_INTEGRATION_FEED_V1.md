@@ -81,6 +81,20 @@ Rules the producer enforces, so the consumer can rely on them: a document exists
 exceed the outstanding amount; a document with payments cannot be voided (the payment must be reversed in the accounting system first;
 OptiDeli has no payment reversal in v1); document numbers are gap-free per tenant and kind.
 
+### Addendum 2026-10-27: driver cash events (additive, schema 1.0)
+
+OptiDeli also publishes the movement of driver cash (uang jalan) as facts, in the same transaction as the business change. A consumer
+that does not know them treats them as unsupported (OptiEntry: `NEEDS_REVIEW / UNSUPPORTED_EVENT`) and keeps its cursor moving. Accounts
+are never named; each line carries the **fact key** of its charge code (`DRIVER_ADVANCE`, `TOLL`, `UNLOADING`, ...), which the consumer maps.
+
+| `event_type` | When | `source` | Payload |
+|---|---|---|---|
+| `optideli.cash.disbursed` | Approved driver cash is paid out of a cashbox | `cash_voucher` + voucher number | `voucher_number`, `amount_minor`, `currency`, `purpose`, `driver{name}`, `cashbox{code,name}`, `lines[]{charge_code,fact_key,kind,amount_minor}` |
+| `optideli.cash.settled` | The driver's spending is settled with receipts | `cash_voucher` + voucher number | `voucher_number`, `disbursed_minor`, `actual_minor`, `returned_minor` (given back to the cashbox), `reimbursed_minor` (paid to the driver above what was given), `driver_holds_minor`, `driver`, `cashbox`, `lines[]{charge_code,fact_key,kind,amount_minor,receipt_ref}` |
+
+`correlation_id` is the voucher id; `dimensions` carry `order_id`, `spm_id`, `trip_id`, `driver_id`, `cashbox_id`. Cashbox top-ups and the
+approval steps are not published: they are the counter-party's cash, not the company's books.
+
 ## What the consumer must do
 
 1. Hold one feed credential per producer tenant, stored as a secret.

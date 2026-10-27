@@ -259,6 +259,38 @@ class MasterSyncTest extends TestCase
         $this->assertSame(['Budi S', 'TAG-9', 1], [$driver->name, $driver->radar_tag, DB::table('drivers')->where('tenant_id', $this->tenant)->count()]);
     }
 
+    public function test_a_verified_vendor_vehicle_and_driver_go_to_optiradar_only_under_their_own_keys(): void
+    {
+        $vendor = (string) Str::uuid();
+        $vehicle = (string) Str::uuid();
+        $driver = (string) Str::uuid();
+        DB::table('vendors')->insert(['id' => $vendor, 'tenant_id' => $this->tenant, 'name' => 'Vendor Jaya', 'code' => 'VJ', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $verified = ['verification_status' => 'VERIFIED', 'verified_by' => auth()->id(), 'verified_at' => now()];
+        DB::table('vehicles')->insert(['id' => $vehicle, 'tenant_id' => $this->tenant, 'plate' => 'B 5 VV', 'type' => 'CDD', 'capacity_g' => 1000, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1, 'vendor_id' => $vendor] + $verified);
+        DB::table('drivers')->insert(['id' => $driver, 'tenant_id' => $this->tenant, 'name' => 'Vendor Driver', 'license_number' => 'sim 9-9', 'active' => true, 'vendor_id' => $vendor] + $verified);
+
+        $this->assertTrue(\App\Domain\Integration\Master\VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle));
+        $this->assertTrue(\App\Domain\Integration\Master\VendorMaster::publish($this->tenant, 'DRIVER', $driver));
+        $this->assertFalse(VehicleMaster::publish($this->tenant, $vehicle), 'the own-fleet event (OptiFleet) never carries a vendor vehicle');
+
+        $keys = DB::table('master_events')->orderBy('created_at')->pluck('event_key')->all();
+        $this->assertEqualsCanonicalizing(['optideli.vendor_vehicle.upserted', 'optideli.vendor_driver.upserted'], $keys);
+        $v = json_decode(DB::table('master_events')->where('event_key', 'optideli.vendor_vehicle.upserted')->value('payload'), true);
+        $this->assertSame(['B5VV', 'VJ', true], [$v['key'], $v['vendor']['code'], $v['active']]);
+        $d = json_decode(DB::table('master_events')->where('event_key', 'optideli.vendor_driver.upserted')->value('payload'), true);
+        $this->assertSame(['SIM99', 'sim 9-9', 'Vendor Jaya'], [$d['key'], $d['license_number'], $d['vendor']['name']]);
+
+        DB::table('vehicles')->where('id', $vehicle)->update(['active' => false]);
+        $this->assertTrue(\App\Domain\Integration\Master\VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle));
+        $events = DB::table('master_events')->where('event_key', 'optideli.vendor_vehicle.upserted')->get()->map(fn ($e) => json_decode($e->payload, true))->sortBy('version')->values()->all();
+        $this->assertCount(2, $events);
+        $this->assertTrue($events[0]['version'] < $events[1]['version']);
+        $this->assertSame([true, false], [$events[0]['active'], $events[1]['active']]);
+
+        DB::table('vehicles')->where('id', $vehicle)->update(['verification_status' => 'PENDING', 'verified_by' => null, 'verified_at' => null]);
+        $this->assertFalse(\App\Domain\Integration\Master\VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle), 'only what the tenant verified is published');
+    }
+
     public function test_a_vendors_vehicle_or_driver_is_never_published_as_an_assignment(): void
     {
         $vehicle = (string) Str::uuid();

@@ -42,7 +42,7 @@ final class MasterRelay
                     'event_id' => $row->id, 'event_key' => $row->event_key, 'event_version' => '1',
                     'occurred_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(), 'tenant_id' => $nexus,
                     'correlation_id' => $row->aggregate_id,
-                    'data' => ['aggregate_type' => 'vehicle', 'aggregate_id' => $row->aggregate_id, 'correlation' => (object) [], 'payload' => json_decode($row->payload, true)],
+                    'data' => ['aggregate_type' => $row->event_key === VendorMaster::DRIVER ? 'driver' : 'vehicle', 'aggregate_id' => $row->aggregate_id, 'correlation' => (object) [], 'payload' => json_decode($row->payload, true)],
                 ], scope: NexusApi::SCOPE_EVENT);
             } catch (IdentityProviderUnavailable $e) {
                 $this->retry($row, Str::limit($e->getMessage(), 300), $result);

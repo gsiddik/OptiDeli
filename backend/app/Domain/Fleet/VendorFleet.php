@@ -4,6 +4,7 @@ namespace App\Domain\Fleet;
 
 use App\Domain\Shared\TenantStore;
 use Illuminate\Http\UploadedFile;
+use App\Domain\Integration\Master\VendorMaster;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -237,6 +238,7 @@ final class VendorFleet
             }
             DB::table($this->table($type))->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['active' => $active, 'updated_at' => now()]);
             $this->store->event($active ? 'vendor_fleet.activated' : 'vendor_fleet.deactivated', $id, ['owner_type' => $type]);
+            VendorMaster::publish($this->store->tenantId, $type, $id); // tells OptiRadar the vehicle or driver is (in)active
 
             return $this->store->find($this->table($type), $id);
         }, 3);

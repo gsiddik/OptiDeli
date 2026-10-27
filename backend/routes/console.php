@@ -5,6 +5,7 @@ use App\Domain\Access\SystemRoles;
 use App\Domain\Customer\Webhooks;
 use App\Domain\Integration\Master\MasterRelay;
 use App\Domain\Integration\Master\VehicleMaster;
+use App\Domain\Integration\Master\VendorMaster;
 use App\Domain\Integration\Optinexus\OptinexusManifest;
 use App\Domain\Ledger\FeedCredentials;
 use App\Domain\Ledger\FeedPairing;
@@ -205,7 +206,7 @@ Artisan::command('optideli:master:relay {--retry-failed}', function (MasterRelay
 })->purpose('Send the queued vehicle master data events to OptiNexus');
 
 Artisan::command('optideli:master:publish {--tenant=}', function () {
-    $this->info(VehicleMaster::publishAll($this->option('tenant') ?: null).' vehicle(s) queued for the other platforms.');
+    $this->info(VehicleMaster::publishAll($this->option('tenant') ?: null).' vehicle(s) queued for the other platforms, '.VendorMaster::publishAll($this->option('tenant') ?: null).' vendor vehicle(s) and driver(s) queued for OptiRadar.');
 })->purpose('Queue every own-fleet vehicle for the other platforms (first start-up of the sync, or after an outage)');
 
 Schedule::command('optideli:master:relay')->everyMinute()->withoutOverlapping();

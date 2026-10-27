@@ -3,6 +3,7 @@
 namespace App\Domain\Fleet;
 
 use App\Domain\Shared\TenantStore;
+use App\Domain\Integration\Master\VendorMaster;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -68,6 +69,9 @@ final class FleetVerification
             }
             DB::table($this->table($type))->where('tenant_id', $this->store->tenantId)->where('id', $id)->update($update);
             $this->store->event($d['decision'] === 'VERIFY' ? 'vendor_fleet.verified' : 'vendor_fleet.rejected', $id, ['owner_type' => $type, 'vendor_id' => $row->vendor_id, 'note' => $d['note'] ?? null]);
+            if ($d['decision'] === 'VERIFY') {
+                VendorMaster::publish($this->store->tenantId, $type, $id); // for OptiRadar only; OptiFleet does not maintain a vendor's vehicles
+            }
 
             return $this->store->find($this->table($type), $id);
         }, 3);

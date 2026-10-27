@@ -175,4 +175,40 @@ class MasterSyncTest extends TestCase
         DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => null]);
         $this->assertFalse(VehicleMaster::publish($this->tenant, $id));
     }
+
+    public function test_a_draft_from_another_platform_is_not_published_back_and_a_partial_event_keeps_stored_data(): void
+    {
+        $this->deliver($this->event(['brand' => 'Hino', 'model' => 'Dutro', 'year' => 2021], 1))->assertJson(['result' => 'created']);
+        $this->assertSame(0, VehicleMaster::publishAll($this->tenant));
+
+        $this->deliver($this->event(['brand' => 'Hino'], 2))->assertJson(['result' => 'applied']);
+        $v = $this->vehicles()->sole();
+        $this->assertSame(['Hino', 'Dutro', 2021], [$v->brand, $v->model, (int) $v->vehicle_year]);
+    }
+
+    public function test_the_same_plate_with_other_spacing_is_a_duplicate_and_versions_only_increase(): void
+    {
+        $this->deliver($this->event(['brand' => 'Hino'], 1, 'B 7 AB'));
+        $this->postJson('/api/v1/fleet/vehicles', ['plate' => 'b-7-ab', 'type' => 'CDD', 'capacity_g' => 1, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1, 'documents_valid_until' => now()->addYear()->toDateString()], ['Idempotency-Key' => (string) Str::uuid()])->assertStatus(422);
+
+        $this->register();
+        $id = $this->vehicles()->firstWhere('plate', 'B9ZZ')->id;
+        VehicleMaster::publish($this->tenant, $id);
+        VehicleMaster::publish($this->tenant, $id);
+        $versions = DB::table('master_events')->where('aggregate_id', $id)->orderBy('created_at')->get()->map(fn ($e) => json_decode($e->payload, true)['version'])->all();
+        $this->assertCount(3, $versions);
+        $this->assertSame($versions, collect($versions)->sort()->values()->all());
+        $this->assertCount(3, array_unique($versions));
+    }
+
+    public function test_rows_of_an_unlinked_tenant_do_not_take_batch_places_from_linked_ones(): void
+    {
+        $this->register();
+        $other = (string) Str::uuid();
+        DB::table('tenants')->insert(['id' => $other, 'slug' => 'unlinked', 'name' => 'Unlinked', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('master_events')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $other, 'event_key' => 'optideli.vehicle.upserted', 'aggregate_id' => (string) Str::uuid(), 'payload' => '{}', 'created_at' => now()->subDay()]);
+        $this->nexus(202, []);
+
+        $this->assertSame(1, app(MasterRelay::class)->relay(1)['delivered']);
+    }
 }

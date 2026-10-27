@@ -20,23 +20,26 @@ final class VehicleMaster
 
     public const RECEIVED = 'optifleet.vehicle.upserted';
 
-    /** Queues the vehicle's transport data for the other platforms. Does nothing for an unlinked tenant or a vendor's vehicle. */
+    /** Queues the vehicle's transport data for the other platforms. Does nothing for an unlinked tenant, a vendor's vehicle, or a draft that came from another platform and has no transport data yet. */
     public static function publish(string $tenantId, string $vehicleId): bool
     {
         $tenant = DB::table('tenants')->where('id', $tenantId)->first();
         $vehicle = DB::table('vehicles')->where('tenant_id', $tenantId)->where('id', $vehicleId)->first();
-        if (! $tenant?->optinexus_tenant_id || ! $vehicle || $vehicle->vendor_id !== null) {
+        if (! $tenant?->optinexus_tenant_id || ! $vehicle || $vehicle->vendor_id !== null || ! $vehicle->transport_complete) {
             return false;
         }
 
+        // Increases for every vehicle even when two publishes share a millisecond or the clock steps back.
+        $last = (int) DB::table('master_events')->where('tenant_id', $tenantId)->where('aggregate_id', $vehicleId)->max(DB::raw("(payload::jsonb->>'version')::bigint"));
+        $version = max((int) (microtime(true) * 1000), $last + 1);
         $carrier = $vehicle->carrier_type_id ? DB::table('carrier_types')->where('tenant_id', $tenantId)->where('id', $vehicle->carrier_type_id)->value('code') : null;
         DB::table('master_events')->insert([
             'id' => (string) Str::uuid(), 'tenant_id' => $tenantId, 'event_key' => self::PUBLISHED, 'aggregate_id' => $vehicleId,
             'payload' => json_encode([
                 'key' => FleetEventReceiver::key($vehicle->plate), 'registration_number' => $vehicle->plate,
-                'version' => (int) (microtime(true) * 1000), 'changed_at' => CarbonImmutable::now('UTC')->toIso8601String(),
+                'version' => $version, 'changed_at' => CarbonImmutable::now('UTC')->toIso8601String(),
                 'transport' => [
-                    'carrier_type_code' => $carrier ?? $vehicle->type, 'capacity_g' => $vehicle->capacity_g,
+                    'carrier_type_code' => $carrier, 'capacity_g' => $vehicle->capacity_g,
                     'length_mm' => $vehicle->length_mm, 'width_mm' => $vehicle->width_mm, 'height_mm' => $vehicle->height_mm,
                 ],
             ], JSON_THROW_ON_ERROR),
@@ -92,7 +95,8 @@ final class VehicleMaster
                 if ($existing->vendor_id !== null) {
                     return 'ignored'; // a vendor's vehicle is not the tenant's asset
                 }
-                DB::table('vehicles')->where('id', $existing->id)->update($values);
+                // A group the producer left out or sent invalid is not an instruction to erase what is stored.
+                DB::table('vehicles')->where('id', $existing->id)->update(array_filter($values, fn ($v) => $v !== null));
 
                 return 'applied';
             }

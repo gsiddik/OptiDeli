@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Integration\Fleet\FleetEventReceiver;
 use App\Domain\Integration\Master\VehicleMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -33,7 +34,9 @@ class FleetController extends Controller
         $s = OrderController::storeFor($request);
         $id = (string) Str::uuid();
         DB::transaction(function () use ($s, $id, $data) {
-            abort_if($s->query('vehicles')->where('plate', $data['plate'])->exists(), 422, 'Nomor kendaraan sudah terdaftar.');
+            // Same plate as another platform announced, with other spacing or dashes, is the same vehicle (apply() matches on the key).
+            DB::table('tenants')->where('id', $s->tenantId)->lockForUpdate()->firstOrFail();
+            abort_if($s->query('vehicles')->whereRaw("regexp_replace(upper(plate), '[^A-Z0-9]', '', 'g') = ?", [FleetEventReceiver::key($data['plate'])])->exists(), 422, 'Nomor kendaraan sudah terdaftar.');
             DB::table('vehicles')->insert([...$data, 'id' => $id, 'tenant_id' => $s->tenantId, 'status' => 'AVAILABLE', 'readiness_checked_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
             $s->event('vehicle.registered', $id);
             VehicleMaster::publish($s->tenantId, $id);

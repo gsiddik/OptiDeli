@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
  */
 final class MasterRelay
 {
-    public const MAX_ATTEMPTS = 20;
+    public const MAX_ATTEMPTS = 200;
 
     public function __construct(private readonly NexusApi $api) {}
 
@@ -24,8 +24,10 @@ final class MasterRelay
     public function relay(int $batch = 100): array
     {
         $result = ['delivered' => 0, 'retrying' => 0, 'failed' => 0];
-        $rows = DB::table('master_events')->where('status', 'PENDING')
-            ->whereRaw("(last_attempted_at is null or last_attempted_at <= now() - (least(60 * power(2, attempts), 3600) * interval '1 second'))")
+        // Only tenants linked to OptiNexus: rows of an unlinked tenant wait without taking batch places from the others.
+        $rows = DB::table('master_events')->where('master_events.status', 'PENDING')
+            ->whereIn('master_events.tenant_id', DB::table('tenants')->whereNotNull('optinexus_tenant_id')->select('id'))
+            ->whereRaw("(master_events.last_attempted_at is null or master_events.last_attempted_at <= now() - (least(60 * power(2, master_events.attempts), 3600) * interval '1 second'))")
             ->orderBy('created_at')->limit($batch)->get();
 
         foreach ($rows as $row) {
@@ -74,7 +76,7 @@ final class MasterRelay
     private function retry(object $row, string $error, array &$result): void
     {
         $parked = $row->attempts + 1 >= self::MAX_ATTEMPTS;
-        DB::table('master_events')->where('id', $row->id)->update(['status' => $parked ? 'FAILED' : 'PENDING', 'last_error' => $error]);
+        DB::table('master_events')->where('id', $row->id)->where('status', 'PENDING')->update(['status' => $parked ? 'FAILED' : 'PENDING', 'last_error' => $error]);
         $result[$parked ? 'failed' : 'retrying']++;
     }
 }

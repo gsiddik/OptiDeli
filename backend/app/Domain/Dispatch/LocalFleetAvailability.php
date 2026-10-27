@@ -13,7 +13,7 @@ final class LocalFleetAvailability implements FleetAvailability
         abort_unless(($driver->verification_status ?? 'VERIFIED') === 'VERIFIED', 422, 'Pengemudi vendor belum terverifikasi.');
         abort_unless($vehicle->transport_complete ?? true, 422, 'Data angkutan kendaraan belum dilengkapi (tipe, kapasitas, dimensi).');
         abort_unless($vehicle->status === 'AVAILABLE', 422, 'Kendaraan terkunci: status servis atau operasional tidak tersedia.');
-        abort_unless(CarbonImmutable::parse($vehicle->readiness_checked_at)->greaterThanOrEqualTo(now()->subMinutes(15)), 422, 'Pemeriksaan kesiapan armada kedaluwarsa; perbarui sebelum dispatch.');
+        abort_unless($vehicle->readiness_checked_at && CarbonImmutable::parse($vehicle->readiness_checked_at)->greaterThanOrEqualTo(now()->subMinutes(15)), 422, 'Pemeriksaan kesiapan armada kedaluwarsa; perbarui sebelum dispatch.');
         abort_unless($vehicle->documents_valid_until >= $end->toDateString(), 422, 'Dokumen kendaraan tidak berlaku sampai akhir perjalanan.');
         abort_unless($driver->active && $driver->license_valid_until >= $end->toDateString(), 422, 'SIM pengemudi tidak berlaku sampai akhir perjalanan.');
         abort_unless(CarbonImmutable::parse($driver->eligibility_verified_until)->greaterThanOrEqualTo($end), 422, 'Verifikasi kelayakan/jam kerja pengemudi belum mencakup perjalanan.');

@@ -11,6 +11,7 @@ final class LocalFleetAvailability implements FleetAvailability
         // A vendor's vehicle and driver are only usable once the tenant has verified their documents.
         abort_unless(($vehicle->active ?? true) && ($vehicle->verification_status ?? 'VERIFIED') === 'VERIFIED', 422, 'Kendaraan vendor belum terverifikasi atau tidak aktif.');
         abort_unless(($driver->verification_status ?? 'VERIFIED') === 'VERIFIED', 422, 'Pengemudi vendor belum terverifikasi.');
+        abort_unless($vehicle->transport_complete ?? true, 422, 'Data angkutan kendaraan belum dilengkapi (tipe, kapasitas, dimensi).');
         abort_unless($vehicle->status === 'AVAILABLE', 422, 'Kendaraan terkunci: status servis atau operasional tidak tersedia.');
         abort_unless(CarbonImmutable::parse($vehicle->readiness_checked_at)->greaterThanOrEqualTo(now()->subMinutes(15)), 422, 'Pemeriksaan kesiapan armada kedaluwarsa; perbarui sebelum dispatch.');
         abort_unless($vehicle->documents_valid_until >= $end->toDateString(), 422, 'Dokumen kendaraan tidak berlaku sampai akhir perjalanan.');

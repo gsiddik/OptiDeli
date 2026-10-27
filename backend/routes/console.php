@@ -3,6 +3,8 @@
 use App\Domain\Access\Seats;
 use App\Domain\Access\SystemRoles;
 use App\Domain\Customer\Webhooks;
+use App\Domain\Integration\Master\MasterRelay;
+use App\Domain\Integration\Master\VehicleMaster;
 use App\Domain\Integration\Optinexus\OptinexusManifest;
 use App\Domain\Ledger\FeedCredentials;
 use App\Domain\Ledger\FeedPairing;
@@ -193,3 +195,17 @@ Artisan::command('optideli:tracking:revoke-credential {id}', function (TrackingC
 
     return 0;
 })->purpose('Revoke a tracking ingest credential');
+
+Artisan::command('optideli:master:relay {--retry-failed}', function (MasterRelay $relay) {
+    if ($this->option('retry-failed')) {
+        $this->info($relay->retryFailed().' parked event(s) put back in the queue.');
+    }
+    $r = $relay->relay();
+    $this->info("Master data to OptiNexus: {$r['delivered']} delivered, {$r['retrying']} retrying, {$r['failed']} failed.");
+})->purpose('Send the queued vehicle master data events to OptiNexus');
+
+Artisan::command('optideli:master:publish {--tenant=}', function () {
+    $this->info(VehicleMaster::publishAll($this->option('tenant') ?: null).' vehicle(s) queued for the other platforms.');
+})->purpose('Queue every own-fleet vehicle for the other platforms (first start-up of the sync, or after an outage)');
+
+Schedule::command('optideli:master:relay')->everyMinute()->withoutOverlapping();

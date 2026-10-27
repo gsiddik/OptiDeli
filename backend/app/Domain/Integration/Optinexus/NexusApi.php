@@ -29,6 +29,9 @@ class NexusApi
     /** Asks OptiNexus for a short-lived OptiRadar embed session (K5). Granted to the service account explicitly. */
     public const SCOPE_EMBED = 'embed.create';
 
+    /** Reporting events to OptiNexus (master data sync). Granted to the service account explicitly. */
+    public const SCOPE_EVENT = 'event.write';
+
     private const TOKEN_KEY = 'optinexus.service.token';
 
     /**

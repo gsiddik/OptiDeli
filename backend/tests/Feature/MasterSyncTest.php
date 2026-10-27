@@ -1,0 +1,178 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Domain\Dispatch\LocalFleetAvailability;
+use App\Domain\Integration\Master\MasterRelay;
+use App\Domain\Integration\Master\VehicleMaster;
+use App\Domain\Master\MasterDefaults;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
+use Tests\Concerns\SignsInTenantMember;
+use Tests\TestCase;
+
+/** Vehicles are keyed once: OptiFleet's asset data comes in, OptiDeli's transport data goes out, nothing echoes. */
+class MasterSyncTest extends TestCase
+{
+    use RefreshDatabase, SignsInTenantMember;
+
+    private const SECRET = 'whsec_test_secret';
+
+    private const NEXUS_TENANT = '6f1d2c3b-1111-4a5b-8c9d-0123456789ab';
+
+    private string $tenant;
+
+    private array $answer = [200, []];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['optideli.deployment_mode' => 'saas', 'optideli.identity_mode' => 'local', 'optideli.optinexus.events.webhook_secret' => self::SECRET,
+            'optideli.optinexus.base_url' => 'http://nexus.test', 'optideli.optinexus.service.client_id' => 'svc', 'optideli.optinexus.service.client_secret' => 'secret']);
+        Cache::flush();
+        $this->tenant = $this->signInTenantMember('cfo');
+        DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => self::NEXUS_TENANT]);
+        MasterDefaults::seed($this->tenant);
+    }
+
+    private function event(array $asset, int $version, string $plate = 'b-1234-xy'): array
+    {
+        return [
+            'event_id' => (string) Str::uuid(), 'event_type' => 'optifleet.vehicle.upserted', 'schema_version' => '1', 'source_system' => 'optifleet',
+            'tenant_id' => self::NEXUS_TENANT, 'occurred_at' => now()->toIso8601String(), 'correlation_id' => (string) Str::uuid(),
+            'data' => ['aggregate_type' => 'vehicle', 'aggregate_id' => (string) Str::uuid(), 'correlation' => [], 'payload' => [
+                'key' => 'B1234XY', 'registration_number' => $plate, 'version' => $version, 'changed_at' => now()->toIso8601String(), 'asset' => $asset,
+            ]],
+        ];
+    }
+
+    private function deliver(array $event): TestResponse
+    {
+        $body = json_encode($event, JSON_THROW_ON_ERROR);
+        $id = (string) Str::uuid();
+        $ts = (string) time();
+
+        return $this->call('POST', '/api/v1/integration/optinexus/events', [], [], [], [
+            'CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'HTTP_OPTI_WEBHOOK_ID' => $id, 'HTTP_OPTI_WEBHOOK_TIMESTAMP' => $ts,
+            'HTTP_OPTI_WEBHOOK_SIGNATURE' => 'v1='.hash_hmac('sha256', $id.'.'.$ts.'.'.$body, self::SECRET),
+        ], $body);
+    }
+
+    private function vehicles(): Collection
+    {
+        return DB::table('vehicles')->where('tenant_id', $this->tenant)->get();
+    }
+
+    private function register(): void
+    {
+        $this->postJson('/api/v1/fleet/vehicles', ['plate' => 'B9ZZ', 'type' => 'CDD', 'capacity_g' => 2500000, 'length_mm' => 4200, 'width_mm' => 2000, 'height_mm' => 2000, 'documents_valid_until' => now()->addYear()->toDateString()], ['Idempotency-Key' => (string) Str::uuid()])->assertCreated();
+    }
+
+    private function nexus(int $status, array $body): void
+    {
+        $this->answer = [$status, $body];
+        Http::fake(['nexus.test/api/v1/oauth/token' => Http::response(['access_token' => 't', 'expires_in' => 3600]), 'nexus.test/api/v1/events' => fn () => Http::response($this->answer[1], $this->answer[0])]);
+    }
+
+    public function test_an_unknown_vehicle_from_optifleet_becomes_a_transport_draft_that_cannot_be_dispatched(): void
+    {
+        $this->deliver($this->event(['brand' => 'Hino', 'model' => 'Dutro', 'year' => 2021, 'vin' => 'MHF123'], 1))->assertStatus(202)->assertJson(['result' => 'created']);
+
+        $v = $this->vehicles()->sole();
+        $this->assertSame(['b-1234-xy', 'Hino', 'Dutro', 2021, 'MHF123', 'OPTIFLEET', false], [$v->plate, $v->brand, $v->model, $v->vehicle_year, $v->vin, $v->source, $v->transport_complete]);
+        $this->assertSame(0, DB::table('master_events')->count(), 'what came from another platform is not sent back');
+
+        $this->expectExceptionMessage('belum dilengkapi');
+        (new LocalFleetAvailability)->assertReady($v, (object) ['active' => true], now()->addHours(2)->toImmutable());
+    }
+
+    public function test_a_known_vehicle_takes_only_the_asset_data_and_older_versions_are_ignored(): void
+    {
+        $id = (string) Str::uuid();
+        DB::table('vehicles')->insert(['id' => $id, 'tenant_id' => $this->tenant, 'plate' => 'B 1234 XY', 'type' => 'CDD', 'capacity_g' => 2500000, 'length_mm' => 4200, 'width_mm' => 2000, 'height_mm' => 2000, 'documents_valid_until' => now()->addYear()->toDateString(), 'readiness_checked_at' => now()]);
+
+        $this->deliver($this->event(['brand' => 'Hino', 'model' => 'Dutro'], 10))->assertJson(['result' => 'applied']);
+        $this->deliver($this->event(['brand' => 'Old', 'model' => 'Old'], 9))->assertJson(['result' => 'stale']);
+
+        $v = DB::table('vehicles')->find($id);
+        $this->assertSame(['Hino', 'Dutro', 'CDD', 2500000, 'LOCAL', true], [$v->brand, $v->model, $v->type, $v->capacity_g, $v->source, $v->transport_complete]);
+        $this->assertSame(1, $this->vehicles()->count());
+    }
+
+    public function test_a_vendors_vehicle_is_not_touched(): void
+    {
+        $vendor = (string) Str::uuid();
+        DB::table('vendors')->insert(['id' => $vendor, 'tenant_id' => $this->tenant, 'name' => 'CV', 'code' => 'CV', 'active' => true]);
+        DB::table('vehicles')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $this->tenant, 'plate' => 'B 1234 XY', 'type' => 'CDD', 'capacity_g' => 1, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1, 'vendor_id' => $vendor, 'verification_status' => 'PENDING']);
+
+        $this->deliver($this->event(['brand' => 'Hino'], 1))->assertJson(['result' => 'ignored']);
+
+        $this->assertNull($this->vehicles()->sole()->brand);
+    }
+
+    public function test_a_foreign_producer_or_unknown_tenant_is_ignored(): void
+    {
+        $event = $this->event(['brand' => 'Hino'], 1);
+        $this->deliver(['source_system' => 'optiradar'] + $event)->assertJson(['result' => 'ignored']);
+        $this->deliver(['tenant_id' => (string) Str::uuid()] + $event)->assertJson(['result' => 'ignored']);
+        $this->assertSame(0, $this->vehicles()->count());
+    }
+
+    public function test_the_tenants_own_vehicle_is_published_with_its_transport_data_and_sent_once(): void
+    {
+        $this->register();
+
+        $row = DB::table('master_events')->sole();
+        $payload = json_decode($row->payload, true);
+        $this->assertSame(['optideli.vehicle.upserted', 'B9ZZ', 2500000], [$row->event_key, $payload['key'], $payload['transport']['capacity_g']]);
+        $this->assertArrayNotHasKey('asset', $payload);
+
+        $this->nexus(201, ['data' => []]);
+        $this->assertSame(['delivered' => 1, 'retrying' => 0, 'failed' => 0], app(MasterRelay::class)->relay());
+        $this->assertSame(['delivered' => 0, 'retrying' => 0, 'failed' => 0], app(MasterRelay::class)->relay());
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/events') && $r['event_id'] === $row->id && $r['event_key'] === 'optideli.vehicle.upserted' && $r['tenant_id'] === self::NEXUS_TENANT);
+    }
+
+    public function test_an_event_nexus_does_not_know_yet_is_retried_and_other_refusals_are_parked(): void
+    {
+        $this->register();
+        $this->nexus(422, ['error' => ['code' => 'EVENT_INVALID']]);
+        $this->assertSame(1, app(MasterRelay::class)->relay()['retrying']);
+        $this->assertSame('PENDING', DB::table('master_events')->sole()->status);
+
+        DB::table('master_events')->update(['last_attempted_at' => null]);
+        $this->nexus(403, ['error' => ['code' => 'EVENT_SOURCE_DENIED']]);
+        $this->assertSame(1, app(MasterRelay::class)->relay()['failed']);
+        $this->assertSame(1, app(MasterRelay::class)->retryFailed());
+    }
+
+    public function test_the_transport_form_completes_a_draft_and_publishes_it(): void
+    {
+        $this->deliver($this->event(['brand' => 'Hino'], 1));
+        $draft = $this->vehicles()->sole()->id;
+        $type = (object) ['id' => (string) Str::uuid()];
+        DB::table('carrier_types')->insert(['id' => $type->id, 'tenant_id' => $this->tenant, 'code' => 'CDD', 'name' => 'CDD Box']);
+
+        $this->putJson("/api/v1/fleet/vehicles/{$draft}/transport", ['carrier_type_id' => $type->id, 'capacity_g' => 3000000, 'length_mm' => 4500, 'width_mm' => 2000, 'height_mm' => 2100], ['Idempotency-Key' => (string) Str::uuid()])->assertOk();
+
+        $v = DB::table('vehicles')->find($draft);
+        $this->assertTrue($v->transport_complete);
+        $this->assertSame('OPTIFLEET', $v->source);
+        $this->assertSame(3000000, json_decode(DB::table('master_events')->sole()->payload, true)['transport']['capacity_g']);
+    }
+
+    public function test_the_backfill_and_an_unlinked_tenant(): void
+    {
+        $id = (string) Str::uuid();
+        DB::table('vehicles')->insert(['id' => $id, 'tenant_id' => $this->tenant, 'plate' => 'B 1 AA', 'type' => 'CDD', 'capacity_g' => 1, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1]);
+        $this->assertSame(1, VehicleMaster::publishAll());
+
+        DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => null]);
+        $this->assertFalse(VehicleMaster::publish($this->tenant, $id));
+    }
+}

@@ -64,6 +64,7 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
         Route::post('dispatch/plans/{id}/confirm', [DispatchController::class, 'confirm'])->whereUuid('id');
         Route::get('fleet', [FleetController::class, 'index']);
         Route::post('fleet/vehicles', [FleetController::class, 'vehicle']);
+        Route::put('fleet/vehicles/{id}/transport', [FleetController::class, 'transport'])->whereUuid('id');
         Route::post('fleet/vehicles/{id}/readiness', [FleetController::class, 'readiness'])->whereUuid('id');
         Route::post('fleet/drivers', [FleetController::class, 'driver']);
         Route::get('audit', [FleetController::class, 'audit']);

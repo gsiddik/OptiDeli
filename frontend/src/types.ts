@@ -60,12 +60,18 @@ export type Order = {
 export type Vehicle = {
   id: string;
   plate: string;
-  type: string;
+  type: string | null;
   status: string;
-  capacity_g: number;
-  length_mm: number;
-  width_mm: number;
-  height_mm: number;
+  capacity_g: number | null;
+  length_mm: number | null;
+  width_mm: number | null;
+  height_mm: number | null;
+  brand?: string | null;
+  model?: string | null;
+  vehicle_year?: number | null;
+  source?: "LOCAL" | "OPTIFLEET" | "OPTIRADAR";
+  transport_complete?: boolean;
+  carrier_type_id?: string | null;
   documents_valid_until: string | null;
   readiness_checked_at: string | null;
   vendor_id?: string | null;

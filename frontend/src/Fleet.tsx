@@ -1,5 +1,5 @@
 import { canOperate } from "./opsTypes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, useData } from "./api";
 import { useSession } from "./App";
 import { Badge, Empty, ErrorBox, Field, Form, Loading } from "./components";
@@ -17,6 +17,7 @@ export function FleetPage() {
   const [form, setForm] = useState(false);
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Vehicle>();
+  const [draft, setDraft] = useState<Vehicle>();
   const [status, setStatus] = useState("AVAILABLE");
   const [note, setNote] = useState("");
   return (
@@ -89,6 +90,19 @@ export function FleetPage() {
           )}
         </section>
       )}
+      {draft && (
+        <section className="card block">
+          <TransportForm
+            vehicle={draft}
+            onCancel={() => setDraft(undefined)}
+            onDone={() => {
+              setDraft(undefined);
+              state.refresh();
+              setNotice("Data angkutan kendaraan disimpan.");
+            }}
+          />
+        </section>
+      )}
       {selected && (
         <section className="card block">
           <h2>Pemeriksaan kesiapan · {selected.plate}</h2>
@@ -156,16 +170,38 @@ export function FleetPage() {
                         <tr key={v.id}>
                           <td>
                             <strong>{v.plate}</strong>
-                            <small>{v.carrier_type_label ?? v.type}</small>
+                            <small>
+                              {v.carrier_type_label ??
+                                v.type ??
+                                "Tipe angkutan belum diisi"}
+                            </small>
+                            {(v.brand || v.model) && (
+                              <small>
+                                {[v.brand, v.model, v.vehicle_year]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                              </small>
+                            )}
+                            {v.transport_complete === false && (
+                              <Badge value="DRAFT" />
+                            )}
                             {v.vendor_label && (
                               <small>Vendor {v.vendor_label}</small>
                             )}
                           </td>
                           <td>
-                            {(v.capacity_g / 1000).toLocaleString("id-ID")} kg
-                            <small>
-                              {v.length_mm} × {v.width_mm} × {v.height_mm} mm
-                            </small>
+                            {v.capacity_g === null ? (
+                              <span className="muted">Belum diisi</span>
+                            ) : (
+                              <>
+                                {(v.capacity_g / 1000).toLocaleString("id-ID")}{" "}
+                                kg
+                                <small>
+                                  {v.length_mm} × {v.width_mm} × {v.height_mm}{" "}
+                                  mm
+                                </small>
+                              </>
+                            )}
                           </td>
                           <td>{v.documents_valid_until ?? "—"}</td>
                           <td>
@@ -187,10 +223,24 @@ export function FleetPage() {
                             ) : (
                               <span className="muted">Belum dialokasikan</span>
                             )}
+                            {canOperate(session) && !v.vendor_id && (
+                              <button
+                                className="block-small"
+                                onClick={() => {
+                                  setSelected(undefined);
+                                  setDraft(v);
+                                }}
+                              >
+                                {v.transport_complete === false
+                                  ? "Lengkapi data angkutan"
+                                  : "Ubah data angkutan"}
+                              </button>
+                            )}
                             {canOperate(session) && (
                               <button
                                 className="block-small"
                                 onClick={() => {
+                                  setDraft(undefined);
                                   setSelected(v);
                                   setStatus(v.status);
                                   setNote("");
@@ -355,6 +405,122 @@ function VehicleForm({ onDone }: { onDone: () => void }) {
           Pendaftaran ini mencatat pernyataan kesiapan awal Anda. Validitas
           wajib diperiksa kembali sebelum dispatch.
         </p>
+      </Form>
+    </>
+  );
+}
+type CarrierOption = { id: string; code: string; name: string };
+function TransportForm({
+  vehicle,
+  onDone,
+  onCancel,
+}: {
+  vehicle: Vehicle;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [carriers, setCarriers] = useState<CarrierOption[]>([]);
+  const [carrier, setCarrier] = useState(vehicle.carrier_type_id ?? "");
+  const [capacity, setCapacity] = useState(vehicle.capacity_g ?? 1000000);
+  const [length, setLength] = useState(vehicle.length_mm ?? 4000);
+  const [width, setWidth] = useState(vehicle.width_mm ?? 2000);
+  const [height, setHeight] = useState(vehicle.height_mm ?? 2000);
+  const [expires, setExpires] = useState("");
+  useEffect(() => {
+    let live = true;
+    api<{ data: CarrierOption[] }>("master/carrier_types/options")
+      .then((r) => live && setCarriers(r.data))
+      .catch(() => live && setCarriers([]));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <>
+      <h2>
+        {vehicle.transport_complete === false
+          ? "Lengkapi data angkutan"
+          : "Ubah data angkutan"}{" "}
+        · {vehicle.plate}
+      </h2>
+      {vehicle.transport_complete === false && (
+        <p className="muted">
+          Kendaraan ini datang dari{" "}
+          {vehicle.source === "OPTIRADAR" ? "OptiRadar" : "OptiFleet"} dan belum
+          dapat dialokasikan sampai tipe angkutan dan dimensi muatnya diisi.
+        </p>
+      )}
+      <Form
+        label="Simpan data angkutan"
+        onSubmit={async () => {
+          await api(`fleet/vehicles/${vehicle.id}/transport`, "PUT", {
+            carrier_type_id: carrier,
+            capacity_g: capacity,
+            length_mm: length,
+            width_mm: width,
+            height_mm: height,
+            ...(expires ? { documents_valid_until: expires } : {}),
+          });
+          onDone();
+        }}
+      >
+        <div className="form-grid">
+          <Field label="Tipe angkutan">
+            <select
+              required
+              value={carrier}
+              onChange={(e) => setCarrier(e.target.value)}
+            >
+              <option value="">Pilih tipe angkutan</option>
+              {carriers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} · {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Kapasitas muatan (gram)">
+            <input
+              type="number"
+              required
+              min={1}
+              max={100000000}
+              step={1}
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.valueAsNumber)}
+            />
+          </Field>
+          <Field
+            label="Dokumen operasional berlaku sampai"
+            hint="Kosongkan bila tidak berubah."
+          >
+            <input
+              type="date"
+              value={expires}
+              onChange={(e) => setExpires(e.target.value)}
+            />
+          </Field>
+          {[
+            { label: "Panjang box (mm)", value: length, set: setLength },
+            { label: "Lebar box (mm)", value: width, set: setWidth },
+            { label: "Tinggi box (mm)", value: height, set: setHeight },
+          ].map((f) => (
+            <Field key={f.label} label={f.label}>
+              <input
+                type="number"
+                required
+                min={1}
+                max={20000}
+                step={1}
+                value={f.value}
+                onChange={(e) => f.set(e.target.valueAsNumber)}
+              />
+            </Field>
+          ))}
+        </div>
+        <button type="button" onClick={onCancel}>
+          Batal
+        </button>
       </Form>
     </>
   );

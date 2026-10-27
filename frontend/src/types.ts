@@ -90,6 +90,10 @@ export type Driver = {
   vendor_id?: string | null;
   vendor_label?: string | null;
   verification_status?: "PENDING" | "VERIFIED" | "REJECTED";
+  phone?: string | null;
+  source?: "LOCAL" | "OPTIRADAR";
+  profile_complete?: boolean;
+  radar_tag?: string | null;
 };
 export type Plan = {
   id: string;

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Domain\Dispatch\LocalFleetAvailability;
+use App\Domain\Integration\Master\DriverAssignments;
 use App\Domain\Integration\Master\MasterRelay;
 use App\Domain\Integration\Master\VehicleMaster;
 use App\Domain\Master\MasterDefaults;
@@ -210,5 +211,64 @@ class MasterSyncTest extends TestCase
         $this->nexus(202, []);
 
         $this->assertSame(1, app(MasterRelay::class)->relay(1)['delivered']);
+    }
+
+    private function radarDriver(int $version, array $over = []): array
+    {
+        return [
+            'event_id' => (string) Str::uuid(), 'event_type' => 'optiradar.driver.upserted', 'schema_version' => '1', 'source_system' => 'optiradar',
+            'tenant_id' => self::NEXUS_TENANT, 'occurred_at' => now()->toIso8601String(), 'correlation_id' => (string) Str::uuid(),
+            'data' => ['aggregate_type' => 'driver', 'aggregate_id' => '5', 'correlation' => [], 'payload' => $over + [
+                'key' => 'SIM123456', 'license_number' => 'sim-1234-56', 'name' => 'Budi', 'version' => $version, 'changed_at' => now()->toIso8601String(),
+                'telematics' => ['tag_id' => 'TAG-9'],
+            ]],
+        ];
+    }
+
+    public function test_a_driver_from_optiradar_is_a_draft_that_cannot_be_allocated_until_completed_and_is_not_sent_back(): void
+    {
+        $this->deliver($this->radarDriver(1))->assertStatus(202)->assertJson(['result' => 'created']);
+
+        $driver = DB::table('drivers')->where('tenant_id', $this->tenant)->sole();
+        $this->assertSame(['sim-1234-56', 'OPTIRADAR', false, 'TAG-9'], [$driver->license_number, $driver->source, $driver->profile_complete, $driver->radar_tag]);
+        $this->assertSame(0, DB::table('master_events')->count());
+        $vehicle = (object) ['active' => true, 'status' => 'AVAILABLE', 'transport_complete' => true, 'readiness_checked_at' => now(), 'documents_valid_until' => now()->addYear()->toDateString()];
+        try {
+            (new LocalFleetAvailability)->assertReady($vehicle, $driver, now()->addHours(2)->toImmutable());
+            $this->fail('a draft driver was accepted');
+        } catch (\Throwable $e) {
+            $this->assertStringContainsString('Data pengemudi belum dilengkapi', $e->getMessage());
+        }
+
+        $this->putJson("/api/v1/fleet/drivers/{$driver->id}/profile", ['license_valid_until' => now()->addYear()->toDateString(), 'eligibility_verified_until' => now()->addDays(30)->toIso8601String(), 'phone' => '0812'])->assertOk();
+        $this->assertTrue((bool) DB::table('drivers')->where('id', $driver->id)->value('profile_complete'));
+    }
+
+    public function test_a_known_driver_only_receives_the_tag_and_an_old_version_or_a_forged_producer_changes_nothing(): void
+    {
+        $id = (string) Str::uuid();
+        DB::table('drivers')->insert(['id' => $id, 'tenant_id' => $this->tenant, 'name' => 'Budi S', 'license_number' => 'SIM 1234 56', 'license_valid_until' => now()->addYear()->toDateString(), 'eligibility_verified_until' => now()->addYear(), 'active' => true]);
+
+        $this->deliver($this->radarDriver(10))->assertJson(['result' => 'applied']);
+        $this->deliver($this->radarDriver(9, ['telematics' => ['tag_id' => 'OLD']]))->assertJson(['result' => 'stale']);
+        $forged = $this->radarDriver(20);
+        $forged['source_system'] = 'optifleet';
+        $this->deliver($forged)->assertJson(['result' => 'ignored']);
+
+        $driver = DB::table('drivers')->where('id', $id)->first();
+        $this->assertSame(['Budi S', 'TAG-9', 1], [$driver->name, $driver->radar_tag, DB::table('drivers')->where('tenant_id', $this->tenant)->count()]);
+    }
+
+    public function test_a_vendors_vehicle_or_driver_is_never_published_as_an_assignment(): void
+    {
+        $vehicle = (string) Str::uuid();
+        $driver = (string) Str::uuid();
+        $vendor = (string) Str::uuid();
+        DB::table('vendors')->insert(['id' => $vendor, 'tenant_id' => $this->tenant, 'name' => 'V', 'code' => 'V1', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('vehicles')->insert(['id' => $vehicle, 'tenant_id' => $this->tenant, 'plate' => 'B 5 VV', 'type' => 'CDD', 'capacity_g' => 1, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1, 'vendor_id' => $vendor, 'verification_status' => 'PENDING']);
+        DB::table('drivers')->insert(['id' => $driver, 'tenant_id' => $this->tenant, 'name' => 'D', 'license_number' => 'X1', 'active' => true, 'vendor_id' => $vendor, 'verification_status' => 'PENDING']);
+
+        $this->assertFalse(DriverAssignments::publish($this->tenant, $vehicle, $driver, now(), 'SPM_TRIP', (string) Str::uuid(), 'PJ-1'));
+        $this->assertSame(0, DB::table('master_events')->count());
     }
 }

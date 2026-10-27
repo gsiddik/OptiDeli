@@ -3,6 +3,7 @@
 namespace App\Domain\Execution;
 
 use App\Domain\Dispatch\FleetAvailability;
+use App\Domain\Integration\Master\DriverAssignments;
 use App\Domain\Shared\TenantStore;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,7 @@ final class TripService
                 abort_unless(CarbonImmutable::parse($legs->last()->planned_eta)->lessThanOrEqualTo(CarbonImmutable::parse($plan->ends_at)), 422, 'ETA akhir leg melampaui jadwal kelayakan dispatch; buat rencana baru.');
                 $s->query('trips')->where('id', $id)->update(['status' => 'IN_TRANSIT', 'started_at' => now(), 'updated_at' => now()]);
                 $s->query('orders')->where('id', $trip->order_id)->update(['status' => 'IN_TRANSIT', 'updated_at' => now()]);
+                DriverAssignments::publish($s->tenantId, $trip->vehicle_id, $trip->driver_id, now(), DriverAssignments::ORDER_TRIP, $id, 'TRIP-'.strtoupper(substr($id, 0, 8)));
             } elseif ($action === 'complete') {
                 abort_unless($trip->status === 'ARRIVED', 409, 'Semua leg harus tiba sebelum penyelesaian.');
                 abort_if($s->query('dock_appointments')->where('trip_id', $id)->whereIn('status', ['GATE_IN', 'AT_DOCK', 'COMPLETED'])->exists(), 409, 'Catat gate-out yard sebelum penyelesaian.');

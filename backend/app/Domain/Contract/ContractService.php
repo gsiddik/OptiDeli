@@ -2,6 +2,7 @@
 
 namespace App\Domain\Contract;
 
+use App\Domain\Integration\Master\DriverAssignments;
 use App\Domain\Shared\TenantStore;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -10,6 +11,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 use Illuminate\Validation\ValidationException;
+use Ramsey\Uuid\Uuid;
 
 /**
  * Fixed-cost vehicle contracts. A contract dedicates a vehicle to a customer for a period: a monthly selling fee that includes some
@@ -188,6 +190,11 @@ final class ContractService
                     'id' => (string) Str::uuid(), 'tenant_id' => $this->store->tenantId, 'vehicle_id' => $d['vehicle_id'], 'driver_id' => $d['driver_id'] ?? null, 'work_date' => $day->toDateString(),
                     'status' => $d['status'], 'notes' => $d['notes'] ?? null, 'recorded_by' => $this->store->actorId, 'created_at' => now(), 'updated_at' => now(),
                 ]], ['tenant_id', 'vehicle_id', 'work_date'], ['driver_id', 'status', 'notes', 'recorded_by', 'updated_at']);
+                if ($d['status'] === 'PRESENT' && ($d['driver_id'] ?? null) !== null) {
+                    // One fact per vehicle and day, so recording a day again with another driver replaces the earlier one.
+                    DriverAssignments::publish($this->store->tenantId, $d['vehicle_id'], $d['driver_id'], $day->startOfDay(), DriverAssignments::ATTENDANCE,
+                        Uuid::uuid5(Uuid::NAMESPACE_OID, $this->store->tenantId.'|'.$d['vehicle_id'].'|'.$day->toDateString())->toString(), $day->toDateString());
+                }
                 $count++;
             }
             $this->store->event('attendance.recorded', $d['vehicle_id'], ['from' => $d['from'], 'to' => $d['to'], 'status' => $d['status'], 'days' => $count]);

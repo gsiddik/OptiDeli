@@ -4,6 +4,7 @@ namespace App\Domain\Planning;
 
 use App\Domain\Commercial\Margin;
 use App\Domain\Dispatch\FleetAvailability;
+use App\Domain\Integration\Master\DriverAssignments;
 use App\Domain\Shared\TenantStore;
 use App\Domain\Spm\DocumentNumbers;
 use App\Domain\Spm\SpmService;
@@ -328,6 +329,7 @@ final class TripPlanner
             $this->fleet->assertReady($this->store->find('vehicles', $trip->vehicle_id), $this->store->find('drivers', $trip->driver_id), CarbonImmutable::parse($trip->ends_at)->max(now()), CarbonImmutable::now());
             DB::table('spm_trips')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['status' => 'IN_TRANSIT', 'started_at' => now(), 'updated_at' => now()]);
             $this->store->event('spm_trip.started', $id, ['number' => $trip->number]);
+            DriverAssignments::publish($this->store->tenantId, $trip->vehicle_id, $trip->driver_id, now(), DriverAssignments::SPM_TRIP, $id, $trip->number);
 
             return $this->show($id);
         }, 3);

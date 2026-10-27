@@ -67,6 +67,7 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
         Route::put('fleet/vehicles/{id}/transport', [FleetController::class, 'transport'])->whereUuid('id');
         Route::post('fleet/vehicles/{id}/readiness', [FleetController::class, 'readiness'])->whereUuid('id');
         Route::post('fleet/drivers', [FleetController::class, 'driver']);
+        Route::put('fleet/drivers/{id}/profile', [FleetController::class, 'driverProfile'])->whereUuid('id');
         Route::get('audit', [FleetController::class, 'audit']);
         require __DIR__.'/operations.php';
         require __DIR__.'/master.php';

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Integration\Fleet\FleetEventReceiver;
+use App\Domain\Integration\Master\DriverMaster;
 use App\Domain\Integration\Master\VehicleMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -91,12 +92,33 @@ class FleetController extends Controller
         $s = OrderController::storeFor($request);
         $id = (string) Str::uuid();
         DB::transaction(function () use ($s, $id, $data) {
-            abort_if($s->query('drivers')->where('license_number', $data['license_number'])->exists(), 422, 'Nomor SIM sudah terdaftar.');
+            DB::table('tenants')->where('id', $s->tenantId)->lockForUpdate()->firstOrFail();
+            abort_if($s->query('drivers')->whereRaw("regexp_replace(upper(license_number), '[^A-Z0-9]', '', 'g') = ?", [DriverMaster::key($data['license_number'])])->exists(), 422, 'Nomor SIM sudah terdaftar.');
             DB::table('drivers')->insert([...$data, 'id' => $id, 'tenant_id' => $s->tenantId, 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
             $s->event('driver.registered', $id, ['eligibility_verified_until' => $data['eligibility_verified_until']]);
         });
 
         return response()->json(['data' => $s->find('drivers', $id)], 201);
+    }
+
+    /** The licence validity and eligibility of a driver that came from another platform as a draft (or a correction of the tenant's own driver). */
+    public function driverProfile(Request $request, string $id)
+    {
+        OrderController::writeAccess($request);
+        $s = OrderController::storeFor($request);
+        $data = $request->validate([
+            'license_valid_until' => 'required|date_format:Y-m-d|after_or_equal:today', 'eligibility_verified_until' => 'required|date',
+            'phone' => 'nullable|string|max:40', 'name' => 'nullable|string|max:150',
+        ]);
+        DB::transaction(function () use ($s, $id, $data) {
+            DB::table('tenants')->where('id', $s->tenantId)->lockForUpdate()->firstOrFail();
+            $d = $s->find('drivers', $id, true);
+            abort_if($d->vendor_id !== null, 422, 'Data pengemudi vendor dikelola vendor.');
+            $s->query('drivers')->where('id', $id)->update(array_filter([...$data, 'profile_complete' => true, 'updated_at' => now()], fn ($x) => $x !== null));
+            $s->event('driver.profile_completed', $id, ['license_valid_until' => $data['license_valid_until']]);
+        });
+
+        return response()->json(['data' => $s->find('drivers', $id)]);
     }
 
     public function audit(Request $request)

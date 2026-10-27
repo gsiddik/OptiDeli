@@ -4,7 +4,7 @@ import { api, useData } from "./api";
 import { useSession } from "./App";
 import { Badge, Empty, ErrorBox, Field, Form, Loading } from "./components";
 import { dateTime } from "./commercial";
-import type { Fleet, Vehicle } from "./types";
+import type { Driver, Fleet, Vehicle } from "./types";
 const localFuture = () => {
   const d = new Date(Date.now() + 86400000);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -18,6 +18,7 @@ export function FleetPage() {
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Vehicle>();
   const [draft, setDraft] = useState<Vehicle>();
+  const [driverDraft, setDriverDraft] = useState<Driver>();
   const [status, setStatus] = useState("AVAILABLE");
   const [note, setNote] = useState("");
   return (
@@ -99,6 +100,19 @@ export function FleetPage() {
               setDraft(undefined);
               state.refresh();
               setNotice("Data angkutan kendaraan disimpan.");
+            }}
+          />
+        </section>
+      )}
+      {driverDraft && (
+        <section className="card block">
+          <DriverProfileForm
+            driver={driverDraft}
+            onCancel={() => setDriverDraft(undefined)}
+            onDone={() => {
+              setDriverDraft(undefined);
+              state.refresh();
+              setNotice("Data pengemudi disimpan.");
             }}
           />
         </section>
@@ -280,6 +294,10 @@ export function FleetPage() {
                             {d.vendor_label && (
                               <small>Vendor {d.vendor_label}</small>
                             )}
+                            {d.profile_complete === false && (
+                              <Badge value="DRAFT" />
+                            )}
+                            {d.radar_tag && <small>Tag {d.radar_tag}</small>}
                           </td>
                           <td>{d.license_number}</td>
                           <td>{d.license_valid_until ?? "—"}</td>
@@ -298,6 +316,20 @@ export function FleetPage() {
                               <Badge value="ALLOCATED" />
                             ) : (
                               <Badge value="AVAILABLE" />
+                            )}
+                            {canOperate(session) && !d.vendor_id && (
+                              <button
+                                className="block-small"
+                                onClick={() => {
+                                  setSelected(undefined);
+                                  setDraft(undefined);
+                                  setDriverDraft(d);
+                                }}
+                              >
+                                {d.profile_complete === false
+                                  ? "Lengkapi data pengemudi"
+                                  : "Ubah data pengemudi"}
+                              </button>
                             )}
                           </td>
                         </tr>
@@ -517,6 +549,75 @@ function TransportForm({
               />
             </Field>
           ))}
+        </div>
+        <button type="button" onClick={onCancel}>
+          Batal
+        </button>
+      </Form>
+    </>
+  );
+}
+function DriverProfileForm({
+  driver,
+  onDone,
+  onCancel,
+}: {
+  driver: Driver;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [expires, setExpires] = useState(driver.license_valid_until ?? "");
+  const [verified, setVerified] = useState(localFuture);
+  const [phone, setPhone] = useState(driver.phone ?? "");
+  return (
+    <>
+      <h2>
+        {driver.profile_complete === false
+          ? "Lengkapi data pengemudi"
+          : "Ubah data pengemudi"}{" "}
+        · {driver.name}
+      </h2>
+      {driver.profile_complete === false && (
+        <p className="muted">
+          Pengemudi ini datang dari OptiRadar dan belum dapat dialokasikan
+          sampai masa berlaku SIM dan kelayakannya diisi.
+        </p>
+      )}
+      <Form
+        label="Simpan data pengemudi"
+        onSubmit={async () => {
+          await api(`fleet/drivers/${driver.id}/profile`, "PUT", {
+            license_valid_until: expires,
+            eligibility_verified_until: new Date(verified).toISOString(),
+            ...(phone ? { phone } : {}),
+          });
+          onDone();
+        }}
+      >
+        <div className="form-grid">
+          <Field label="SIM berlaku sampai">
+            <input
+              type="date"
+              required
+              value={expires}
+              onChange={(e) => setExpires(e.target.value)}
+            />
+          </Field>
+          <Field label="Kelayakan operasi diverifikasi sampai">
+            <input
+              type="datetime-local"
+              required
+              value={verified}
+              onChange={(e) => setVerified(e.target.value)}
+            />
+          </Field>
+          <Field label="Telepon">
+            <input
+              maxLength={40}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </Field>
         </div>
         <button type="button" onClick={onCancel}>
           Batal

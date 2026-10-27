@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Integration\Fleet\FleetEventReceiver;
 use App\Domain\Integration\Fleet\WebhookSignature;
+use App\Domain\Integration\Master\DriverMaster;
 use App\Domain\Integration\Master\VehicleMaster;
 use App\Domain\Integration\Optinexus\TenantProvisioner;
 use App\Http\Controllers\Controller;
@@ -17,7 +18,7 @@ use Illuminate\Http\Request;
  */
 class OptinexusEventController extends Controller
 {
-    public function receive(Request $request, FleetEventReceiver $fleet, TenantProvisioner $tenants, VehicleMaster $master): JsonResponse
+    public function receive(Request $request, FleetEventReceiver $fleet, TenantProvisioner $tenants, VehicleMaster $master, DriverMaster $drivers): JsonResponse
     {
         $valid = WebhookSignature::valid(
             (string) config('optideli.optinexus.events.webhook_secret'),
@@ -40,6 +41,7 @@ class OptinexusEventController extends Controller
         $result = match (true) {
             $tenants->handles($event) => $tenants->provision($event),
             ($event['event_type'] ?? null) === VehicleMaster::RECEIVED => $master->apply($event),
+            ($event['event_type'] ?? null) === DriverMaster::RECEIVED => $drivers->apply($event),
             default => $fleet->apply($event),
         };
 

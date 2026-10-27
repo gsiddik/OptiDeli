@@ -342,4 +342,21 @@ class PlanningTest extends TestCase
         DB::table('memberships')->insert(['tenant_id' => $tenant2, 'user_id' => $other->id, 'role' => 'dispatcher', 'active' => true]);
         $this->actingAs($other)->withSession(['tenant_id' => $tenant2])->getJson("/api/v1/spm-trips/{$t}")->assertNotFound();
     }
+
+    public function test_a_trip_that_leaves_tells_the_other_platforms_who_drives_the_vehicle(): void
+    {
+        DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => '6f1d2c3b-1111-4a5b-8c9d-0123456789ab']);
+        $spm = $this->spm();
+        $t = $this->trip($spm, [$spm['a']['id']])->assertCreated()->json('data');
+        $id = $t['trip']['id'];
+        $this->assertSame(0, DB::table('master_events')->where('event_key', 'optideli.vehicle.driver_assigned')->count(), 'planning is not using');
+
+        $this->as($this->dispatcher)->postJson("/api/v1/spm-trips/{$id}/start")->assertOk();
+
+        $event = DB::table('master_events')->where('event_key', 'optideli.vehicle.driver_assigned')->sole();
+        $payload = json_decode($event->payload, true);
+        $this->assertSame(['B1111AA', 'Budi', 'SPM_TRIP'], [$payload['key'], $payload['driver']['name'], $payload['reference']['type']]);
+        $this->assertStringStartsWith('****', $payload['driver']['license_masked']);
+        $this->assertStringNotContainsString(DB::table('drivers')->where('id', $this->m['d1'])->value('license_number'), $event->payload);
+    }
 }

@@ -2,8 +2,8 @@
 
 namespace App\Domain\Fleet;
 
-use App\Domain\Shared\TenantStore;
 use App\Domain\Integration\Master\VendorMaster;
+use App\Domain\Shared\TenantStore;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;

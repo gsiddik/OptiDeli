@@ -2,9 +2,9 @@
 
 namespace App\Domain\Fleet;
 
+use App\Domain\Integration\Master\VendorMaster;
 use App\Domain\Shared\TenantStore;
 use Illuminate\Http\UploadedFile;
-use App\Domain\Integration\Master\VendorMaster;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -79,12 +79,21 @@ final class VendorFleet
             'carrier_type_id' => ['required', 'uuid', Rule::exists('carrier_types', 'id')->where('tenant_id', $this->store->tenantId)->where('active', true)],
             'capacity_kg' => 'required|numeric|min:1|max:100000',
             'length_mm' => 'required|integer|min:1|max:20000', 'width_mm' => 'required|integer|min:1|max:20000', 'height_mm' => 'required|integer|min:1|max:20000',
-        ], [], ['plate' => 'Nomor kendaraan', 'carrier_type_id' => 'Tipe kendaraan', 'capacity_kg' => 'Kapasitas', 'length_mm' => 'Panjang', 'width_mm' => 'Lebar', 'height_mm' => 'Tinggi'])->validate();
+            'tracker_id' => ['nullable', 'string', 'max:80', 'regex:/^[A-Za-z0-9][A-Za-z0-9._:-]*$/'],
+        ], [], ['tracker_id' => 'ID perangkat pelacak', 'plate' => 'Nomor kendaraan', 'carrier_type_id' => 'Tipe kendaraan', 'capacity_kg' => 'Kapasitas', 'length_mm' => 'Panjang', 'width_mm' => 'Lebar', 'height_mm' => 'Tinggi'])->validate();
         $d['plate'] = Str::upper(preg_replace('/\s+/', ' ', trim($d['plate'])));
         $d['capacity_g'] = (int) round($d['capacity_kg'] * 1000);
         unset($d['capacity_kg']);
 
         return $d;
+    }
+
+    private function assertTrackerFree(?string $tracker, ?string $exceptId): void
+    {
+        if ($tracker !== null && $tracker !== '' && $this->store->query('vehicles')->whereRaw('lower(tracker_id) = ?', [mb_strtolower($tracker)])
+            ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))->exists()) {
+            $this->fail('tracker_id', 'ID perangkat pelacak sudah dipakai kendaraan lain.');
+        }
     }
 
     public function registerVehicle(array $input): object
@@ -96,6 +105,7 @@ final class VendorFleet
             if ($this->store->query('vehicles')->where('plate', $d['plate'])->exists()) {
                 $this->fail('plate', 'Nomor kendaraan sudah terdaftar.');
             }
+            $this->assertTrackerFree($d['tracker_id'] ?? null, null);
             $id = (string) Str::uuid();
             $type = $this->store->query('carrier_types')->where('id', $d['carrier_type_id'])->value('name');
             DB::table('vehicles')->insert($d + [
@@ -120,7 +130,9 @@ final class VendorFleet
                 $this->fail('plate', 'Nomor kendaraan sudah terdaftar.');
             }
             $type = $this->store->query('carrier_types')->where('id', $d['carrier_type_id'])->value('name');
-            $changed = collect($d)->contains(fn ($v, $k) => (string) $vehicle->{$k} !== (string) $v);
+            // The tracker identifier is not what the tenant verified (documents, type, size): changing it does not ask for a new verification.
+            $changed = collect($d)->except('tracker_id')->contains(fn ($v, $k) => (string) $vehicle->{$k} !== (string) $v);
+            $this->assertTrackerFree($d['tracker_id'] ?? null, $id);
             $update = $d + ['type' => $type, 'updated_at' => now()];
             if ($changed && $vehicle->verification_status !== 'PENDING') {
                 // What the tenant verified is no longer what is registered.
@@ -128,6 +140,9 @@ final class VendorFleet
             }
             DB::table('vehicles')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update($update);
             $this->store->event('vendor_vehicle.updated', $id, ['plate' => $d['plate'], 'reverification' => $changed && $vehicle->verification_status !== 'PENDING']);
+            if (! $changed) {
+                VendorMaster::publish($this->store->tenantId, 'VEHICLE', $id); // a changed tracker identifier reaches OptiRadar (only a verified vehicle is published)
+            }
 
             return $this->store->find('vehicles', $id);
         }, 3);

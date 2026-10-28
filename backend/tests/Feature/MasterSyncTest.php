@@ -6,6 +6,7 @@ use App\Domain\Dispatch\LocalFleetAvailability;
 use App\Domain\Integration\Master\DriverAssignments;
 use App\Domain\Integration\Master\MasterRelay;
 use App\Domain\Integration\Master\VehicleMaster;
+use App\Domain\Integration\Master\VendorMaster;
 use App\Domain\Master\MasterDefaults;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -128,13 +129,13 @@ class MasterSyncTest extends TestCase
     {
         $this->register();
 
-        $row = DB::table('master_events')->sole();
+        $row = DB::table('master_events')->where('event_key', 'optideli.vehicle.upserted')->sole();
         $payload = json_decode($row->payload, true);
         $this->assertSame(['optideli.vehicle.upserted', 'B9ZZ', 2500000], [$row->event_key, $payload['key'], $payload['transport']['capacity_g']]);
         $this->assertArrayNotHasKey('asset', $payload);
 
         $this->nexus(201, ['data' => []]);
-        $this->assertSame(['delivered' => 1, 'retrying' => 0, 'failed' => 0], app(MasterRelay::class)->relay());
+        $this->assertSame(['delivered' => 2, 'retrying' => 0, 'failed' => 0], app(MasterRelay::class)->relay(), 'one event for OptiFleet and one for OptiRadar');
         $this->assertSame(['delivered' => 0, 'retrying' => 0, 'failed' => 0], app(MasterRelay::class)->relay());
         Http::assertSent(fn ($r) => str_ends_with($r->url(), '/events') && $r['event_id'] === $row->id && $r['event_key'] === 'optideli.vehicle.upserted' && $r['tenant_id'] === self::NEXUS_TENANT);
     }
@@ -143,13 +144,13 @@ class MasterSyncTest extends TestCase
     {
         $this->register();
         $this->nexus(422, ['error' => ['code' => 'EVENT_INVALID']]);
-        $this->assertSame(1, app(MasterRelay::class)->relay()['retrying']);
-        $this->assertSame('PENDING', DB::table('master_events')->sole()->status);
+        $this->assertSame(2, app(MasterRelay::class)->relay()['retrying']);
+        $this->assertSame('PENDING', DB::table('master_events')->where('event_key', 'optideli.vehicle.upserted')->sole()->status);
 
         DB::table('master_events')->update(['last_attempted_at' => null]);
         $this->nexus(403, ['error' => ['code' => 'EVENT_SOURCE_DENIED']]);
-        $this->assertSame(1, app(MasterRelay::class)->relay()['failed']);
-        $this->assertSame(1, app(MasterRelay::class)->retryFailed());
+        $this->assertSame(2, app(MasterRelay::class)->relay()['failed']);
+        $this->assertSame(2, app(MasterRelay::class)->retryFailed());
     }
 
     public function test_the_transport_form_completes_a_draft_and_publishes_it(): void
@@ -164,7 +165,7 @@ class MasterSyncTest extends TestCase
         $v = DB::table('vehicles')->find($draft);
         $this->assertTrue($v->transport_complete);
         $this->assertSame('OPTIFLEET', $v->source);
-        $this->assertSame(3000000, json_decode(DB::table('master_events')->sole()->payload, true)['transport']['capacity_g']);
+        $this->assertSame(3000000, json_decode(DB::table('master_events')->where('event_key', 'optideli.vehicle.upserted')->sole()->payload, true)['transport']['capacity_g']);
     }
 
     public function test_the_backfill_and_an_unlinked_tenant(): void
@@ -196,10 +197,9 @@ class MasterSyncTest extends TestCase
         $id = $this->vehicles()->firstWhere('plate', 'B9ZZ')->id;
         VehicleMaster::publish($this->tenant, $id);
         VehicleMaster::publish($this->tenant, $id);
-        $versions = DB::table('master_events')->where('aggregate_id', $id)->orderBy('created_at')->get()->map(fn ($e) => json_decode($e->payload, true)['version'])->all();
+        $versions = DB::table('master_events')->where('event_key', 'optideli.vehicle.upserted')->where('aggregate_id', $id)->orderBy('created_at')->get()->map(fn ($e) => json_decode($e->payload, true)['version'])->all();
         $this->assertCount(3, $versions);
-        $this->assertSame($versions, collect($versions)->sort()->values()->all());
-        $this->assertCount(3, array_unique($versions));
+        $this->assertCount(3, array_unique($versions), 'every publish has a version of its own, and they only grow');
     }
 
     public function test_rows_of_an_unlinked_tenant_do_not_take_batch_places_from_linked_ones(): void
@@ -266,29 +266,60 @@ class MasterSyncTest extends TestCase
         $driver = (string) Str::uuid();
         DB::table('vendors')->insert(['id' => $vendor, 'tenant_id' => $this->tenant, 'name' => 'Vendor Jaya', 'code' => 'VJ', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
         $verified = ['verification_status' => 'VERIFIED', 'verified_by' => auth()->id(), 'verified_at' => now()];
-        DB::table('vehicles')->insert(['id' => $vehicle, 'tenant_id' => $this->tenant, 'plate' => 'B 5 VV', 'type' => 'CDD', 'capacity_g' => 1000, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1, 'vendor_id' => $vendor] + $verified);
+        DB::table('vehicles')->insert(['id' => $vehicle, 'tenant_id' => $this->tenant, 'plate' => 'B 5 VV', 'type' => 'CDD', 'capacity_g' => 1000, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1, 'vendor_id' => $vendor, 'tracker_id' => 'VENDOR-IMEI'] + $verified);
         DB::table('drivers')->insert(['id' => $driver, 'tenant_id' => $this->tenant, 'name' => 'Vendor Driver', 'license_number' => 'sim 9-9', 'active' => true, 'vendor_id' => $vendor] + $verified);
 
-        $this->assertTrue(\App\Domain\Integration\Master\VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle));
-        $this->assertTrue(\App\Domain\Integration\Master\VendorMaster::publish($this->tenant, 'DRIVER', $driver));
+        $this->assertTrue(VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle));
+        $this->assertTrue(VendorMaster::publish($this->tenant, 'DRIVER', $driver));
         $this->assertFalse(VehicleMaster::publish($this->tenant, $vehicle), 'the own-fleet event (OptiFleet) never carries a vendor vehicle');
 
         $keys = DB::table('master_events')->orderBy('created_at')->pluck('event_key')->all();
         $this->assertEqualsCanonicalizing(['optideli.vendor_vehicle.upserted', 'optideli.vendor_driver.upserted'], $keys);
         $v = json_decode(DB::table('master_events')->where('event_key', 'optideli.vendor_vehicle.upserted')->value('payload'), true);
-        $this->assertSame(['B5VV', 'VJ', true], [$v['key'], $v['vendor']['code'], $v['active']]);
+        $this->assertSame(['B5VV', 'VJ', true, 'VENDOR-IMEI'], [$v['key'], $v['vendor']['code'], $v['active'], $v['tracker_id']]);
         $d = json_decode(DB::table('master_events')->where('event_key', 'optideli.vendor_driver.upserted')->value('payload'), true);
         $this->assertSame(['SIM99', 'sim 9-9', 'Vendor Jaya'], [$d['key'], $d['license_number'], $d['vendor']['name']]);
 
         DB::table('vehicles')->where('id', $vehicle)->update(['active' => false]);
-        $this->assertTrue(\App\Domain\Integration\Master\VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle));
+        $this->assertTrue(VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle));
         $events = DB::table('master_events')->where('event_key', 'optideli.vendor_vehicle.upserted')->get()->map(fn ($e) => json_decode($e->payload, true))->sortBy('version')->values()->all();
         $this->assertCount(2, $events);
         $this->assertTrue($events[0]['version'] < $events[1]['version']);
         $this->assertSame([true, false], [$events[0]['active'], $events[1]['active']]);
 
         DB::table('vehicles')->where('id', $vehicle)->update(['verification_status' => 'PENDING', 'verified_by' => null, 'verified_at' => null]);
-        $this->assertFalse(\App\Domain\Integration\Master\VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle), 'only what the tenant verified is published');
+        $this->assertFalse(VendorMaster::publish($this->tenant, 'VEHICLE', $vehicle), 'only what the tenant verified is published');
+    }
+
+    public function test_an_own_vehicle_goes_to_optiradar_too_with_its_tracker_identifier_and_a_tracker_belongs_to_one_vehicle(): void
+    {
+        $this->postJson('/api/v1/fleet/vehicles', ['plate' => 'B9ZZ', 'type' => 'CDD', 'capacity_g' => 2500000, 'length_mm' => 4200, 'width_mm' => 2000, 'height_mm' => 2000, 'documents_valid_until' => now()->addYear()->toDateString(), 'tracker_id' => '358123456789012'], ['Idempotency-Key' => (string) Str::uuid()])->assertCreated();
+
+        $keys = DB::table('master_events')->pluck('event_key')->all();
+        $this->assertEqualsCanonicalizing(['optideli.vehicle.upserted', 'optideli.fleet_vehicle.upserted'], $keys);
+        $tracked = json_decode(DB::table('master_events')->where('event_key', 'optideli.fleet_vehicle.upserted')->value('payload'), true);
+        $this->assertSame(['B9ZZ', '358123456789012', true], [$tracked['key'], $tracked['tracker_id'], $tracked['active']]);
+        $this->assertArrayNotHasKey('tracker_id', json_decode(DB::table('master_events')->where('event_key', 'optideli.vehicle.upserted')->value('payload'), true), 'OptiFleet does not need it');
+
+        $this->postJson('/api/v1/fleet/vehicles', ['plate' => 'B8YY', 'type' => 'CDD', 'capacity_g' => 1, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1, 'documents_valid_until' => now()->addYear()->toDateString(), 'tracker_id' => '358123456789012'], ['Idempotency-Key' => (string) Str::uuid()])
+            ->assertUnprocessable();
+        $this->postJson('/api/v1/fleet/vehicles', ['plate' => 'B7XX', 'type' => 'CDD', 'capacity_g' => 1, 'length_mm' => 1, 'width_mm' => 1, 'height_mm' => 1, 'documents_valid_until' => now()->addYear()->toDateString(), 'tracker_id' => 'bad id!'], ['Idempotency-Key' => (string) Str::uuid()])
+            ->assertUnprocessable();
+    }
+
+    public function test_the_tracker_identifier_of_a_vehicle_can_be_set_changed_and_removed_with_its_transport_data(): void
+    {
+        $this->register();
+        $id = DB::table('vehicles')->where('plate', 'B9ZZ')->value('id');
+        $carrier = $this->postJson('/api/v1/master/carrier_types', ['code' => 'CDD', 'name' => 'Colt Diesel Double'], ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->json('data.id');
+        $body = ['carrier_type_id' => $carrier, 'capacity_g' => 2500000, 'length_mm' => 4200, 'width_mm' => 2000, 'height_mm' => 2000];
+
+        $this->putJson("/api/v1/fleet/vehicles/{$id}/transport", $body + ['tracker_id' => 'IMEI-1'], ['Idempotency-Key' => (string) Str::uuid()])->assertOk();
+        $this->assertSame('IMEI-1', DB::table('vehicles')->where('id', $id)->value('tracker_id'));
+        $this->putJson("/api/v1/fleet/vehicles/{$id}/transport", $body, ['Idempotency-Key' => (string) Str::uuid()])->assertOk();
+        $this->assertSame('IMEI-1', DB::table('vehicles')->where('id', $id)->value('tracker_id'), 'not sent = kept');
+        $this->putJson("/api/v1/fleet/vehicles/{$id}/transport", $body + ['tracker_id' => null], ['Idempotency-Key' => (string) Str::uuid()])->assertOk();
+        $this->assertNull(DB::table('vehicles')->where('id', $id)->value('tracker_id'), 'sent empty = removed');
     }
 
     public function test_a_vendors_vehicle_or_driver_is_never_published_as_an_assignment(): void

@@ -20,6 +20,9 @@ final class VehicleMaster
 
     public const RECEIVED = 'optifleet.vehicle.upserted';
 
+    /** The same vehicle for OptiRadar, which is told about the tenant's own fleet and about a vendor's (VendorMaster). OptiFleet does not subscribe to it. */
+    public const TRACKED = 'optideli.fleet_vehicle.upserted';
+
     /** Queues the vehicle's transport data for the other platforms. Does nothing for an unlinked tenant, a vendor's vehicle, or a draft that came from another platform and has no transport data yet. */
     public static function publish(string $tenantId, string $vehicleId): bool
     {
@@ -38,6 +41,19 @@ final class VehicleMaster
             'payload' => json_encode([
                 'key' => FleetEventReceiver::key($vehicle->plate), 'registration_number' => $vehicle->plate,
                 'version' => $version, 'changed_at' => CarbonImmutable::now('UTC')->toIso8601String(),
+                'transport' => [
+                    'carrier_type_code' => $carrier, 'capacity_g' => $vehicle->capacity_g,
+                    'length_mm' => $vehicle->length_mm, 'width_mm' => $vehicle->width_mm, 'height_mm' => $vehicle->height_mm,
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+        ]);
+        DB::table('master_events')->insert([
+            'id' => (string) Str::uuid(), 'tenant_id' => $tenantId, 'event_key' => self::TRACKED, 'aggregate_id' => $vehicleId,
+            'payload' => json_encode([
+                'key' => FleetEventReceiver::key($vehicle->plate), 'registration_number' => $vehicle->plate,
+                'version' => $version + 1, 'changed_at' => CarbonImmutable::now('UTC')->toIso8601String(),
+                'active' => (bool) $vehicle->active, 'tracker_id' => $vehicle->tracker_id,
                 'transport' => [
                     'carrier_type_code' => $carrier, 'capacity_g' => $vehicle->capacity_g,
                     'length_mm' => $vehicle->length_mm, 'width_mm' => $vehicle->width_mm, 'height_mm' => $vehicle->height_mm,

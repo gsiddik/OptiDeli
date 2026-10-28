@@ -44,7 +44,7 @@ final class VendorMaster
         ];
         if ($type === 'VEHICLE') {
             $carrier = $row->carrier_type_id ? DB::table('carrier_types')->where('tenant_id', $tenantId)->where('id', $row->carrier_type_id)->value('code') : null;
-            $payload += ['registration_number' => $row->plate, 'transport' => [
+            $payload += ['registration_number' => $row->plate, 'tracker_id' => $row->tracker_id, 'transport' => [
                 'carrier_type_code' => $carrier, 'capacity_g' => $row->capacity_g, 'length_mm' => $row->length_mm, 'width_mm' => $row->width_mm, 'height_mm' => $row->height_mm,
             ]];
         } else {

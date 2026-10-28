@@ -28,13 +28,26 @@ class FleetController extends Controller
         return response()->json(['data' => ['vehicles' => $vehicles, 'drivers' => $drivers, 'allocations' => $s->query('trips')->where('active', true)->get()]]);
     }
 
+    private const TRACKER_RULES = ['nullable', 'string', 'max:80', 'regex:/^[A-Za-z0-9][A-Za-z0-9._:-]*$/'];
+
+    /** One tracker identifier belongs to one vehicle of the tenant (any case): two vehicles on one device would share its position. */
+    private static function assertTrackerFree(object $store, ?string $tracker, ?string $exceptVehicleId): void
+    {
+        if ($tracker === null || $tracker === '') {
+            return;
+        }
+        abort_if($store->query('vehicles')->whereRaw('lower(tracker_id) = ?', [mb_strtolower($tracker)])->when($exceptVehicleId, fn ($q) => $q->where('id', '!=', $exceptVehicleId))->exists(),
+            422, 'ID perangkat pelacak sudah dipakai kendaraan lain.');
+    }
+
     public function vehicle(Request $request)
     {
         OrderController::writeAccess($request);
-        $data = $request->validate(['plate' => 'required|string|max:30', 'type' => 'required|string|max:80', 'capacity_g' => 'required|integer|min:1|max:100000000', 'length_mm' => 'required|integer|min:1|max:20000', 'width_mm' => 'required|integer|min:1|max:20000', 'height_mm' => 'required|integer|min:1|max:20000', 'documents_valid_until' => 'required|date_format:Y-m-d|after_or_equal:today']);
+        $data = $request->validate(['plate' => 'required|string|max:30', 'type' => 'required|string|max:80', 'capacity_g' => 'required|integer|min:1|max:100000000', 'length_mm' => 'required|integer|min:1|max:20000', 'width_mm' => 'required|integer|min:1|max:20000', 'height_mm' => 'required|integer|min:1|max:20000', 'documents_valid_until' => 'required|date_format:Y-m-d|after_or_equal:today', 'tracker_id' => self::TRACKER_RULES]);
         $s = OrderController::storeFor($request);
         $id = (string) Str::uuid();
         DB::transaction(function () use ($s, $id, $data) {
+            self::assertTrackerFree($s, $data['tracker_id'] ?? null, null);
             // Same plate as another platform announced, with other spacing or dashes, is the same vehicle (apply() matches on the key).
             DB::table('tenants')->where('id', $s->tenantId)->lockForUpdate()->firstOrFail();
             abort_if($s->query('vehicles')->whereRaw("regexp_replace(upper(plate), '[^A-Z0-9]', '', 'g') = ?", [FleetEventReceiver::key($data['plate'])])->exists(), 422, 'Nomor kendaraan sudah terdaftar.');
@@ -55,14 +68,17 @@ class FleetController extends Controller
             'carrier_type_id' => ['required', 'uuid', Rule::exists('carrier_types', 'id')->where('tenant_id', $s->tenantId)],
             'capacity_g' => 'required|integer|min:1|max:100000000', 'length_mm' => 'required|integer|min:1|max:20000',
             'width_mm' => 'required|integer|min:1|max:20000', 'height_mm' => 'required|integer|min:1|max:20000',
-            'documents_valid_until' => 'nullable|date_format:Y-m-d|after_or_equal:today',
+            'documents_valid_until' => 'nullable|date_format:Y-m-d|after_or_equal:today', 'tracker_id' => self::TRACKER_RULES,
         ]);
-        DB::transaction(function () use ($s, $id, $data) {
+        DB::transaction(function () use ($s, $id, $data, $request) {
             DB::table('tenants')->where('id', $s->tenantId)->lockForUpdate()->firstOrFail();
             $v = $s->find('vehicles', $id, true);
             abort_if($v->vendor_id !== null, 422, 'Data kendaraan vendor dikelola vendor.');
             $type = $s->query('carrier_types')->where('id', $data['carrier_type_id'])->value('name');
-            $s->query('vehicles')->where('id', $id)->update(array_filter([...$data, 'type' => $type, 'transport_complete' => true, 'updated_at' => now()], fn ($x) => $x !== null));
+            $tracker = $request->has('tracker_id') ? ['tracker_id' => $data['tracker_id'] ?? null] : []; // sent empty = removed; not sent = kept
+            self::assertTrackerFree($s, $tracker['tracker_id'] ?? null, $id);
+            unset($data['tracker_id']);
+            $s->query('vehicles')->where('id', $id)->update(array_filter([...$data, 'type' => $type, 'transport_complete' => true, 'updated_at' => now()], fn ($x) => $x !== null) + $tracker);
             $s->event('vehicle.transport_updated', $id, ['carrier_type_id' => $data['carrier_type_id']]);
             VehicleMaster::publish($s->tenantId, $id);
         });

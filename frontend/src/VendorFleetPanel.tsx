@@ -23,6 +23,7 @@ export type VendorVehicle = Common & {
   plate: string;
   carrier_type_id: string | null;
   carrier_type_label: string | null;
+  tracker_id?: string | null;
   capacity_g: number;
   length_mm: number;
   width_mm: number;
@@ -141,6 +142,14 @@ export function VendorFleetPanel() {
       label: "Tinggi bak (mm)",
       kind: "number",
       value: v ? String(v.height_mm) : "",
+    },
+    {
+      name: "tracker_id",
+      label: "ID perangkat pelacak (IMEI)",
+      kind: "text",
+      required: false,
+      hint: "Opsional. ID yang dikirim perangkat GPS/IoT di kendaraan ini, mis. IMEI 15 digit. Dipakai agar kendaraan langsung terpantau di OptiRadar.",
+      value: v?.tracker_id ?? "",
     },
   ];
 

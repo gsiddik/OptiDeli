@@ -72,6 +72,7 @@ export type Vehicle = {
   source?: "LOCAL" | "OPTIFLEET" | "OPTIRADAR";
   transport_complete?: boolean;
   carrier_type_id?: string | null;
+  tracker_id?: string | null;
   documents_valid_until: string | null;
   readiness_checked_at: string | null;
   vendor_id?: string | null;

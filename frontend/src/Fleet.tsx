@@ -359,6 +359,7 @@ function VehicleForm({ onDone }: { onDone: () => void }) {
   const [width, setWidth] = useState(2000);
   const [height, setHeight] = useState(2000);
   const [expires, setExpires] = useState("");
+  const [tracker, setTracker] = useState("");
   return (
     <>
       <h2>Daftarkan kendaraan</h2>
@@ -373,6 +374,7 @@ function VehicleForm({ onDone }: { onDone: () => void }) {
             width_mm: width,
             height_mm: height,
             documents_valid_until: expires,
+            ...(tracker ? { tracker_id: tracker } : {}),
           });
           onDone();
         }}
@@ -433,6 +435,16 @@ function VehicleForm({ onDone }: { onDone: () => void }) {
               />
             </Field>
           ))}
+          <Field
+            label="ID perangkat pelacak (IMEI)"
+            hint="Opsional. ID yang dikirim perangkat GPS/IoT di kendaraan ini, mis. IMEI 15 digit."
+          >
+            <input
+              maxLength={80}
+              value={tracker}
+              onChange={(e) => setTracker(e.target.value)}
+            />
+          </Field>
         </div>
         <p className="muted">
           Pendaftaran ini mencatat pernyataan kesiapan awal Anda. Validitas
@@ -459,6 +471,7 @@ function TransportForm({
   const [width, setWidth] = useState(vehicle.width_mm ?? 2000);
   const [height, setHeight] = useState(vehicle.height_mm ?? 2000);
   const [expires, setExpires] = useState("");
+  const [tracker, setTracker] = useState(vehicle.tracker_id ?? "");
   useEffect(() => {
     let live = true;
     api<{ data: CarrierOption[] }>("master/carrier_types/options")
@@ -493,6 +506,7 @@ function TransportForm({
             width_mm: width,
             height_mm: height,
             ...(expires ? { documents_valid_until: expires } : {}),
+            tracker_id: tracker || null,
           });
           onDone();
         }}
@@ -521,6 +535,16 @@ function TransportForm({
               step={1}
               value={capacity}
               onChange={(e) => setCapacity(e.target.valueAsNumber)}
+            />
+          </Field>
+          <Field
+            label="ID perangkat pelacak (IMEI)"
+            hint="Opsional. ID yang dikirim perangkat GPS/IoT di kendaraan ini; dipakai OptiRadar."
+          >
+            <input
+              maxLength={80}
+              value={tracker}
+              onChange={(e) => setTracker(e.target.value)}
             />
           </Field>
           <Field

@@ -211,7 +211,10 @@ function Login({ onLogin }: { onLogin: () => void }) {
                 onLogin();
               }}
             >
-              <Field label="Kode tenant">
+              <Field
+                label="Kode tenant"
+                hint="Kode tenant dari OptiNexus (misalnya TEN-…) atau nama singkat tenant."
+              >
                 <input
                   autoComplete="organization"
                   value={tenant}

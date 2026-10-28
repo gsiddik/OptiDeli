@@ -212,4 +212,22 @@ class ExternalAccessSeatsTest extends TestCase
         DB::table('memberships')->insert(['tenant_id' => $this->tenant, 'user_id' => $dispatcher->id, 'role' => 'dispatcher', 'active' => true]);
         $as($dispatcher)->getJson("/api/v1/vendors/{$this->vendor}/accounts")->assertForbidden();
     }
+
+    public function test_the_portal_accepts_the_tenant_code_of_optinexus_in_any_case_besides_the_slug(): void
+    {
+        $this->sso();
+        DB::table('tenants')->where('id', $this->tenant)->update(['nexus_tenant_code' => 'TEN-01M5WQWRST2J1M6X2S56497ZD4']);
+        $vendorUser = $this->external('vendor', ['vendor_id' => $this->vendor]);
+
+        $this->login($vendorUser, 'TEN-01M5WQWRST2J1M6X2S56497ZD4')->assertOk();
+        $this->app['session']->flush();
+        $this->login($vendorUser, ' ten-01m5wqwrst2j1m6x2s56497zd4 ')->assertOk();
+        $this->app['session']->flush();
+        $this->login($vendorUser)->assertOk(); // the slug still works
+        $this->app['session']->flush();
+        $this->login($vendorUser, 'TEN-NOT-THIS-TENANT')->assertUnprocessable();
+
+        DB::table('tenants')->where('id', $this->tenant)->update(['active' => false]);
+        $this->login($vendorUser, 'TEN-01M5WQWRST2J1M6X2S56497ZD4')->assertUnprocessable();
+    }
 }

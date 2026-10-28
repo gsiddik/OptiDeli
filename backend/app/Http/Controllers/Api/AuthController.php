@@ -23,7 +23,7 @@ class AuthController extends Controller
         abort_unless(config('optideli.identity_mode') === 'local', 503, 'Unsupported identity mode.');
         abort_unless(in_array(config('optideli.deployment_mode'), ['saas', 'standalone'], true), 503);
         $data = $request->validate(['email' => 'required|email|max:254', 'password' => 'required|string|max:1024', 'tenant' => 'required|string|max:80']);
-        $tenant = DB::table('tenants')->where('slug', $data['tenant'])->where('active', true)->first();
+        $tenant = self::tenantByCode($data['tenant']);
         $user = User::where('email', strtolower($data['email']))->first();
         $valid = $user && Hash::check($data['password'], $user->password) && $user->active;
         if (! $user) {
@@ -47,7 +47,7 @@ class AuthController extends Controller
     {
         abort_unless(in_array(config('optideli.deployment_mode'), ['saas', 'standalone'], true), 503);
         $data = $request->validate(['email' => 'required|email|max:254', 'password' => 'required|string|max:1024', 'tenant' => 'required|string|max:80']);
-        $tenant = DB::table('tenants')->where('slug', $data['tenant'])->where('active', true)->first();
+        $tenant = self::tenantByCode($data['tenant']);
         $user = User::where('email', strtolower($data['email']))->first();
         $valid = $user && Hash::check($data['password'], $user->password) && $user->active;
         if (! $user) {
@@ -61,6 +61,16 @@ class AuthController extends Controller
         SessionState::start($request, $user, $tenant->id, null, true);
 
         return response()->json(['data' => ['name' => $user->name]]);
+    }
+
+    /** The tenant a person names on the sign-in page: its slug, or the tenant code OptiNexus gave them (any case). Only an active tenant. */
+    public static function tenantByCode(string $input): ?object
+    {
+        $input = trim($input);
+        $active = fn () => DB::table('tenants')->where('active', true);
+
+        return $active()->where('slug', $input)->first()
+            ?? $active()->whereNotNull('nexus_tenant_code')->whereRaw('lower(nexus_tenant_code) = ?', [mb_strtolower($input)])->first();
     }
 
     public function me(Request $request)

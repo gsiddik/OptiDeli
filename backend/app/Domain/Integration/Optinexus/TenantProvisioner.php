@@ -56,11 +56,16 @@ class TenantProvisioner
 
         try {
             return DB::transaction(function () use ($nexusTenantId, $payload) {
+                $code = trim((string) ($payload['tenant_code'] ?? ''));
                 if (DB::table('tenants')->where('optinexus_tenant_id', $nexusTenantId)->exists()) {
+                    // Additive only: a tenant created before the code was kept learns it, a code already known is never changed.
+                    if ($code !== '' && ! DB::table('tenants')->whereRaw('lower(nexus_tenant_code) = ?', [mb_strtolower($code)])->exists()) {
+                        DB::table('tenants')->where('optinexus_tenant_id', $nexusTenantId)->whereNull('nexus_tenant_code')->update(['nexus_tenant_code' => Str::limit($code, 80, ''), 'updated_at' => now()]);
+                    }
+
                     return self::EXISTS;
                 }
 
-                $code = trim((string) ($payload['tenant_code'] ?? ''));
                 $name = Str::limit(trim((string) ($payload['tenant_name'] ?? '')), 150, '');
                 if ($name === '') {
                     $name = $code !== '' ? $code : $nexusTenantId;
@@ -70,7 +75,7 @@ class TenantProvisioner
 
                 DB::table('tenants')->insert([
                     'id' => $id, 'slug' => $slug, 'name' => $name, 'active' => true, 'minimum_margin_bps' => 1500, 'policy_version' => 1,
-                    'optinexus_tenant_id' => $nexusTenantId, 'created_at' => now(), 'updated_at' => now(),
+                    'optinexus_tenant_id' => $nexusTenantId, 'nexus_tenant_code' => $code !== '' && ! DB::table('tenants')->whereRaw('lower(nexus_tenant_code) = ?', [mb_strtolower($code)])->exists() ? Str::limit($code, 80, '') : null, 'created_at' => now(), 'updated_at' => now(),
                 ]);
                 $this->roles->syncPermissions();
                 $this->roles->syncTenant($id);

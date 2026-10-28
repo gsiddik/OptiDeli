@@ -57,6 +57,7 @@ class TenantProvisioningTest extends TestCase
     public function test_assigning_optideli_creates_the_linked_tenant_with_its_roles(): void
     {
         $this->deliver($this->assigned())->assertStatus(202)->assertJsonPath('result', 'tenant_created');
+        $this->assertSame('TEN-01M5SNSWKSAE1CBE4DANS9Y9YD', $this->tenant()->nexus_tenant_code, 'the code people were given is kept for the portal sign-in');
 
         $tenant = $this->tenant();
         $this->assertNotNull($tenant);
@@ -128,5 +129,17 @@ class TenantProvisioningTest extends TestCase
         $this->deliver($this->assigned())->assertStatus(202)->assertJsonPath('result', 'ignored');
 
         $this->assertNull($this->tenant());
+    }
+
+    public function test_a_tenant_created_before_the_code_was_kept_learns_it_and_a_known_code_is_never_changed(): void
+    {
+        $this->deliver($this->assigned())->assertJsonPath('result', 'tenant_created');
+        DB::table('tenants')->where('optinexus_tenant_id', self::NEXUS_TENANT)->update(['nexus_tenant_code' => null]);
+
+        $this->deliver($this->assigned())->assertJsonPath('result', 'tenant_exists');
+        $this->assertSame('TEN-01M5SNSWKSAE1CBE4DANS9Y9YD', $this->tenant()->nexus_tenant_code);
+
+        $this->deliver($this->assigned(['data' => ['payload' => ['tenant_code' => 'TEN-OTHER']]]))->assertJsonPath('result', 'tenant_exists');
+        $this->assertSame('TEN-01M5SNSWKSAE1CBE4DANS9Y9YD', $this->tenant()->nexus_tenant_code);
     }
 }

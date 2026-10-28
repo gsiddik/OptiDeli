@@ -18,6 +18,7 @@ import { ImportDialog } from "./MasterImport";
 import { EditorDialog, submitRecord } from "./RecordEditor";
 import type { EditorField } from "./RecordEditor";
 import type { Page } from "./types";
+import { Select } from "./Select";
 
 type Opt = { value: string; label: string };
 type Options = Record<string, Opt[]>;
@@ -962,7 +963,7 @@ export function ResolverPage() {
     setV((x) => ({ ...x, [name]: value }));
   const choice = (name: string, label: string, master: string, req = false) => (
     <Field label={label}>
-      <select
+      <Select
         required={req}
         value={v[name] ?? ""}
         onChange={(e) => set(name, e.target.value)}
@@ -973,7 +974,7 @@ export function ResolverPage() {
             {o.label}
           </option>
         ))}
-      </select>
+      </Select>
     </Field>
   );
   async function run(e: FormEvent) {

@@ -24,6 +24,20 @@ final class MasterRegistry
     private const CODE = ['name' => 'code', 'label' => 'Kode', 'kind' => 'text', 'required' => true, 'max' => 40, 'immutable' => true, 'upper' => true, 'list' => true,
         'rules' => ['regex:/^[A-Z0-9][A-Z0-9._\/-]*$/'], 'hint' => 'Huruf besar, angka, titik, garis miring, garis bawah atau strip. Tidak dapat diubah setelah dibuat.'];
 
+    /**
+     * The code of a customer or a project: the system gives it when the record is saved, PREFIX-YYYYMM##### (PREFIX, the year and month of
+     * registration, a running number of the month, see MasterService::nextCode). A person is not asked for it; an import may still bring the
+     * codes of records that already exist elsewhere.
+     *
+     * @return array<string, mixed>
+     */
+    private static function generatedCode(string $prefix): array
+    {
+        return ['name' => 'code', 'label' => 'Kode', 'kind' => 'text', 'required' => false, 'max' => 40, 'immutable' => true, 'upper' => true, 'list' => true,
+            'generated' => true, 'prefix' => $prefix, 'rules' => ['regex:/^[A-Z0-9][A-Z0-9._\/-]*$/'],
+            'hint' => "Dibuat otomatis oleh sistem: {$prefix}-TAHUN BULAN NOMOR URUT. Tidak dapat diubah."];
+    }
+
     private const NAME = ['name' => 'name', 'label' => 'Nama', 'kind' => 'text', 'required' => true, 'max' => 200, 'list' => true];
 
     /** @return array<string, array<string, mixed>> */
@@ -33,7 +47,7 @@ final class MasterRegistry
             'customers' => [
                 'label' => 'Pelanggan', 'singular' => 'pelanggan', 'group' => 'customers', 'search' => ['code', 'name', 'tax_id'],
                 'fields' => [
-                    self::CODE, self::NAME,
+                    self::generatedCode('CST'), self::NAME,
                     ['name' => 'tax_id', 'label' => 'NPWP', 'kind' => 'text', 'max' => 32, 'digits' => true, 'list' => true, 'rules' => ['regex:/^\d{15,16}$/'], 'hint' => '15 atau 16 digit; titik dan strip diabaikan.'],
                     ['name' => 'payment_terms_days', 'label' => 'Termin bayar (hari)', 'kind' => 'number', 'required' => true, 'min' => 0, 'max' => 365, 'default' => 30, 'list' => true],
                     ['name' => 'pic_name', 'label' => 'PIC', 'kind' => 'text', 'max' => 150],
@@ -47,7 +61,7 @@ final class MasterRegistry
             'customer_projects' => [
                 'label' => 'Proyek / kontrak', 'singular' => 'proyek', 'group' => 'customers', 'search' => ['code', 'name', 'contract_reference'],
                 'fields' => [
-                    self::CODE, self::NAME,
+                    self::generatedCode('PRJ'), self::NAME,
                     ['name' => 'customer_id', 'label' => 'Pelanggan', 'kind' => 'ref', 'ref' => 'customers', 'required' => true, 'immutable' => true, 'list' => true],
                     ['name' => 'contract_reference', 'label' => 'Nomor kontrak', 'kind' => 'text', 'max' => 120, 'list' => true],
                     ['name' => 'valid_from', 'label' => 'Berlaku dari', 'kind' => 'date'],

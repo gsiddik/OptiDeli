@@ -5,6 +5,7 @@ import { useSession } from "./App";
 import { Badge, Empty, ErrorBox, Field, Form, Loading } from "./components";
 import { dateTime } from "./commercial";
 import type { Driver, Fleet, Vehicle } from "./types";
+import { Select } from "./Select";
 const localFuture = () => {
   const d = new Date(Date.now() + 86400000);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -134,14 +135,14 @@ export function FleetPage() {
           >
             <div className="form-grid">
               <Field label="Status operasional">
-                <select
+                <Select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
                 >
                   <option value="AVAILABLE">Tersedia</option>
                   <option value="MAINTENANCE">Dalam perawatan</option>
                   <option value="UNAVAILABLE">Tidak tersedia</option>
-                </select>
+                </Select>
               </Field>
               <Field label="Catatan hasil pemeriksaan">
                 <textarea
@@ -498,7 +499,7 @@ function TransportForm({
       >
         <div className="form-grid">
           <Field label="Tipe angkutan">
-            <select
+            <Select
               required
               value={carrier}
               onChange={(e) => setCarrier(e.target.value)}
@@ -509,7 +510,7 @@ function TransportForm({
                   {c.code} · {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label="Kapasitas muatan (gram)">
             <input

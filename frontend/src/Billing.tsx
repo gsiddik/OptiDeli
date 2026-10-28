@@ -13,6 +13,7 @@ import {
 import { Modal } from "./Cash";
 import { dateTime, money } from "./commercial";
 import type { Page } from "./types";
+import { Select } from "./Select";
 
 type ReadyCharge = {
   id: string;
@@ -136,7 +137,7 @@ function ReadyPanel() {
   return (
     <>
       <div className="actions">
-        <select
+        <Select
           aria-label="Pelanggan"
           value={customer}
           onChange={(e) => {
@@ -150,7 +151,7 @@ function ReadyPanel() {
               {o.label}
             </option>
           ))}
-        </select>
+        </Select>
         <button
           className="primary"
           disabled={!chosen.length || customerIds.length !== 1}
@@ -264,7 +265,7 @@ function ReadyPanel() {
               label="Template invoice"
               hint="Kosong = template proyek, lalu pelanggan, lalu standar."
             >
-              <select
+              <Select
                 value={template}
                 onChange={(e) => setTemplate(e.target.value)}
               >
@@ -274,7 +275,7 @@ function ReadyPanel() {
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Jatuh tempo (opsional)">
               <input

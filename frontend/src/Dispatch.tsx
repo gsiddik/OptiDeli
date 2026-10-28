@@ -23,6 +23,7 @@ import {
 } from "./commercial";
 import { levels, stages } from "./types";
 import type { Fleet, Order, Page, Plan } from "./types";
+import { Select } from "./Select";
 const localDate = (hours: number) => {
   const d = new Date(Date.now() + hours * 3600000);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -153,7 +154,7 @@ export function DispatchBoard() {
               ) : (
                 <>
                   <Field label="Order terkonfirmasi">
-                    <select
+                    <Select
                       required
                       value={orderId}
                       onChange={(e) => setOrderId(e.target.value)}
@@ -171,7 +172,7 @@ export function DispatchBoard() {
                           {o.number} · {o.customer_name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </Field>
                   {orders.data && orders.data.last_page > 1 && (
                     <Pagination page={orders.data} onPage={setOrderPage} />
@@ -193,7 +194,7 @@ export function DispatchBoard() {
                   )}
                   <div className="form-grid">
                     <Field label="Kendaraan">
-                      <select
+                      <Select
                         required
                         value={vehicle}
                         onChange={(e) => setVehicle(e.target.value)}
@@ -213,10 +214,10 @@ export function DispatchBoard() {
                             {v.plate} · {v.type} · {v.status}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </Field>
                     <Field label="Pengemudi">
-                      <select
+                      <Select
                         required
                         value={driver}
                         onChange={(e) => setDriver(e.target.value)}
@@ -236,7 +237,7 @@ export function DispatchBoard() {
                             {d.name}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </Field>
                     <Field label="Mulai perjalanan">
                       <input
@@ -317,7 +318,7 @@ export function DispatchBoard() {
                     ini.
                   </div>
                   <Field label="Reason code wajib">
-                    <select
+                    <Select
                       required
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
@@ -332,7 +333,7 @@ export function DispatchBoard() {
                       <option value="CONTRACT_COMMITMENT">
                         Contractual Minimum Commitment
                       </option>
-                    </select>
+                    </Select>
                   </Field>
                   <Field label="Penjelasan alasan (opsional)">
                     <textarea

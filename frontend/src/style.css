@@ -1687,3 +1687,51 @@ ul.plain {
   cursor: pointer;
   font-weight: 600;
 }
+
+.search-select {
+  position: relative;
+}
+.search-select input[role="combobox"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+.search-select-required {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
+  padding: 0;
+}
+.search-select-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  max-height: 240px;
+  overflow-y: auto;
+  list-style: none;
+  background: white;
+  border: 1px solid #cad5df;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(29, 61, 83, 0.14);
+}
+.search-select-list li {
+  padding: 8px 11px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.search-select-list li.active,
+.search-select-list li[aria-selected="true"] {
+  background: #eaf3f8;
+}
+.search-select-list li.empty {
+  color: var(--muted);
+  cursor: default;
+}

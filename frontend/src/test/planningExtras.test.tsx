@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { pick } from "./pick";
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal ??= function showModal(
@@ -150,10 +151,7 @@ describe("Schedule and monitoring", () => {
       screen.getByRole("button", { name: "+ Booking kendaraan" }),
     );
     const dialog = await screen.findByRole("dialog");
-    await userEvent.selectOptions(
-      await within(dialog).findByLabelText("Kendaraan"),
-      "v1",
-    );
+    await pick(await within(dialog).findByLabelText("Kendaraan"), "v1");
     await userEvent.type(
       within(dialog).getByLabelText("Mulai"),
       "2026-11-02T08:00",
@@ -247,14 +245,8 @@ describe("Route templates", () => {
     const dialog = await screen.findByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText("Kode"), "rute-baru");
     await userEvent.type(within(dialog).getByLabelText("Nama"), "Rute baru");
-    await userEvent.selectOptions(
-      await within(dialog).findByLabelText("Lokasi 1"),
-      LOC1,
-    );
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText("Lokasi 2"),
-      LOC2,
-    );
+    await pick(await within(dialog).findByLabelText("Lokasi 1"), LOC1);
+    await pick(within(dialog).getByLabelText("Lokasi 2"), LOC2);
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Simpan/ }),
     );

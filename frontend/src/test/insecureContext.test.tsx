@@ -177,3 +177,18 @@ describe("without crypto.randomUUID (plain http on a real host name)", () => {
     ).toBeTruthy();
   });
 });
+
+describe("no screen calls crypto.randomUUID directly", () => {
+  it("only uuid.ts may, because it falls back where the API does not exist", () => {
+    const sources = import.meta.glob(["../*.ts", "../*.tsx"], {
+      query: "?raw",
+      import: "default",
+      eager: true,
+    }) as Record<string, string>;
+    const offenders = Object.entries(sources)
+      .filter(([path]) => !path.endsWith("/uuid.ts"))
+      .filter(([, text]) => /crypto\s*\.\s*randomUUID/.test(text))
+      .map(([path]) => path);
+    expect(offenders).toEqual([]);
+  });
+});

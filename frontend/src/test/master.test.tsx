@@ -9,6 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { pick } from "./pick";
 
 beforeAll(() => {
   // jsdom has no <dialog>.showModal; real browsers do.
@@ -24,6 +25,16 @@ beforeAll(() => {
   };
 });
 afterEach(() => vi.unstubAllGlobals());
+
+/** Chooses an option of a searchable dropdown: open it, then click the row. */
+async function choose(
+  dialog: HTMLElement,
+  label: string,
+  option: string | RegExp,
+) {
+  await userEvent.click(within(dialog).getByLabelText(label));
+  await userEvent.click(within(dialog).getByRole("option", { name: option }));
+}
 
 const session = (permissions: string[]) => ({
   id: 1,
@@ -53,7 +64,12 @@ const schema = {
       singular: "pelanggan",
       group: "customers",
       fields: [
-        text("code", "Kode", { required: true, immutable: true, list: true }),
+        text("code", "Kode", {
+          required: false,
+          immutable: true,
+          generated: true,
+          list: true,
+        }),
         text("name", "Nama", { required: true, list: true }),
         {
           name: "payment_terms_days",
@@ -71,7 +87,12 @@ const schema = {
       singular: "proyek",
       group: "customers",
       fields: [
-        text("code", "Kode", { required: true, immutable: true, list: true }),
+        text("code", "Kode", {
+          required: false,
+          immutable: true,
+          generated: true,
+          list: true,
+        }),
         {
           name: "customer_id",
           label: "Pelanggan",
@@ -227,7 +248,8 @@ describe("Master data screen", () => {
     );
 
     const dialog = await screen.findByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText("Kode"), "cust-02");
+    expect(within(dialog).queryByLabelText("Kode")).toBeNull();
+    expect(within(dialog).getByText(/Kode dibuat otomatis/)).toBeTruthy();
     await userEvent.type(within(dialog).getByLabelText("Nama"), "PT Baru");
     expect(
       (within(dialog).getByLabelText("Termin bayar (hari)") as HTMLInputElement)
@@ -247,7 +269,7 @@ describe("Master data screen", () => {
     expect(
       calls.find((c) => c.method === "POST" && c.path === "master/customers")!
         .body,
-    ).toEqual({ code: "cust-02", name: "PT Baru", payment_terms_days: 30 });
+    ).toEqual({ name: "PT Baru", payment_terms_days: 30 });
   });
 
   it("edits a record without the immutable code", async () => {
@@ -289,11 +311,8 @@ describe("Master data screen", () => {
     );
 
     const dialog = await screen.findByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText("Kode"), "prj-1");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText("Pelanggan"),
-      customerRow.id,
-    );
+    expect(within(dialog).queryByLabelText("Kode")).toBeNull();
+    await choose(dialog, "Pelanggan", /CUST/);
     fireEvent.submit(
       within(dialog)
         .getByRole("button", { name: /Simpan/ })
@@ -308,7 +327,6 @@ describe("Master data screen", () => {
       ).toBe(true),
     );
     expect(calls.find((c) => c.method === "POST")!.body).toEqual({
-      code: "prj-1",
       customer_id: customerRow.id,
     });
   });
@@ -324,15 +342,12 @@ describe("Master data screen", () => {
 
     const dialog = await screen.findByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText("Kode"), "pool-1");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText("Jenis"),
-      "POOL",
-    );
+    await choose(dialog, "Jenis", "Pool kendaraan");
     await userEvent.type(within(dialog).getByLabelText("Lintang"), "-6.175110");
     expect(
-      (within(dialog).getByLabelText("Dapat ditumpuk") as HTMLSelectElement)
+      (within(dialog).getByLabelText("Dapat ditumpuk") as HTMLInputElement)
         .value,
-    ).toBe("1");
+    ).toBe("Ya");
     fireEvent.submit(
       within(dialog)
         .getByRole("button", { name: /Simpan/ })
@@ -452,7 +467,7 @@ describe("Master data screen", () => {
     open();
     await screen.findByText("PT Maju Jaya");
     await userEvent.type(screen.getByLabelText("Cari Pelanggan"), "maju");
-    await userEvent.selectOptions(screen.getByLabelText("Status"), "0");
+    await pick(screen.getByLabelText("Status"), "0");
     fireEvent.click(screen.getByRole("button", { name: "Cari" }));
     await waitFor(() =>
       expect(
@@ -461,5 +476,32 @@ describe("Master data screen", () => {
         ),
       ).toBe(true),
     );
+  });
+  it("lets a dropdown be searched by typing, with the keyboard or the mouse, and cleared again", async () => {
+    stubApi(["operations.view", "master.manage"], { locations: [] });
+    open("/master/locations");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "+ Tambah lokasi" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+
+    const type = within(dialog).getByLabelText("Jenis");
+    await userEvent.click(type);
+    expect(within(dialog).getAllByRole("option").length).toBe(2);
+    await userEvent.type(type, "hub");
+    expect(
+      within(dialog)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Hub"]);
+    await userEvent.keyboard("{Enter}");
+    expect((type as HTMLInputElement).value).toBe("Hub");
+    expect(within(dialog).queryByRole("listbox")).toBeNull();
+
+    await userEvent.click(type);
+    await userEvent.type(type, "zzz");
+    expect(within(dialog).getByText("Tidak ada yang cocok")).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+    expect((type as HTMLInputElement).value).toBe("Hub");
   });
 });

@@ -1,5 +1,6 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { pick } from "./pick";
 const password =
   process.env.OPTIDELI_E2E_PASSWORD ??
   readFileSync(
@@ -153,10 +154,10 @@ test("execution, yard, private ePOD, vendor correction and independent dual frei
   await ops
     .getByRole("button", { name: "Reservasi slot", exact: true })
     .click();
-  await ops
-    .getByLabel("Dock", { exact: true })
-    .selectOption({ label: `E2E Hub · Dock-${run}` });
-  await ops.getByLabel("Trip aktif", { exact: true }).selectOption(trip.id);
+  await pick(ops.getByLabel("Dock", { exact: true }), {
+    label: `E2E Hub · Dock-${run}`,
+  });
+  await pick(ops.getByLabel("Trip aktif", { exact: true }), trip.id);
   await ops
     .getByLabel("Mulai slot", { exact: true })
     .fill(await localFuture(ops, 1));
@@ -194,9 +195,7 @@ test("execution, yard, private ePOD, vendor correction and independent dual frei
     .getByLabel("Nama penerima", { exact: true })
     .fill("Receiving Officer");
   await ops.getByLabel("Jumlah unit diterima", { exact: true }).fill("1");
-  await ops
-    .getByLabel("Hasil pengiriman", { exact: true })
-    .selectOption("DELIVERED");
+  await pick(ops.getByLabel("Hasil pengiriman", { exact: true }), "DELIVERED");
   await ops
     .getByLabel("Bukti PDF/JPEG/PNG (maks. 10 MB)", { exact: true })
     .setInputFiles(proof);
@@ -206,9 +205,7 @@ test("execution, yard, private ePOD, vendor correction and independent dual frei
   await supervisor
     .getByRole("button", { name: "Tinjau ePOD", exact: true })
     .click();
-  await supervisor
-    .getByLabel("Keputusan", { exact: true })
-    .selectOption("verify");
+  await pick(supervisor.getByLabel("Keputusan", { exact: true }), "verify");
   await supervisor
     .getByLabel("Catatan tinjauan", { exact: true })
     .fill("Receiving evidence checked independently.");
@@ -277,9 +274,7 @@ test("execution, yard, private ePOD, vendor correction and independent dual frei
   await ops
     .getByRole("button", { name: "Ajukan aksesorial", exact: true })
     .click();
-  await ops
-    .getByLabel("Kategori biaya", { exact: true })
-    .selectOption("DETENTION");
+  await pick(ops.getByLabel("Kategori biaya", { exact: true }), "DETENTION");
   await ops.getByLabel("Nilai klaim (Rp)", { exact: true }).fill("20000");
   await ops
     .getByLabel("Alasan klaim", { exact: true })
@@ -297,7 +292,7 @@ test("execution, yard, private ePOD, vendor correction and independent dual frei
   await finance
     .getByRole("button", { name: "Verifikasi aksesorial", exact: true })
     .click();
-  await finance.getByLabel("Keputusan", { exact: true }).selectOption("verify");
+  await pick(finance.getByLabel("Keputusan", { exact: true }), "verify");
   await finance
     .getByLabel("Catatan tinjauan", { exact: true })
     .fill("Yard supporting reference independently checked.");

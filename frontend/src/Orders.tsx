@@ -23,6 +23,7 @@ import {
 import { dateTime, minor, money } from "./commercial";
 import type { Item, Order, Page } from "./types";
 import { stages } from "./types";
+import { Select } from "./Select";
 export function OrderList() {
   const [params] = useSearchParams();
   const [page, setPage] = useState(1);
@@ -257,7 +258,7 @@ export function OrderCreate() {
               <ErrorBox error={masterError} />
               <div className="form-grid">
                 <Field label="Pelanggan (master data)">
-                  <select
+                  <Select
                     value={customerId}
                     onChange={(e) => {
                       const found = pick("customers", e.target.value);
@@ -273,10 +274,10 @@ export function OrderCreate() {
                         {o.code} · {o.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Proyek / kontrak">
-                  <select
+                  <Select
                     value={projectId}
                     disabled={!customerId}
                     onChange={(e) => {
@@ -292,10 +293,10 @@ export function OrderCreate() {
                           {o.code} · {o.name}
                         </option>
                       ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Layanan">
-                  <select
+                  <Select
                     value={serviceId}
                     onChange={(e) => {
                       setServiceId(e.target.value);
@@ -308,7 +309,7 @@ export function OrderCreate() {
                         {o.code} · {o.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Nama pelanggan">
                   <input
@@ -333,7 +334,7 @@ export function OrderCreate() {
                   />
                 </Field>
                 <Field label="Tahap rantai pasok">
-                  <select
+                  <Select
                     value={stage}
                     onChange={(e) => {
                       setStage(e.target.value);
@@ -345,13 +346,13 @@ export function OrderCreate() {
                         {v}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Mata uang">
                   <input value="IDR — Rupiah Indonesia" readOnly />
                 </Field>
                 <Field label="Lokasi asal (master data)">
-                  <select
+                  <Select
                     value={originId}
                     onChange={(e) => {
                       const found = pick("locations", e.target.value);
@@ -366,7 +367,7 @@ export function OrderCreate() {
                         {o.code} · {o.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Alamat / hub asal">
                   <textarea
@@ -381,7 +382,7 @@ export function OrderCreate() {
                   />
                 </Field>
                 <Field label="Lokasi tujuan (master data)">
-                  <select
+                  <Select
                     value={destinationId}
                     onChange={(e) => {
                       const found = pick("locations", e.target.value);
@@ -396,7 +397,7 @@ export function OrderCreate() {
                         {o.code} · {o.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Alamat / hub tujuan">
                   <textarea

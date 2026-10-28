@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { pick } from "./pick";
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal ??= function showModal(
@@ -296,10 +297,7 @@ describe("Billing", () => {
       screen.getByRole("button", { name: /Terbitkan invoice \(1 SPM\)/ }),
     );
     const dialog = await screen.findByRole("dialog");
-    await userEvent.selectOptions(
-      await within(dialog).findByLabelText("Template invoice"),
-      TPL,
-    );
+    await pick(await within(dialog).findByLabelText("Template invoice"), TPL);
     await userEvent.click(
       within(dialog).getByRole("button", { name: /^Terbitkan$/ }),
     );
@@ -494,7 +492,7 @@ describe("Reports", () => {
     );
     expect(await screen.findByText("PT Maju")).toBeTruthy();
     expect(screen.getAllByText("75%").length).toBe(2);
-    await userEvent.selectOptions(screen.getByLabelText("Per"), "lane");
+    await pick(screen.getByLabelText("Per"), "lane");
     await waitFor(() =>
       expect(
         calls.some((c) => c.path.startsWith("reports/pnl?group_by=lane")),

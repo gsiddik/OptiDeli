@@ -119,6 +119,18 @@ class MasterImportTest extends TestCase
         $this->assertDatabaseHas('customers', ['tenant_id' => $this->tenant, 'code' => 'OK1', 'name' => 'PT Baik']);
     }
 
+    public function test_an_import_of_customers_needs_their_codes_because_the_system_only_gives_codes_to_new_records_made_on_screen(): void
+    {
+        $job = $this->upload('customers', 'Kode;Nama;Termin bayar (hari)
+;PT Tanpa Kode;30
+C-9;PT Berkode;30
+')->assertCreated()->json('data');
+
+        $this->assertSame([1, 1], [$job['rows_new'], $job['rows_error']]);
+        $error = $this->getJson("/api/v1/master/imports/{$job['id']}/rows?action=ERROR")->assertOk()->json('data.0');
+        $this->assertStringContainsString('Kode wajib diisi pada impor', json_encode($error['errors']));
+    }
+
     public function test_references_are_given_as_codes_and_must_exist(): void
     {
         $this->postJson('/api/v1/master/customers', ['code' => 'C-1', 'name' => 'PT Satu', 'payment_terms_days' => 30], $this->key())->assertCreated();

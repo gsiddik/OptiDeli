@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { optionsOf, pick } from "./pick";
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal ??= function showModal(
@@ -84,10 +85,10 @@ describe("Order form with master data", () => {
       level: 1,
       name: "Buat order pengiriman",
     });
-    await waitFor(() =>
+    await waitFor(async () =>
       expect(
-        screen.getByRole("option", { name: "C1 · PT Maju Jaya" }),
-      ).toBeTruthy(),
+        await optionsOf(screen.getByLabelText("Pelanggan (master data)")),
+      ).toContain("C1 · PT Maju Jaya"),
     );
 
     const project = screen.getByLabelText(
@@ -95,26 +96,17 @@ describe("Order form with master data", () => {
     ) as HTMLSelectElement;
     expect(project.disabled).toBe(true);
 
-    await userEvent.selectOptions(
-      screen.getByLabelText("Pelanggan (master data)"),
-      C1,
-    );
+    await pick(screen.getByLabelText("Pelanggan (master data)"), C1);
     const name = screen.getByLabelText("Nama pelanggan") as HTMLInputElement;
     expect(name.value).toBe("PT Maju Jaya");
     expect(name.readOnly).toBe(true);
     expect(project.disabled).toBe(false);
-    expect(screen.getByRole("option", { name: "P1 · Proyek 1" })).toBeTruthy();
-    await userEvent.selectOptions(project, P1);
+    expect(await optionsOf(project)).toContain("P1 · Proyek 1");
+    await pick(project, P1);
 
-    await userEvent.selectOptions(screen.getByLabelText("Layanan"), S1);
-    await userEvent.selectOptions(
-      screen.getByLabelText("Lokasi asal (master data)"),
-      L1,
-    );
-    await userEvent.selectOptions(
-      screen.getByLabelText("Lokasi tujuan (master data)"),
-      L2,
-    );
+    await pick(screen.getByLabelText("Layanan"), S1);
+    await pick(screen.getByLabelText("Lokasi asal (master data)"), L1);
+    await pick(screen.getByLabelText("Lokasi tujuan (master data)"), L2);
     expect(
       (screen.getByLabelText("Alamat / hub asal") as HTMLTextAreaElement).value,
     ).toBe("Pool Jakarta");
@@ -154,30 +146,20 @@ describe("Order form with master data", () => {
       level: 1,
       name: "Buat order pengiriman",
     });
-    await waitFor(() =>
-      expect(screen.getByRole("option", { name: "C2 · PT Dua" })).toBeTruthy(),
+    await waitFor(async () =>
+      expect(
+        await optionsOf(screen.getByLabelText("Pelanggan (master data)")),
+      ).toContain("C2 · PT Dua"),
     );
 
-    await userEvent.selectOptions(
-      screen.getByLabelText("Pelanggan (master data)"),
-      C1,
-    );
-    await userEvent.selectOptions(
-      screen.getByLabelText("Proyek / kontrak"),
-      P1,
-    );
-    await userEvent.selectOptions(
-      screen.getByLabelText("Pelanggan (master data)"),
-      C2,
-    );
+    await pick(screen.getByLabelText("Pelanggan (master data)"), C1);
+    await pick(screen.getByLabelText("Proyek / kontrak"), P1);
+    await pick(screen.getByLabelText("Pelanggan (master data)"), C2);
 
     expect(
       (screen.getByLabelText("Proyek / kontrak") as HTMLSelectElement).value,
     ).toBe("");
-    await userEvent.selectOptions(
-      screen.getByLabelText("Pelanggan (master data)"),
-      "",
-    );
+    await pick(screen.getByLabelText("Pelanggan (master data)"), "");
     expect(
       (screen.getByLabelText("Nama pelanggan") as HTMLInputElement).readOnly,
     ).toBe(false);

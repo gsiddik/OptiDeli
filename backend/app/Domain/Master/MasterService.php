@@ -3,6 +3,7 @@
 namespace App\Domain\Master;
 
 use App\Domain\Shared\TenantStore;
+use App\Domain\Spm\DocumentNumbers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -15,6 +16,9 @@ use Illuminate\Validation\ValidationException;
  */
 final class MasterService
 {
+    /** Digits of the running number in a generated code (CST-20261000001 has five). */
+    private const CODE_DIGITS = 5;
+
     public function __construct(private readonly TenantStore $store) {}
 
     /** @return array<string, mixed> */
@@ -185,12 +189,33 @@ final class MasterService
 
         return DB::transaction(function () use ($resource, $data) {
             DB::table('tenants')->where('id', $this->store->tenantId)->lockForUpdate()->firstOrFail();
+            if (($data['code'] ?? null) === null) {
+                $data['code'] = $this->nextCode($resource);
+            }
             $id = (string) Str::uuid();
             DB::table($resource)->insert($data + ['id' => $id, 'tenant_id' => $this->store->tenantId, 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
             $this->store->event("master.{$resource}.created", $id, ['code' => $data['code'], 'name' => $data['name']]);
 
             return $this->one($resource, $id);
         }, 3);
+    }
+
+    /**
+     * The next generated code of a customer or project: PREFIX-YYYYMM##### with a running number that starts again every month and never
+     * repeats (the sequence is locked with the tenant). The number grows past four digits instead of being cut. A code a person brought by
+     * import that happens to be the same is skipped.
+     */
+    public function nextCode(string $resource): string
+    {
+        $field = collect(MasterRegistry::fieldsOf($resource))->firstWhere('name', 'code');
+        abort_unless($field['generated'] ?? false, 500, 'This master has no generated code.');
+        $period = now()->format('Ym');
+        do {
+            $number = DocumentNumbers::next($this->store->tenantId, 'CODE-'.$field['prefix'], $period);
+            $code = sprintf('%s-%s%0'.self::CODE_DIGITS.'d', $field['prefix'], $period, $number);
+        } while ($this->store->query($resource)->where('code', $code)->exists());
+
+        return $code;
     }
 
     public function update(string $resource, string $id, array $input): object

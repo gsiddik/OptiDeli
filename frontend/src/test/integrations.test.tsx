@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { pick } from "./pick";
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal ??= function showModal(
@@ -71,10 +72,7 @@ describe("Integrations", () => {
       await screen.findByRole("button", { name: "+ Klien API" }),
     );
     const dialog = await screen.findByRole("dialog");
-    await userEvent.selectOptions(
-      await within(dialog).findByLabelText("Pelanggan"),
-      CUST,
-    );
+    await pick(await within(dialog).findByLabelText("Pelanggan"), CUST);
     await userEvent.type(within(dialog).getByLabelText(/Nama klien/), "ERP");
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Simpan/ }),

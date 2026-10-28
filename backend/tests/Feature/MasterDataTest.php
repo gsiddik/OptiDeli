@@ -225,4 +225,34 @@ class MasterDataTest extends TestCase
         $this->assertFalse((bool) $unit->active);
         $this->assertSame('DRIVER_ADVANCE', DB::table('charge_codes')->where('tenant_id', $this->tenant)->where('code', 'DRIVER_ADVANCE')->value('fact_key'));
     }
+
+    public function test_the_code_of_a_customer_and_a_project_is_given_by_the_system_per_month_and_never_repeats(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 15));
+        $first = $this->postJson('/api/v1/master/customers', ['name' => 'PT Satu', 'payment_terms_days' => 30], $this->key())->assertCreated()->json('data');
+        $second = $this->postJson('/api/v1/master/customers', ['name' => 'PT Dua', 'payment_terms_days' => 30], $this->key())->assertCreated()->json('data');
+        $project = $this->postJson('/api/v1/master/customer_projects', ['name' => 'Kontrak A', 'customer_id' => $first['id']], $this->key())->assertCreated()->json('data');
+        $this->assertSame(['CST-20261000001', 'CST-20261000002', 'PRJ-20261000001'], [$first['code'], $second['code'], $project['code']]);
+
+        $this->travelTo(now()->setDate(2026, 11, 2));
+        $november = $this->postJson('/api/v1/master/customers', ['name' => 'PT Tiga', 'payment_terms_days' => 30], $this->key())->assertCreated()->json('data');
+        $this->assertSame('CST-20261100001', $november['code'], 'the running number starts again every month');
+
+        // A code brought by hand is kept, and the generator steps over a code it would otherwise repeat.
+        DB::table('customers')->where('id', $november['id'])->update(['code' => 'CST-20261100002']);
+        $next = $this->postJson('/api/v1/master/customers', ['name' => 'PT Empat', 'payment_terms_days' => 30], $this->key())->assertCreated()->json('data');
+        $this->assertSame('CST-20261100003', $next['code']);
+        $this->travelBack();
+    }
+
+    public function test_the_schema_marks_the_generated_codes_and_an_explicit_code_is_still_accepted_for_existing_records(): void
+    {
+        $fields = collect($this->getJson('/api/v1/master/schema')->assertOk()->json('data.resources'))->keyBy('key');
+        $this->assertTrue(collect($fields['customers']['fields'])->firstWhere('name', 'code')['generated']);
+        $this->assertTrue(collect($fields['customer_projects']['fields'])->firstWhere('name', 'code')['generated']);
+        $this->assertArrayNotHasKey('generated', collect($fields['locations']['fields'])->firstWhere('name', 'code'));
+
+        $this->assertSame('CUST-01', $this->customer()['code']);
+        $this->postJson('/api/v1/master/locations', ['name' => 'Gudang', 'type' => 'WAREHOUSE'], $this->key())->assertUnprocessable()->assertJsonValidationErrors('code');
+    }
 }

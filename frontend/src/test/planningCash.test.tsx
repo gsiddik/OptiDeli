@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { pick } from "./pick";
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal ??= function showModal(
@@ -342,14 +343,8 @@ describe("Trip planning", () => {
       screen.getByRole("button", { name: "Rencanakan perjalanan" }),
     );
     dialog = await screen.findByRole("dialog");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText("Kendaraan"),
-      "v1",
-    );
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText("Pengemudi"),
-      "d1",
-    );
+    await pick(within(dialog).getByLabelText("Kendaraan"), "v1");
+    await pick(within(dialog).getByLabelText("Pengemudi"), "d1");
     await userEvent.type(
       within(dialog).getByLabelText("Mulai"),
       "2026-10-27T08:00",
@@ -461,10 +456,7 @@ describe("Driver cash", () => {
       await screen.findByRole("button", { name: "+ Minta uang jalan" }),
     );
     const dialog = await screen.findByRole("dialog");
-    await userEvent.selectOptions(
-      await within(dialog).findByLabelText("Kode biaya 1"),
-      CODE,
-    );
+    await pick(await within(dialog).findByLabelText("Kode biaya 1"), CODE);
     await userEvent.type(
       within(dialog).getByLabelText("Jumlah 1 (Rp)"),
       "400000",

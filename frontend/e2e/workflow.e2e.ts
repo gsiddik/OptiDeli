@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { pick } from "./pick";
 const password =
   process.env.OPTIDELI_E2E_PASSWORD ??
   readFileSync(
@@ -79,15 +80,15 @@ test("real order, margin approval, dispatch, responsive navigation and CSRF boun
   );
   expect(denied.status()).toBe(419);
   await page.getByRole("link", { name: "Buat rencana dispatch" }).click();
-  await page.getByLabel("Kendaraan", { exact: true }).selectOption(vehicleId);
-  await page.getByLabel("Pengemudi", { exact: true }).selectOption(driverId);
+  await pick(page.getByLabel("Kendaraan", { exact: true }), vehicleId);
+  await pick(page.getByLabel("Pengemudi", { exact: true }), driverId);
   await page.getByLabel("Tarif dasar vendor (Rp)").fill("890000");
   await page
     .getByLabel("Pernyataan pemeriksaan keselamatan muatan")
     .fill(
       "Petugas telah memeriksa penempatan, pengikatan dan distribusi beban muatan.",
     );
-  await page.getByLabel("Reason code wajib").selectOption("BACKHAUL");
+  await pick(page.getByLabel("Reason code wajib"), "BACKHAUL");
   await page.getByRole("button", { name: "Ajukan persetujuan margin" }).click();
   await expect(
     page.getByText("PENDING APPROVAL", { exact: true }),

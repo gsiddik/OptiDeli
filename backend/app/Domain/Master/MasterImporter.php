@@ -196,6 +196,10 @@ final class MasterImporter
             $raw = $byField($cells);
             $code = isset($raw['code']) ? mb_strtoupper($raw['code']) : null;
             $errors = [];
+            if ($code === null && collect(MasterRegistry::fieldsOf($resource))->contains(fn ($f) => $f['name'] === 'code' && ($f['generated'] ?? false))) {
+                // Without a code a row cannot be matched to the record it was imported before: a second import would add every row again.
+                $errors['code'][] = 'Kode wajib diisi pada impor, agar impor ulang memperbarui data yang sama, bukan menggandakannya.';
+            }
             if ($code !== null) {
                 if (isset($seenCodes[$code])) {
                     $errors['code'][] = "Kode sama dengan baris {$seenCodes[$code]}.";

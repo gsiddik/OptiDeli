@@ -3,6 +3,7 @@ import { api } from "./api";
 import { newId } from "./uuid";
 import { Field, Form } from "./components";
 import { minor } from "./commercial";
+import { SearchSelect } from "./SearchSelect";
 export type EditorField = {
   name: string;
   label: string;
@@ -22,6 +23,8 @@ export type EditorField = {
   required?: boolean;
   options?: { value: string; label: string }[];
   hint?: string;
+  /** Every select can be searched by typing; false keeps a plain native select. */
+  searchable?: boolean;
 };
 export function RecordEditor({
   fields,
@@ -88,7 +91,14 @@ export function RecordEditor({
       <div className="form-grid">
         {fields.map((f) => (
           <Field key={f.name} label={f.label} hint={f.hint}>
-            {f.kind === "select" ? (
+            {f.kind === "select" && f.searchable !== false ? (
+              <SearchSelect
+                required={f.required !== false}
+                value={String(values[f.name] ?? "")}
+                options={f.options ?? []}
+                onChange={(v) => change(f.name, v)}
+              />
+            ) : f.kind === "select" ? (
               <select
                 required={f.required !== false}
                 value={String(values[f.name] ?? "")}
@@ -214,11 +224,13 @@ export function EditorDialog({
   fields,
   onClose,
   onSubmit,
+  note,
 }: {
   title: string;
   fields: EditorField[];
   onClose: () => void;
   onSubmit: (body: Record<string, unknown>, key: string) => Promise<void>;
+  note?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -246,6 +258,7 @@ export function EditorDialog({
       >
         ×
       </button>
+      {note && <p className="muted">{note}</p>}
       <RecordEditor
         fields={fields}
         onSubmit={onSubmit}

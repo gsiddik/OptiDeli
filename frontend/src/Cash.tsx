@@ -15,6 +15,7 @@ import {
 import { dateTime, minor, money } from "./commercial";
 import { can } from "./opsTypes";
 import type { Page } from "./types";
+import { Select } from "./Select";
 
 export const VOUCHER_STATUS: Record<string, string> = {
   REQUESTED: "Menunggu ACC",
@@ -220,7 +221,7 @@ function RequestDialog({
           <fieldset key={i} className="form-grid">
             <legend>Rincian {i + 1}</legend>
             <Field label={`Kode biaya ${i + 1}`}>
-              <select
+              <Select
                 required
                 value={l.charge_code_id}
                 onChange={(e) => set(i, { charge_code_id: e.target.value })}
@@ -231,7 +232,7 @@ function RequestDialog({
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Money
               label={`Jumlah ${i + 1} (Rp)`}
@@ -953,7 +954,7 @@ export function CashDetailPage() {
             )}
             {step === "disburse" && (
               <Field label="Kas sumber">
-                <select
+                <Select
                   required
                   value={box}
                   onChange={(e) => setBox(e.target.value)}
@@ -964,7 +965,7 @@ export function CashDetailPage() {
                       {c.code} · {c.name} ({rupiah(c.balance_minor)})
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
             )}
           </Form>

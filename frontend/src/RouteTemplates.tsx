@@ -4,6 +4,7 @@ import { useSession } from "./App";
 import { Badge, Empty, ErrorBox, Field, Form, Loading } from "./components";
 import { Modal } from "./Cash";
 import { can } from "./opsTypes";
+import { Select } from "./Select";
 
 type Template = {
   id: string;
@@ -222,7 +223,7 @@ function TemplateDialog({
           <fieldset key={i} className="form-grid">
             <legend>{i === 0 ? "Stop muat" : `Stop bongkar ${i}`}</legend>
             <Field label={`Lokasi ${i + 1}`}>
-              <select
+              <Select
                 required
                 value={s.location_id}
                 onChange={(e) => set(i, { location_id: e.target.value })}
@@ -233,7 +234,7 @@ function TemplateDialog({
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label={`Menit sejak berangkat ${i + 1}`}>
               <input

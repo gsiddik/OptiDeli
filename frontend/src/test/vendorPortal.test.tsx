@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { pick } from "./pick";
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal ??= function showModal(
@@ -156,10 +157,7 @@ describe("Vendor portal", () => {
       within(dialog).getByLabelText("Nomor kendaraan"),
       "B 9 ZZ",
     );
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText(/Tipe kendaraan/),
-      CDD,
-    );
+    await pick(within(dialog).getByLabelText(/Tipe kendaraan/), CDD);
     await userEvent.type(within(dialog).getByLabelText(/Kapasitas/), "2500");
     await userEvent.type(within(dialog).getByLabelText(/Panjang/), "4200");
     await userEvent.type(within(dialog).getByLabelText(/Lebar/), "2000");
@@ -215,14 +213,8 @@ describe("Vendor portal", () => {
       screen.getByRole("button", { name: "+ Baris tarif" }),
     );
     const dialog = await screen.findByRole("dialog");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText("Tipe kendaraan"),
-      CDD,
-    );
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText("Kode biaya"),
-      "c1",
-    );
+    await pick(within(dialog).getByLabelText("Tipe kendaraan"), CDD);
+    await pick(within(dialog).getByLabelText("Kode biaya"), "c1");
     await userEvent.type(
       within(dialog).getByLabelText("Tarif (Rp)"),
       "1500000",

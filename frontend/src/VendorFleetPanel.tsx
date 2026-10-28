@@ -3,6 +3,7 @@ import { useData } from "./api";
 import { Badge, Empty, ErrorBox, Loading } from "./components";
 import { EditorDialog, submitRecord } from "./RecordEditor";
 import type { EditorField } from "./RecordEditor";
+import { newId } from "./uuid";
 
 export type FleetDocument = {
   id: string;
@@ -98,7 +99,7 @@ export function VendorFleetPanel() {
       await submitRecord(
         `vendor/${type}/${row.id}/active`,
         { active },
-        crypto.randomUUID(),
+        newId(),
         {},
         "PUT",
       );

@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
+import { optionsOf, pick } from "./pick";
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal ??= function showModal(
@@ -226,10 +227,7 @@ describe("Tariffs", () => {
       await screen.findByRole("button", { name: "+ Baris tarif" }),
     );
     const dialog = await screen.findByRole("dialog");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText("Kode biaya"),
-      FREIGHT,
-    );
+    await pick(within(dialog).getByLabelText("Kode biaya"), FREIGHT);
     await userEvent.type(
       within(dialog).getByLabelText("Tarif per satuan (Rp)"),
       "1500000",
@@ -257,9 +255,13 @@ describe("Tariffs", () => {
     stub(["operations.view", "rate.view", "rate.buy.view"]);
     open("/tariffs/test");
     await screen.findByRole("heading", { level: 1, name: /Tarif jual/ });
-    await screen.findAllByRole("option", { name: "POOL · Pool" });
-    await userEvent.selectOptions(screen.getByLabelText("Lokasi asal"), L1);
-    await userEvent.selectOptions(screen.getByLabelText("Lokasi tujuan"), T1);
+    await waitFor(async () =>
+      expect(await optionsOf(screen.getByLabelText("Lokasi asal"))).toContain(
+        "POOL · Pool",
+      ),
+    );
+    await pick(screen.getByLabelText("Lokasi asal"), L1);
+    await pick(screen.getByLabelText("Lokasi tujuan"), T1);
     await userEvent.click(screen.getByRole("button", { name: "Hitung tarif" }));
     const result = await screen.findByLabelText("Hasil tarif");
     expect(within(result).getByText("Peringatan uji")).toBeTruthy();

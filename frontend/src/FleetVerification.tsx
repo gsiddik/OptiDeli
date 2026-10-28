@@ -4,6 +4,7 @@ import { Badge, Empty, ErrorBox, Loading } from "./components";
 import { EditorDialog, submitRecord } from "./RecordEditor";
 import { docLabel } from "./VendorFleetPanel";
 import type { FleetDocument } from "./VendorFleetPanel";
+import { newId } from "./uuid";
 
 type Item = {
   id: string;
@@ -43,7 +44,7 @@ export function FleetVerificationPage() {
       await submitRecord(
         `fleet-verification/${type}/${item.id}`,
         { decision: "VERIFY" },
-        crypto.randomUUID(),
+        newId(),
       );
       state.refresh();
     } catch (e) {

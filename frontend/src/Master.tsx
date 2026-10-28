@@ -35,6 +35,8 @@ type SchemaField = {
   ref?: string;
   list?: boolean;
   immutable?: boolean;
+  /** The system fills it in when the record is saved (customer and project codes): it is not asked for on a new record. */
+  generated?: boolean;
   hint?: string;
   default?: string | number | boolean;
 };
@@ -72,6 +74,7 @@ function editorFields(
 ): EditorField[] {
   return resource.fields
     .filter((f) => !(row && f.immutable))
+    .filter((f) => !(!row && f.generated))
     .map((f): EditorField => {
       const base = {
         name: f.name,
@@ -105,7 +108,13 @@ function editorFields(
               value: held,
               label: String(row?.[`${f.name}_label`] ?? held),
             });
-          return { ...base, kind: "select", options, value: text() };
+          return {
+            ...base,
+            kind: "select",
+            options,
+            value: text(),
+            searchable: true,
+          };
         }
         case "select":
           return {
@@ -116,9 +125,16 @@ function editorFields(
               label,
             })),
             value: text(),
+            searchable: true,
           };
         case "boolean":
-          return { ...base, kind: "select", options: YES_NO, value: text() };
+          return {
+            ...base,
+            kind: "select",
+            options: YES_NO,
+            value: text(),
+            searchable: true,
+          };
         default:
           return { ...base, kind: f.kind, value: text() };
       }
@@ -166,6 +182,11 @@ function MasterDialog({
           : `Tambah ${resource.singular}`
       }
       fields={editorFields(resource, refs, row)}
+      note={
+        !row && resource.fields.some((f) => f.generated)
+          ? "Kode dibuat otomatis oleh sistem saat data disimpan."
+          : undefined
+      }
       onClose={onClose}
       onSubmit={async (body, key) => {
         await submitRecord(

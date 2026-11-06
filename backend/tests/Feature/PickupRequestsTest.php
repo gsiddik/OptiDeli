@@ -2,11 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Integration\Master\MasterRelay;
+use App\Domain\Integration\Pickup\PickupFeedback;
 use App\Domain\Master\MasterDefaults;
+use App\Domain\Shared\TenantStore;
+use App\Domain\Spm\SpmService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\SignsInTenantMember;
@@ -225,5 +230,71 @@ class PickupRequestsTest extends TestCase
         $this->getJson('/api/v1/pickup-requests')->assertOk()->assertJsonCount(0, 'data');
         $this->getJson("/api/v1/pickup-requests/{$id}")->assertNotFound();
         $this->postJson("/api/v1/pickup-requests/{$id}/reject", ['reason' => 'Bukan milik saya'])->assertNotFound();
+    }
+
+    private function feedback(): array
+    {
+        return DB::table('master_events')->where('event_key', 'optideli.pickup.status_changed')->orderBy('created_at')->orderBy('id')->get()
+            ->map(fn ($e) => json_decode($e->payload, true))->map(fn ($p) => [$p['shipment_number'], $p['status'], $p['reason'] ?? null])->sort()->values()->all();
+    }
+
+    private function convertLinked(string $shipment): string
+    {
+        $this->deliver($this->event($shipment));
+        $id = $this->requestId($shipment);
+        if (DB::table('locations')->where('id', $this->warehouse)->value('external_ref') === null) {
+            $this->postJson("/api/v1/pickup-requests/{$id}/warehouse", ['location_id' => $this->warehouse])->assertOk();
+        }
+        $this->postJson("/api/v1/pickup-requests/{$id}/convert", ['customer_id' => $this->customer, 'service_id' => $this->service, 'destination_location_id' => $this->destination, 'stage' => 'LAST_MILE'])->assertOk();
+
+        return (string) DB::table('pickup_requests')->where('id', $id)->value('transport_order_id');
+    }
+
+    public function test_optistash_is_told_what_happens_to_its_pickup_request(): void
+    {
+        $spm = $this->convertLinked('SHP-000001');
+        $this->assertSame([['SHP-000001', 'ACCEPTED', null]], $this->feedback());
+
+        $service = new SpmService(new TenantStore($this->tenant, (int) auth()->id()));
+        // Planning steps say nothing to the warehouse; leaving on the trip and unloading do.
+        DB::table('transport_orders')->where('id', $spm)->update(['status' => 'LOADING']);
+        $service->transition($spm, 'IN_TRANSIT', null);
+        $service->transition($spm, 'DISCHARGED', null);
+        $service->transition($spm, 'DOC_VERIFIED', null);
+        $this->assertSame([['SHP-000001', 'ACCEPTED', null], ['SHP-000001', 'DELIVERED', null], ['SHP-000001', 'PICKED_UP', null]], $this->feedback());
+
+        // A cancelled SPM is reported without its internal reason; a rejected request with the dispatcher's reason.
+        $cancelled = $this->convertLinked('SHP-000002');
+        $service->transition($cancelled, 'CANCELLED', 'Biaya tidak cocok dengan tarif');
+        $this->deliver($this->event('SHP-000003'));
+        $this->postJson('/api/v1/pickup-requests/'.$this->requestId('SHP-000003').'/reject', ['reason' => 'Barang sudah diambil sendiri'])->assertOk();
+        $this->assertSame([['SHP-000002', 'ACCEPTED', null], ['SHP-000002', 'CANCELLED', null], ['SHP-000003', 'REJECTED', 'Barang sudah diambil sendiri']], array_slice($this->feedback(), 3));
+    }
+
+    public function test_an_ordinary_spm_or_an_unlinked_tenant_tells_nobody(): void
+    {
+        $order = (string) Str::uuid();
+        DB::table('orders')->insert(['id' => $order, 'tenant_id' => $this->tenant, 'number' => 'OD-X', 'customer_id' => $this->customer, 'customer_name' => 'PT Maju', 'stage' => 'LAST_MILE', 'origin' => 'A', 'destination' => 'B',
+            'currency' => 'IDR', 'base_price_minor' => 0, 'surcharge_minor' => 0, 'accessorial_minor' => 0, 'sell_minor' => 0, 'status' => 'CONFIRMED', 'created_by' => auth()->id(), 'created_at' => now(), 'updated_at' => now()]);
+        $service = new SpmService(new TenantStore($this->tenant, (int) auth()->id()));
+        $service->create($order, ['lines' => [['material' => 'Kayu', 'quantity' => 1]]]);
+        $spm = (string) DB::table('transport_orders')->where('order_id', $order)->value('id');
+        $service->transition($spm, 'CANCELLED', 'Dibatalkan pelanggan');
+        $this->assertSame([], $this->feedback());
+
+        DB::table('tenants')->where('id', $this->tenant)->update(['optinexus_tenant_id' => null]);
+        $this->assertFalse(PickupFeedback::publish($this->tenant, (string) Str::uuid(), 'ACCEPTED'));
+        $this->assertSame([], $this->feedback());
+    }
+
+    public function test_the_status_reaches_optinexus_as_an_event_about_a_shipment(): void
+    {
+        config(['optideli.optinexus.base_url' => 'http://nexus.test', 'optideli.optinexus.service.client_id' => 'svc', 'optideli.optinexus.service.client_secret' => 'secret']);
+        $this->convertLinked('SHP-000001');
+        Http::fake(['nexus.test/api/v1/oauth/token' => Http::response(['access_token' => 't', 'expires_in' => 3600]), 'nexus.test/api/v1/events' => Http::response([], 202)]);
+
+        $this->assertSame(1, app(MasterRelay::class)->relay()['delivered']);
+        Http::assertSent(fn ($r) => $r->url() === 'http://nexus.test/api/v1/events' && $r['event_key'] === 'optideli.pickup.status_changed' && $r['tenant_id'] === self::NEXUS_TENANT
+            && $r['data']['aggregate_type'] === 'shipment' && $r['data']['payload']['status'] === 'ACCEPTED' && $r['data']['payload']['shipment_number'] === 'SHP-000001');
     }
 }

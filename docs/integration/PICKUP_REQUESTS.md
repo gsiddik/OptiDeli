@@ -51,11 +51,22 @@ status and shows shipment number, warehouse, number of lines and total quantity.
 
 Both actions run in one transaction with the audit event and are refused for a request that is not `RECEIVED`. Cross-tenant ids are 404.
 
-## 5. Feedback to OptiStash (later stage, not part of the first release)
+## 5. Feedback to OptiStash (stage 2, built)
 
-OptiStash will want to know that the goods were picked up and delivered. The natural fit is a Deli event (`optideli.pickup.status_changed`:
-shipment number, `ACCEPTED`/`REJECTED`/`PICKED_UP`/`DELIVERED`, time) published through the same broker, with a subscription
-`optistash <- optideli.pickup.*`. It is deliberately left out of the first release so the inbound contract can be proven first.
+`optideli.pickup.status_changed`, `aggregate_type` `shipment`, payload `shipment_number`, `status`, `occurred_at` (UTC) and, for a rejection only, `reason`.
+Written to `master_events` in the transaction of the change and relayed to OptiNexus like the master data events (`MasterRelay`).
+
+| Status | When |
+|---|---|
+| `ACCEPTED` | the request became an order and an SPM (by a dispatcher or by the tenant's defaults) |
+| `REJECTED` | a dispatcher rejected it (the reason travels with it) |
+| `PICKED_UP` | the SPM went `IN_TRANSIT` (the goods left the warehouse) |
+| `DELIVERED` | the SPM was `DISCHARGED` (unloaded at the destination) |
+| `CANCELLED` | the SPM was cancelled (its internal reason does not leave OptiDeli) |
+
+Planning steps (`PLANNED`, `LOADING`) and the document and closing steps say nothing to the warehouse. A tenant that is not linked to OptiNexus
+queues nothing. OptiStash keeps every event as an append-only history and shows the latest one on the shipment (information only: it does not
+move stock or change the shipment's own status). Subscription at OptiNexus: `optistash <- optideli.pickup.*`.
 
 ## 6. Registration at OptiNexus
 
@@ -74,7 +85,7 @@ catalog. When the receiver ships: `ecosystem:register-event-subscription optidel
    (`POST /pickup-requests/{id}/warehouse`, `spm.manage`); a location links to one warehouse and the other way round. No location is created from an event.
 3. **Goods by code with free text as the fallback.** The product code is matched to the goods master, the unit code to the units; otherwise the
    name stays as the material and the code goes into the line note.
-4. **Status feedback to OptiStash is a second stage** (section 5).
+4. **Status feedback to OptiStash is a second stage** (section 5), built afterwards.
 
 No new permission: reading needs `operations.view`, handling `spm.manage`, the defaults `master.manage`. The order carries zero commercial
 amounts; the SPM is priced from the tariffs when it is planned.

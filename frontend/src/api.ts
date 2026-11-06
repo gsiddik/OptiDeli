@@ -73,27 +73,44 @@ export async function api<T>(
   if (path === "auth/logout") csrfToken = undefined;
   return data as T;
 }
+type DataState<T> = { key: string; data?: T; error?: string; loading: boolean };
+
+/**
+ * Loads `path`. When the path changes, the first render of the new path already reports `loading` with no data, never the answer of
+ * the previous path (a page reading `data.data.find(...)` would otherwise receive the wrong shape for one render and crash). A refresh
+ * of the same path behaves as it always did: the current answer stays until the reload starts.
+ */
 export function useData<T>(path: string) {
-  const [data, setData] = useState<T>();
-  const [error, setError] = useState<string>();
-  const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
+  const [state, setState] = useState<DataState<T>>({
+    key: path,
+    loading: true,
+  });
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(undefined);
-    setData(undefined);
+    setState({ key: path, loading: true });
     api<T>(path, "GET", undefined, undefined, controller.signal)
-      .then(setData)
+      .then((data) => {
+        if (!controller.signal.aborted)
+          setState({ key: path, data, loading: false });
+      })
       .catch((e: unknown) => {
         if (!controller.signal.aborted)
-          setError(e instanceof Error ? e.message : "Tidak dapat memuat data.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+          setState({
+            key: path,
+            error: e instanceof Error ? e.message : "Tidak dapat memuat data.",
+            loading: false,
+          });
       });
     return () => controller.abort();
   }, [path, revision]);
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
-  return { data, error, loading, refresh };
+  const current: DataState<T> =
+    state.key === path ? state : { key: path, loading: true };
+  return {
+    data: current.data,
+    error: current.error,
+    loading: current.loading,
+    refresh,
+  };
 }

@@ -35,6 +35,7 @@ import { OrderCreate, OrderDetail, OrderList } from "./Orders";
 import { DispatchBoard } from "./Dispatch";
 import { MasterPage } from "./Master";
 import { SpmDetailPage, SpmListPage, SpmPrintPage } from "./Spm";
+import { PickupsPage } from "./Pickups";
 import { TripDetailPage, TripListPage } from "./Planning";
 import { CashDetailPage, CashPage } from "./Cash";
 import { BillingPage, InvoicePage } from "./Billing";
@@ -265,6 +266,7 @@ const navigation: {
       { to: "/", label: "Ringkasan", icon: "home" },
       { to: "/orders", label: "Pemesanan", icon: "orders" },
       { to: "/spm", label: "SPM", icon: "orders" },
+      { to: "/pickups", label: "Permintaan jemput", icon: "orders" },
       { to: "/planning", label: "Perjalanan SPM", icon: "dispatch" },
       { to: "/schedule", label: "Jadwal & booking", icon: "dispatch" },
       { to: "/monitoring", label: "Papan monitoring", icon: "roadmap" },
@@ -705,6 +707,7 @@ function TenantApp() {
           <Route path="planning/:id" element={<TripDetailPage />} />
           <Route path="cash" element={<CashPage />} />
           <Route path="cash/:id" element={<CashDetailPage />} />
+          <Route path="pickups" element={<PickupsPage />} />
           <Route path="spm" element={<SpmListPage />} />
           <Route path="spm/:id" element={<SpmDetailPage />} />
           <Route path="spm/:id/print" element={<SpmPrintPage />} />

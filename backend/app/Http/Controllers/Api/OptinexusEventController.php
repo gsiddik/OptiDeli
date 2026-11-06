@@ -7,6 +7,7 @@ use App\Domain\Integration\Fleet\WebhookSignature;
 use App\Domain\Integration\Master\DriverMaster;
 use App\Domain\Integration\Master\VehicleMaster;
 use App\Domain\Integration\Optinexus\TenantProvisioner;
+use App\Domain\Integration\Pickup\PickupRequests;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,8 +43,14 @@ class OptinexusEventController extends Controller
             $tenants->handles($event) => $tenants->provision($event),
             ($event['event_type'] ?? null) === VehicleMaster::RECEIVED => $master->apply($event),
             ($event['event_type'] ?? null) === DriverMaster::RECEIVED => $drivers->apply($event),
+            ($event['event_type'] ?? null) === PickupRequests::RECEIVED => PickupRequests::apply($event),
             default => $fleet->apply($event),
         };
+
+        // An unusable pickup request is a 4xx: OptiNexus does not retry it.
+        if ($result === 'invalid') {
+            return response()->json(['message' => 'Invalid pickup request.', 'code' => 'PICKUP_REQUEST_INVALID'], 422);
+        }
 
         return response()->json(['result' => $result], 202);
     }

@@ -1,7 +1,6 @@
-# Pickup requests from OptiStash (design)
+# Pickup requests from OptiStash
 
-Status: **proposal, waiting for the owner's decisions** (section 7). Nothing of this is built. Until it is, OptiDeli ignores
-`optistash.pickup.requested` and no subscription is registered at OptiNexus.
+Status: **built**, owner decisions of 2026-11-06 applied (section 7). The OptiNexus subscription is registered when the receiver is deployed.
 
 ## 1. What arrives
 
@@ -32,19 +31,17 @@ missing facts. Nothing is created in the order book without a person adding what
 * Table `pickup_requests`: `id`, `tenant_id`, `source_system` (`optistash`), `source_event_id`, `shipment_number`, `warehouse` (json: code, name,
   address, city), `items` (json), `status` (`RECEIVED`, `CONVERTED`, `REJECTED`), `order_id`/`transport_order_id` (set on conversion), `reason`,
   `received_at`, `handled_by`, `handled_at`. Unique `(tenant_id, source_system, source_event_id)`: a repeated delivery changes nothing
-  (idempotent, like the master data receivers). The same `shipment_number` arriving again with a new event id is shown as a duplicate warning,
-  not merged.
+  (idempotent, like the master data receivers). The same `shipment_number` arriving again with a new event id is a separate request.
 * Validation: every item needs a code, a name and a positive whole quantity; at most 500 items; strings are length-limited. A malformed event
   is answered 4xx (OptiNexus does not retry it); a tenant that is unknown or not linked is acknowledged and ignored.
-* The warehouse is matched to a Deli location (`locations.type = WAREHOUSE`) by a new `external_ref` (`optistash:<code>`). If none exists, a
-  location is created from the payload, marked as coming from OptiStash and **never overwritten later** (an operator's edits win), the same
-  rule as the Radar-created vehicles.
+* The warehouse is matched to a Deli location (`locations.type = WAREHOUSE`) by a new `external_ref` (`optistash:<code>`) that an operator
+  sets (decision 2). An unknown warehouse stays unlinked until then; no location is created from an event.
 * Goods: `product_code` is matched to the goods master by code; if absent the line keeps the product name as free text (the shipment line
   already supports `material` as text).
 
 ## 4. Handling (console)
 
-New page **Permintaan jemput** (permission `pickup.manage`, given to dispatcher and supervisor; read-only for viewers). The list filters by
+New page **Permintaan jemput** (`operations.view` to read, `spm.manage` to handle; see section 7). The list filters by
 status and shows shipment number, warehouse, number of lines and total quantity. Detail shows the lines and offers:
 
 * **Buat order**: the dispatcher picks the customer, service and destination (the facts the event lacks), and optionally the carrier type
@@ -66,18 +63,22 @@ Done on the OptiNexus side already: application `optistash`, its modules and per
 catalog. When the receiver ships: `ecosystem:register-event-subscription optideli "optistash.pickup.*" --url=<deli-api>/api/v1/integration/optinexus/events`
 (OptiDeli has one receiver secret, so the new subscription carries the same one).
 
-## 7. Decisions needed from the owner
+## 7. Owner decisions (2026-11-06) and what was built
 
-1. **Inbox, not automatic order.** Is a dispatcher completing every pickup (customer, service, destination) acceptable, or should a tenant
-   setting name a default customer/service/destination so that pickups become orders without a person?
-2. **Warehouse as a location.** Create a Deli location for an unknown warehouse automatically (recommended), or require an operator to link it first?
-3. **Goods.** Match by code and fall back to free text (recommended), or refuse a request that contains an unknown product?
-4. **Feedback.** Should the first release already report status back to OptiStash (section 5), or follow in a second stage (recommended)?
+1. **Orders by default, through a dispatcher when the defaults are missing.** The tenant saves a default customer, service, destination and stage
+   (`PUT /pickup-settings`, `master.manage`). With "order otomatis" on, a request from a linked warehouse becomes an order with one SPM in
+   `DRAFT` when it arrives, in the name of whoever saved the defaults (an order needs a creator). Without them, or when the warehouse is not
+   linked, the request waits in the inbox with the reason in `auto_failure` and a dispatcher completes it (`spm.manage`). Saving the
+   defaults or linking a warehouse converts the requests that were waiting for exactly that.
+2. **The warehouse is linked by an operator first.** `locations.external_ref = optistash:<CODE>`, set from the request detail
+   (`POST /pickup-requests/{id}/warehouse`, `spm.manage`); a location links to one warehouse and the other way round. No location is created from an event.
+3. **Goods by code with free text as the fallback.** The product code is matched to the goods master, the unit code to the units; otherwise the
+   name stays as the material and the code goes into the line note.
+4. **Status feedback to OptiStash is a second stage** (section 5).
 
-## 8. Build plan once approved
+No new permission: reading needs `operations.view`, handling `spm.manage`, the defaults `master.manage`. The order carries zero commercial
+amounts; the SPM is priced from the tariffs when it is planned.
 
-1. Migration (`pickup_requests`, `locations.external_ref`), `PickupRequests` receiver with idempotency and validation, permission `pickup.manage`.
-2. Controller and routes (list, detail, convert, reject), conversion through the existing order and SPM services.
-3. Console page with the list, detail, convert form (searchable selects) and reject dialog.
-4. Tests: signature and tenant, idempotency, validation, warehouse matching and non-overwrite, conversion, rejection, permissions, tenant isolation.
-5. Register the subscription at OptiNexus and verify end to end with an OptiStash shipment (needs the OptiStash tenant linked to OptiNexus).
+API: `GET /pickup-requests?status=&page=`, `GET /pickup-requests/{id}`, `POST /pickup-requests/{id}/{warehouse|convert|reject}`,
+`GET|PUT /pickup-settings`. The console page is **Permintaan jemput**. Tests: `PickupRequestsTest` (signature, tenant, validation, idempotency,
+linking, manual and automatic conversion, rejection, permissions, tenant isolation).

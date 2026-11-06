@@ -268,6 +268,7 @@ final class PickupRequests
                 'status' => 'CONVERTED', 'warehouse_location_id' => $origin->id, 'order_id' => $orderId, 'transport_order_id' => $spmId, 'auto_failure' => null, 'reason' => null,
                 'handled_by' => $store->actorId, 'handled_at' => now(), 'updated_at' => now(),
             ]);
+            PickupFeedback::publish($store->tenantId, $requestId, 'ACCEPTED');
             $store->event('pickup.converted', $requestId, ['shipment' => $request->shipment_number, 'order' => $orderNumber, 'spm' => $spm->number, 'auto' => $auto]);
         }, 3);
 
@@ -298,6 +299,7 @@ final class PickupRequests
             $request = $store->find('pickup_requests', $requestId, true);
             abort_unless($request->status === 'RECEIVED', 409, 'Permintaan ini sudah diproses.');
             $store->query('pickup_requests')->where('id', $requestId)->update(['status' => 'REJECTED', 'reason' => trim($reason), 'handled_by' => $store->actorId, 'handled_at' => now(), 'updated_at' => now()]);
+            PickupFeedback::publish($store->tenantId, $requestId, 'REJECTED', trim($reason));
             $store->event('pickup.rejected', $requestId, ['shipment' => $request->shipment_number, 'reason' => trim($reason)]);
         }, 3);
 

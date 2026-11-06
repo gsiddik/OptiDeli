@@ -3,6 +3,7 @@
 namespace App\Domain\Spm;
 
 use App\Domain\Customer\Webhooks;
+use App\Domain\Integration\Pickup\PickupFeedback;
 use App\Domain\Shared\TenantStore;
 use App\Domain\Tariff\TariffResolver;
 use Illuminate\Support\Facades\DB;
@@ -314,6 +315,8 @@ final class SpmService
             DB::table('transport_orders')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update(['status' => $to, 'status_reason' => in_array($to, ['CANCELLED', 'REOPENED'], true) ? $reason : $spm->status_reason, 'updated_at' => now()]);
             $this->history($id, $spm->status, $to, $reason);
             $this->store->event('spm.status_changed', $id, ['number' => $spm->number, 'from' => $spm->status, 'to' => $to, 'reason' => $reason, 'warnings' => $warnings]);
+            // A pickup request from OptiStash behind this SPM is told that the goods left or arrived (no internal reason goes with it).
+            PickupFeedback::forSpm($this->store->tenantId, $id, $to);
             // What the customer is told: no internal reason, and nothing before the SPM leaves draft.
             if ($spm->status !== 'DRAFT' || $to !== 'CANCELLED') {
                 Webhooks::publish($this->store->tenantId, $spm->customer_id, 'spm.status_changed', $id, ['spm' => ['id' => $id, 'number' => $spm->number, 'reference' => $spm->reference, 'from' => $spm->status, 'to' => $to]]);

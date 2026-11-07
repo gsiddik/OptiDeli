@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Validator;
  */
 final class TariffResolver
 {
-    private const QUANTITY_KEYS = ['TRIP' => 'trips', 'KG' => 'kg', 'CBM' => 'cbm', 'CARTON' => 'carton', 'KM' => 'km', 'DAY' => 'day', 'DROP' => 'drop'];
+    private const QUANTITY_KEYS = ['TRIP' => 'trips', 'KG' => 'kg', 'CBM' => 'cbm', 'CARTON' => 'carton', 'KM' => 'km', 'DAY' => 'day', 'DROP' => 'drop', 'UNIT' => 'unit'];
 
     public function __construct(private readonly TenantStore $store) {}
 
@@ -25,11 +25,11 @@ final class TariffResolver
             'date' => 'nullable|date_format:Y-m-d',
             'customer_id' => 'nullable|uuid', 'project_id' => 'nullable|uuid', 'vendor_id' => 'nullable|uuid',
             'origin_location_id' => 'required|uuid', 'destination_location_id' => 'required|uuid',
-            'carrier_type_id' => 'nullable|uuid', 'service_id' => 'nullable|uuid',
+            'carrier_type_id' => 'nullable|uuid', 'service_id' => 'nullable|uuid', 'unit_id' => 'nullable|uuid',
             'charge_code_ids' => 'nullable|array|max:50', 'charge_code_ids.*' => 'uuid',
             'quantities' => 'nullable|array',
             'quantities.trips' => 'nullable|numeric|min:0', 'quantities.kg' => 'nullable|numeric|min:0', 'quantities.cbm' => 'nullable|numeric|min:0', 'quantities.carton' => 'nullable|numeric|min:0',
-            'quantities.km' => 'nullable|numeric|min:0', 'quantities.day' => 'nullable|numeric|min:0', 'quantities.drop' => 'nullable|numeric|min:0',
+            'quantities.km' => 'nullable|numeric|min:0', 'quantities.day' => 'nullable|numeric|min:0', 'quantities.drop' => 'nullable|numeric|min:0', 'quantities.unit' => 'nullable|numeric|min:0',
         ])->validate();
         $date = $in['date'] ?? now()->toDateString();
         $quantities = ($in['quantities'] ?? []) + ['trips' => 1];
@@ -55,6 +55,9 @@ final class TariffResolver
             }
             $b = isset($buy[$charge->id]) ? $this->price($buy[$charge->id], $quantities, $warnings, $charge->code) : null;
             $s = isset($sell[$charge->id]) ? $this->price($sell[$charge->id], $quantities, $warnings, $charge->code) : null;
+            if ($s === null && $b !== null && isset($buy[$charge->id])) {
+                $s = $this->mapped($buy[$charge->id]['line'], $b, $ctx);
+            }
             if ($s === null && $b !== null && $b['amount_minor'] !== null) {
                 $markup ??= $this->markup($ctx, $date, $warnings);
                 if ($markup !== null && $charge->nature === 'FREIGHT') {
@@ -89,8 +92,8 @@ final class TariffResolver
     {
         foreach ($result['lines'] as &$line) {
             unset($line['buy'], $line['margin_minor']);
-            if (isset($line['sell']['markup'])) {
-                $line['sell'] = array_diff_key($line['sell'], ['markup' => 1, 'rate_table_id' => 1, 'table_code' => 1, 'version' => 1, 'rate_line_id' => 1]) + ['source' => 'DERIVED'];
+            if (isset($line['sell']['markup']) || isset($line['sell']['mapping'])) {
+                $line['sell'] = array_diff_key($line['sell'], ['markup' => 1, 'mapping' => 1, 'min_charge_minor' => 1, 'rate_table_id' => 1, 'table_code' => 1, 'version' => 1, 'rate_line_id' => 1, 'source' => 1]) + ['source' => 'DERIVED'];
             }
         }
         unset($line);
@@ -139,13 +142,14 @@ final class TariffResolver
             ->where(fn ($q) => $q->whereNull('destination_zone_id')->when($d['zone'], fn ($q) => $q->orWhere('destination_zone_id', $d['zone'])))
             ->where(fn ($q) => $q->whereNull('carrier_type_id')->when(! empty($ctx['carrier_type_id']), fn ($q) => $q->orWhere('carrier_type_id', $ctx['carrier_type_id'])))
             ->where(fn ($q) => $q->whereNull('service_id')->when(! empty($ctx['service_id']), fn ($q) => $q->orWhere('service_id', $ctx['service_id'])))
+            ->where(fn ($q) => $q->whereNull('unit_id')->when(! empty($ctx['unit_id']), fn ($q) => $q->orWhere('unit_id', $ctx['unit_id'])))
             ->get();
 
         $best = [];
         foreach ($lines as $line) {
             $table = $tables[$line->rate_table_id];
             $lane = fn (string $p) => ($line->{$p.'_location_id'} ? 3 : ($line->{$p.'_city_id'} ? 2 : ($line->{$p.'_zone_id'} ? 1 : 0)));
-            $score = ($table->project_id ? 2 : ($table->customer_id ? 1 : 0)) * 100000 + ($lane('origin') + $lane('destination')) * 1000 + ($line->carrier_type_id ? 10 : 0) + ($line->service_id ? 1 : 0);
+            $score = ($table->project_id ? 2 : ($table->customer_id ? 1 : 0)) * 100000 + ($lane('origin') + $lane('destination')) * 1000 + ($line->carrier_type_id ? 10 : 0) + ($line->unit_id ? 5 : 0) + ($line->service_id ? 1 : 0);
             $key = $line->charge_code_id;
             $current = $best[$key] ?? null;
             if ($current === null || $score > $current['score']) {
@@ -177,6 +181,38 @@ final class TariffResolver
             'source' => 'TABLE', 'rate_table_id' => $hit['table']->id, 'table_code' => $hit['table']->code, 'version' => $hit['table']->version, 'rate_line_id' => $line->id,
             'basis' => $line->basis, 'quantity' => $quantity === null ? null : (float) $quantity, 'unit_price_minor' => (int) $line->unit_price_minor, 'min_charge_minor' => (int) $line->min_charge_minor,
             'free_time_hours' => $line->free_time_hours, 'amount_minor' => $amount,
+        ];
+    }
+
+    /**
+     * The selling side of a mapping row: the initial rate plus the margin that applies to this customer (a project margin over a
+     * customer margin over the row's own), or null when the row has no margin. The base tariff is rounded once, per unit.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function mapped(object $line, array $buy, array $ctx): ?array
+    {
+        $mode = $line->margin_mode;
+        $value = $line->margin_value;
+        $scope = 'DEFAULT';
+        $overrides = $this->store->query('rate_line_margins')->where('rate_line_id', $line->id)
+            ->when(! empty($ctx['customer_id']), fn ($q) => $q->where('customer_id', $ctx['customer_id']), fn ($q) => $q->whereRaw('false'))->get();
+        $own = ! empty($ctx['project_id']) ? $overrides->firstWhere('project_id', $ctx['project_id']) : null;
+        $own ??= $overrides->first(fn ($m) => $m->project_id === null);
+        if ($own !== null) {
+            [$mode, $value, $scope] = [$own->margin_mode, $own->margin_value, $own->project_id ? 'PROJECT' : 'CUSTOMER'];
+        }
+        if ($mode === null) {
+            return null;
+        }
+        $unitPrice = BaseTariff::price((int) $line->unit_price_minor, $mode, (int) $value);
+        $minimum = BaseTariff::minimum((int) $line->min_charge_minor, $mode, (int) $value);
+
+        return [
+            'source' => 'MAPPING', 'rate_table_id' => $buy['rate_table_id'], 'table_code' => $buy['table_code'], 'version' => $buy['version'], 'rate_line_id' => $line->id,
+            'basis' => $buy['basis'], 'quantity' => $buy['quantity'], 'unit_price_minor' => $unitPrice, 'min_charge_minor' => $minimum, 'free_time_hours' => $buy['free_time_hours'],
+            'amount_minor' => $buy['quantity'] === null ? null : max($minimum, (int) round($unitPrice * $buy['quantity'])),
+            'mapping' => ['initial_unit_price_minor' => (int) $line->unit_price_minor, 'margin_mode' => $mode, 'margin_value' => (int) $value, 'scope' => $scope],
         ];
     }
 

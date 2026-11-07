@@ -19,13 +19,13 @@ use Illuminate\Validation\ValidationException;
  */
 final class TariffService
 {
-    public const BASES = ['TRIP' => 'Per trip', 'KG' => 'Per kg', 'CBM' => 'Per CBM', 'CARTON' => 'Per karton', 'KM' => 'Per km', 'DAY' => 'Per hari', 'DROP' => 'Per drop'];
+    public const BASES = ['TRIP' => 'Per trip', 'KG' => 'Per kg', 'CBM' => 'Per CBM', 'CARTON' => 'Per karton', 'KM' => 'Per km', 'DAY' => 'Per hari', 'DROP' => 'Per drop', 'UNIT' => 'Per satuan muatan'];
 
     /** Reference columns of a rate line and the master each points to. */
     public const LINE_REFS = [
         'origin_location_id' => 'locations', 'origin_city_id' => 'cities', 'origin_zone_id' => 'zones',
         'destination_location_id' => 'locations', 'destination_city_id' => 'cities', 'destination_zone_id' => 'zones',
-        'carrier_type_id' => 'carrier_types', 'service_id' => 'services', 'charge_code_id' => 'charge_codes',
+        'carrier_type_id' => 'carrier_types', 'service_id' => 'services', 'charge_code_id' => 'charge_codes', 'unit_id' => 'units',
     ];
 
     private const TABLE_REFS = ['customer_id' => 'customers', 'project_id' => 'customer_projects', 'vendor_id' => 'vendors'];
@@ -102,6 +102,13 @@ final class TariffService
         $this->annotate($rows, self::TABLE_REFS);
         $lines = $this->store->query('rate_lines')->where('rate_table_id', $id)->orderBy('charge_code_id')->orderBy('created_at')->get();
         $this->annotate($lines, self::LINE_REFS);
+        if ($table->side === 'BUY') {
+            $margins = $this->store->query('rate_line_margins')->whereIn('rate_line_id', $lines->pluck('id'))->get();
+            $this->annotate($margins, ['customer_id' => 'customers', 'project_id' => 'customer_projects']);
+            foreach ($lines as $line) {
+                $line->margins = $margins->where('rate_line_id', $line->id)->values()->all();
+            }
+        }
         $versions = $this->store->query('rate_tables')->where('code', $table->code)->orderByDesc('version')->get(['id', 'version', 'status', 'valid_from', 'valid_until']);
 
         return ['table' => $table, 'lines' => $lines->all(), 'versions' => $versions->all()];
@@ -214,6 +221,7 @@ final class TariffService
         foreach (array_keys(self::LINE_REFS) as $column) {
             $d[$column] = $d[$column] ?? null;
         }
+        $this->mapping($table, $input, $d);
         $d['min_charge_minor'] = $d['min_charge_minor'] ?? 0;
         $d['free_time_hours'] = $d['free_time_hours'] ?? null;
         $d['notes'] = $d['notes'] ?? null;
@@ -232,6 +240,86 @@ final class TariffService
         }
 
         return $d;
+    }
+
+    /**
+     * Unit and margin of a mapping row. The unit goes with the basis UNIT and with nothing else; the margin exists only on a BUY
+     * line, never on a vendor's own proposal, and turns the initial rate into the base tariff, which is computed here.
+     */
+    private function mapping(object $table, array $input, array &$d): void
+    {
+        $unit = ($d['basis'] ?? null) === 'UNIT';
+        if ($unit && empty($d['unit_id'])) {
+            $this->fail('unit_id', 'Pilih satuan muatan untuk dasar tarif per satuan.');
+        }
+        if (! $unit && ! empty($d['unit_id'])) {
+            $this->fail('unit_id', 'Satuan hanya dipakai pada dasar tarif per satuan muatan.');
+        }
+        $mode = $input['margin_mode'] ?? null;
+        $value = $input['margin_value'] ?? null;
+        if (($mode === null || $mode === '') && ($value === null || $value === '')) {
+            $d['margin_mode'] = $d['margin_value'] = $d['sell_unit_price_minor'] = null;
+
+            return;
+        }
+        if ($table->side !== 'BUY' || $this->asVendor) {
+            $this->fail('margin_mode', 'Margin hanya untuk baris tarif beli milik tenant.');
+        }
+        $m = $this->margin($mode, $value);
+        $d['margin_mode'] = $m['margin_mode'];
+        $d['margin_value'] = $m['margin_value'];
+        $d['sell_unit_price_minor'] = BaseTariff::price((int) $d['unit_price_minor'], $m['margin_mode'], $m['margin_value']);
+    }
+
+    /** @return array{margin_mode: string, margin_value: int} */
+    private function margin(mixed $mode, mixed $value): array
+    {
+        $m = Validator::make(['margin_mode' => $mode, 'margin_value' => $value], ['margin_mode' => ['required', Rule::in(BaseTariff::MODES)], 'margin_value' => 'required|integer|min:0|max:100000000000000'], [], ['margin_mode' => 'Jenis margin', 'margin_value' => 'Nilai margin'])->validate();
+        if ($m['margin_mode'] === 'PERCENT' && $m['margin_value'] > 100000) {
+            $this->fail('margin_value', 'Margin persen terlalu besar (maksimum 1000%).');
+        }
+
+        return $m;
+    }
+
+    /** Sets (or replaces) the margin of a draft BUY line for one customer, or one project of it. */
+    public function setLineMargin(string $tableId, string $lineId, array $input): object
+    {
+        return DB::transaction(function () use ($tableId, $lineId, $input) {
+            $table = $this->draft($tableId);
+            if ($table->side !== 'BUY' || $this->asVendor) {
+                $this->fail('customer_id', 'Margin per pelanggan hanya untuk baris tarif beli milik tenant.');
+            }
+            $line = $this->store->query('rate_lines')->where('rate_table_id', $tableId)->where('id', $lineId)->lockForUpdate()->firstOrFail();
+            $d = Validator::make($input, ['customer_id' => ['required', 'uuid', $this->exists('customers')], 'project_id' => ['nullable', 'uuid', $this->exists('customer_projects')]], [], ['customer_id' => 'Pelanggan', 'project_id' => 'Proyek'])->validate();
+            if (! empty($d['project_id']) && $this->store->query('customer_projects')->where('id', $d['project_id'])->value('customer_id') !== $d['customer_id']) {
+                $this->fail('project_id', 'Proyek bukan milik pelanggan ini.');
+            }
+            $m = $this->margin($input['margin_mode'] ?? null, $input['margin_value'] ?? null);
+            $project = $d['project_id'] ?? null;
+            $existing = $this->store->query('rate_line_margins')->where('rate_line_id', $lineId)->where('customer_id', $d['customer_id'])
+                ->when($project === null, fn ($q) => $q->whereNull('project_id'), fn ($q) => $q->where('project_id', $project))->first();
+            $id = $existing->id ?? (string) Str::uuid();
+            if ($existing) {
+                DB::table('rate_line_margins')->where('tenant_id', $this->store->tenantId)->where('id', $id)->update($m + ['updated_at' => now()]);
+            } else {
+                DB::table('rate_line_margins')->insert($m + ['id' => $id, 'tenant_id' => $this->store->tenantId, 'rate_line_id' => $lineId, 'customer_id' => $d['customer_id'], 'project_id' => $project, 'created_at' => now(), 'updated_at' => now()]);
+            }
+            $this->store->event('tariff.line.margin_set', $tableId, ['code' => $table->code, 'version' => $table->version, 'line_id' => $line->id, 'customer_id' => $d['customer_id'], 'project_id' => $project, 'margin_mode' => $m['margin_mode'], 'margin_value' => $m['margin_value']]);
+
+            return $this->store->find('rate_line_margins', $id);
+        }, 3);
+    }
+
+    public function removeLineMargin(string $tableId, string $lineId, string $marginId): void
+    {
+        DB::transaction(function () use ($tableId, $lineId, $marginId) {
+            $table = $this->draft($tableId);
+            $this->store->query('rate_lines')->where('rate_table_id', $tableId)->where('id', $lineId)->firstOrFail();
+            $margin = $this->store->query('rate_line_margins')->where('rate_line_id', $lineId)->where('id', $marginId)->firstOrFail();
+            DB::table('rate_line_margins')->where('tenant_id', $this->store->tenantId)->where('id', $marginId)->delete();
+            $this->store->event('tariff.line.margin_removed', $tableId, ['code' => $table->code, 'version' => $table->version, 'line_id' => $lineId, 'customer_id' => $margin->customer_id, 'project_id' => $margin->project_id]);
+        }, 3);
     }
 
     /** The line of a table with the same lane, carrier, service, charge code and basis, if there is one. */
@@ -390,6 +478,13 @@ final class TariffService
                 $copy['rate_table_id'] = $id2;
                 $copy['created_at'] = $copy['updated_at'] = now();
                 DB::table('rate_lines')->insert($copy);
+                foreach ($this->store->query('rate_line_margins')->where('rate_line_id', $line->id)->get() as $margin) {
+                    $m = (array) $margin;
+                    $m['id'] = (string) Str::uuid();
+                    $m['rate_line_id'] = $copy['id'];
+                    $m['created_at'] = $m['updated_at'] = now();
+                    DB::table('rate_line_margins')->insert($m);
+                }
             }
             $this->store->event('tariff.version_created', $id2, ['code' => $source->code, 'version' => $latest + 1, 'from_version' => $source->version]);
 

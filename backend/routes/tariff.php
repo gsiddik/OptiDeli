@@ -17,6 +17,8 @@ Route::put('tariffs/{id}', [T::class, 'update'])->whereUuid('id');
 Route::post('tariffs/{id}/lines', [T::class, 'addLine'])->whereUuid('id');
 Route::put('tariffs/{id}/lines/{line}', [T::class, 'updateLine'])->whereUuid('id')->whereUuid('line');
 Route::delete('tariffs/{id}/lines/{line}', [T::class, 'deleteLine'])->whereUuid('id')->whereUuid('line');
+Route::post('tariffs/{id}/lines/{line}/margins', [T::class, 'setLineMargin'])->whereUuid('id')->whereUuid('line');
+Route::delete('tariffs/{id}/lines/{line}/margins/{margin}', [T::class, 'removeLineMargin'])->whereUuid('id')->whereUuid('line')->whereUuid('margin');
 Route::post('tariffs/{id}/imports', [T::class, 'importLines'])->whereUuid('id');
 Route::post('tariffs/{id}/approve', [T::class, 'approve'])->whereUuid('id');
 Route::post('tariffs/{id}/retire', [T::class, 'retire'])->whereUuid('id');

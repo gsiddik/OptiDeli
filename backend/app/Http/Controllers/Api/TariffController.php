@@ -92,6 +92,18 @@ class TariffController extends Controller
         return response()->noContent();
     }
 
+    public function setLineMargin(Request $r, string $id, string $line)
+    {
+        return response()->json(['data' => $this->manager($r)->setLineMargin($id, $line, $r->all())]);
+    }
+
+    public function removeLineMargin(Request $r, string $id, string $line, string $margin)
+    {
+        $this->manager($r)->removeLineMargin($id, $line, $margin);
+
+        return response()->noContent();
+    }
+
     public function approve(Request $r, string $id)
     {
         return response()->json(['data' => $this->approver($r)->approve($id)]);

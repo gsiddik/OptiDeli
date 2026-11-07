@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Domain\Access\PermissionCatalog;
 use App\Domain\Fleet\VendorFleet;
+use App\Domain\Integration\Master\VehicleMaster;
 use App\Domain\Integration\Master\VendorMaster;
 use App\Domain\Master\MasterService;
 use App\Domain\Shared\TenantStore;
@@ -176,6 +177,11 @@ class DemoData extends Command
             VendorMaster::publish($this->tenant['id'], 'VEHICLE', $registered->id);
         }
         $this->id['v_vendor'] = (string) $this->planner->query('vehicles')->where('plate', 'B 9101 VND')->value('id');
+        // Announce the tenant's own vehicles again on every run: a platform that got its tenant after the first run (OptiFleet, at the
+        // administrator's first sign-in or its own demo data) receives them now. The receiving side upserts, so repeating is harmless.
+        foreach (['B 9001 DMO', 'B 9002 DMO'] as $plate) {
+            VehicleMaster::publish($this->tenant['id'], $this->id['v_'.$plate]);
+        }
         $this->line('fleet ok');
     }
 

@@ -22,6 +22,7 @@ final class TariffLineImporter
         'origin_location' => ['Asal: lokasi (kode)', 'locations'], 'origin_city' => ['Asal: kota (kode)', 'cities'], 'origin_zone' => ['Asal: zona (kode)', 'zones'],
         'destination_location' => ['Tujuan: lokasi (kode)', 'locations'], 'destination_city' => ['Tujuan: kota (kode)', 'cities'], 'destination_zone' => ['Tujuan: zona (kode)', 'zones'],
         'carrier_type' => ['Tipe armada (kode)', 'carrier_types'], 'service' => ['Layanan (kode)', 'services'],
+        'unit' => ['Satuan muatan (kode)', 'units'], 'margin_percent' => ['Margin (%)', null], 'margin_amount' => ['Margin (Rp per satuan)', null],
         'free_time' => ['Free time (jam)', null], 'notes' => ['Catatan', null],
     ];
 
@@ -43,6 +44,8 @@ final class TariffLineImporter
             ['Biaya minimum (Rp)', 'Tidak', 'Rupiah utuh', ''],
             ['Asal / Tujuan', 'Tidak', 'Isi salah satu dari lokasi, kota, atau zona per sisi; kosong berarti semua', 'Kode dari master Lokasi, Kota, Zona'],
             ['Tipe armada, Layanan', 'Tidak', 'Kosong berarti semua', 'Kode dari master'],
+            ['Satuan muatan (kode)', 'Hanya untuk dasar UNIT', 'Wajib untuk dasar UNIT dan hanya untuk dasar itu', 'Kode dari master Satuan'],
+            ['Margin (%) / Margin (Rp per satuan)', 'Tidak', 'Hanya untuk tarif beli milik tenant; isi salah satu. Tarif dasar dihitung otomatis dari tarif awal ditambah margin', 'Contoh: 15 atau 15,5 untuk persen'],
         ];
 
         return [Tabular::write($format, $format === 'xlsx' ? [['Data', $headers, []], ['Petunjuk', ['Kolom', 'Wajib', 'Format', 'Nilai yang diizinkan'], $guide]] : [['Data', $headers, []]]), "template-baris-tarif.{$format}"];
@@ -141,7 +144,7 @@ final class TariffLineImporter
             $line = [
                 'charge_code_id' => $input['charge_code'] ?? null, 'origin_location_id' => $input['origin_location'] ?? null, 'origin_city_id' => $input['origin_city'] ?? null, 'origin_zone_id' => $input['origin_zone'] ?? null,
                 'destination_location_id' => $input['destination_location'] ?? null, 'destination_city_id' => $input['destination_city'] ?? null, 'destination_zone_id' => $input['destination_zone'] ?? null,
-                'carrier_type_id' => $input['carrier_type'] ?? null, 'service_id' => $input['service'] ?? null,
+                'carrier_type_id' => $input['carrier_type'] ?? null, 'service_id' => $input['service'] ?? null, 'unit_id' => $input['unit'] ?? null,
                 'basis' => isset($raw['basis']) ? ($basisOf[mb_strtolower($raw['basis'])] ?? $raw['basis']) : null,
                 'free_time_hours' => $raw['free_time'] ?? null, 'notes' => $raw['notes'] ?? null,
             ];
@@ -151,6 +154,15 @@ final class TariffLineImporter
                 }
                 $minor = self::toMinor(self::rupiah($raw[$col]));
                 $minor === null ? $errors[$col][] = 'Nominal tidak valid: "'.$raw[$col].'".' : $line[$field] = $minor;
+            }
+            if (($raw['margin_percent'] ?? null) !== null && ($raw['margin_amount'] ?? null) !== null) {
+                $errors['margin_percent'][] = 'Isi margin persen atau margin nominal, tidak keduanya.';
+            } elseif (($raw['margin_percent'] ?? null) !== null) {
+                $pct = str_replace(',', '.', trim(str_replace('%', '', $raw['margin_percent'])));
+                preg_match('/^\d{1,4}(\.\d{1,2})?$/', $pct) ? $line += ['margin_mode' => 'PERCENT', 'margin_value' => (int) round((float) $pct * 100)] : $errors['margin_percent'][] = 'Margin persen tidak valid: "'.$raw['margin_percent'].'".';
+            } elseif (($raw['margin_amount'] ?? null) !== null) {
+                $minor = self::toMinor(self::rupiah($raw['margin_amount']));
+                $minor === null ? $errors['margin_amount'][] = 'Nominal tidak valid: "'.$raw['margin_amount'].'".' : $line += ['margin_mode' => 'AMOUNT', 'margin_value' => $minor];
             }
             $data = null;
             $action = 'ERROR';
@@ -167,7 +179,7 @@ final class TariffLineImporter
                         $existing = $this->tariff->findLine($tableId, $data);
                         if ($existing === null) {
                             $action = 'CREATE';
-                        } elseif ((int) $existing->unit_price_minor === $data['unit_price_minor'] && (int) $existing->min_charge_minor === $data['min_charge_minor']) {
+                        } elseif ((int) $existing->unit_price_minor === $data['unit_price_minor'] && (int) $existing->min_charge_minor === $data['min_charge_minor'] && $existing->margin_mode === $data['margin_mode'] && ($existing->margin_value === null ? null : (int) $existing->margin_value) === $data['margin_value']) {
                             $action = 'NONE';
                             $target = $existing->id;
                         } else {

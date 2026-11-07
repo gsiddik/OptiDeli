@@ -251,6 +251,54 @@ describe("Tariffs", () => {
     });
   });
 
+  it("a buying tariff shows the base tariff column and sends the margin as mode and value", async () => {
+    const calls = stub(
+      ["operations.view", "rate.view", "rate.manage", "rate.buy.view"],
+      {
+        side: "BUY",
+      },
+    );
+    open(`/tariffs/${T1}`);
+    expect(
+      await screen.findByRole("columnheader", { name: "Tarif awal" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Margin" })).toBeTruthy();
+    expect(
+      screen.getByRole("columnheader", { name: "Tarif dasar (otomatis)" }),
+    ).toBeTruthy();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "+ Baris tarif" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await pick(within(dialog).getByLabelText("Kode biaya"), FREIGHT);
+    await userEvent.type(
+      within(dialog).getByLabelText("Tarif per satuan (Rp)"),
+      "1000000",
+    );
+    await userEvent.type(
+      within(dialog).getByLabelText("Margin (% dari tarif awal)"),
+      "15.5",
+    );
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: /Simpan/ }),
+    );
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.path === `tariffs/${T1}/lines`,
+        ),
+      ).toBe(true),
+    );
+    const body = calls.find((c) => c.path === `tariffs/${T1}/lines`)!
+      .body as Record<string, unknown>;
+    expect(body).toMatchObject({
+      unit_price_minor: 100000000,
+      margin_mode: "PERCENT",
+      margin_value: 1550,
+    });
+    expect(body).not.toHaveProperty("margin_percent");
+  });
+
   it("tests a tariff and shows buy, sell, margin and warnings only to those who may see buying prices", async () => {
     stub(["operations.view", "rate.view", "rate.buy.view"]);
     open("/tariffs/test");

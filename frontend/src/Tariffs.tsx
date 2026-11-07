@@ -42,11 +42,22 @@ type Table = {
   submitted_at?: string | null;
   review_note?: string | null;
 };
-type Line = Record<string, string | number | null> & {
+type LineMargin = {
+  id: string;
+  customer_label?: string | null;
+  project_label?: string | null;
+  margin_mode: "PERCENT" | "AMOUNT";
+  margin_value: number;
+};
+type Line = Record<string, string | number | null | LineMargin[]> & {
   id: string;
   basis: string;
   unit_price_minor: number;
   min_charge_minor: number;
+  sell_unit_price_minor?: number | null;
+  margin_mode?: "PERCENT" | "AMOUNT" | null;
+  margin_value?: number | null;
+  margins?: LineMargin[];
 };
 type Detail = {
   table: Table;
@@ -88,6 +99,7 @@ const BASES: Record<string, string> = {
   KM: "Per km",
   DAY: "Per hari",
   DROP: "Per drop",
+  UNIT: "Per satuan muatan",
 };
 const SIDE = { SELL: "Tarif jual", BUY: "Tarif beli" };
 const MASTERS = [
@@ -99,6 +111,7 @@ const MASTERS = [
   "carrier_types",
   "services",
   "charge_codes",
+  "units",
 ];
 
 /** Choices for every master a tariff refers to, plus the vendors. */
@@ -201,7 +214,53 @@ function tableFields(side: "SELL" | "BUY", o: Options, t?: Table) {
   return fields;
 }
 
-function lineFields(o: Options, line?: Line): EditorField[] {
+const marginLabel = (
+  mode: "PERCENT" | "AMOUNT" | null | undefined,
+  value: number | null | undefined,
+) =>
+  !mode || value === null || value === undefined
+    ? "—"
+    : mode === "PERCENT"
+      ? `${value / 100}%`
+      : `${rupiah(value)} / satuan`;
+
+/** The two margin inputs (percent or amount) become the mode and value the API takes. */
+function marginBody(body: Record<string, unknown>): Record<string, unknown> {
+  const { margin_percent: pct, margin_amount_minor: amount, ...rest } = body;
+  if (pct != null && amount != null)
+    throw new Error("Isi margin persen atau margin nominal, tidak keduanya.");
+  if (pct != null)
+    return {
+      ...rest,
+      margin_mode: "PERCENT",
+      margin_value: Math.round(Number(pct) * 100),
+    };
+  if (amount != null)
+    return { ...rest, margin_mode: "AMOUNT", margin_value: amount };
+  return { ...rest, margin_mode: null, margin_value: null };
+}
+
+function marginFields(
+  mode?: string | null,
+  value?: number | null,
+): EditorField[] {
+  return [
+    optional({
+      name: "margin_percent",
+      label: "Margin (% dari tarif awal)",
+      kind: "decimal",
+      value: mode === "PERCENT" && value != null ? String(value / 100) : "",
+    }),
+    optional({
+      name: "margin_amount_minor",
+      label: "atau Margin (Rp per satuan)",
+      kind: "money",
+      value: mode === "AMOUNT" && value != null ? toInput(value) : "",
+    }),
+  ];
+}
+
+function lineFields(o: Options, line?: Line, side?: string): EditorField[] {
   const pick = (name: string, label: string, master: string): EditorField =>
     optional({
       name,
@@ -249,6 +308,16 @@ function lineFields(o: Options, line?: Line): EditorField[] {
     pick("destination_zone_id", "Tujuan: zona", "zones"),
     pick("carrier_type_id", "Tipe armada (kosong = semua)", "carrier_types"),
     pick("service_id", "Layanan (kosong = semua)", "services"),
+    ...(side === "BUY"
+      ? [
+          pick(
+            "unit_id",
+            "Satuan muatan (wajib untuk dasar 'Per satuan muatan')",
+            "units",
+          ),
+          ...marginFields(line?.margin_mode, line?.margin_value),
+        ]
+      : []),
     optional({
       name: "free_time_hours",
       label: "Free time (jam)",
@@ -462,6 +531,7 @@ export function TariffDetailPage() {
   const [dialog, setDialog] = useState<
     "edit" | "line" | "version" | "reject" | { line: Line } | null
   >(null);
+  const [marginFor, setMarginFor] = useState<Line | null>(null);
   const [retiring, setRetiring] = useState(false);
   const [importing, setImporting] = useState(false);
   const [reason, setReason] = useState("");
@@ -603,7 +673,10 @@ export function TariffDetailPage() {
                     <th>Armada</th>
                     <th>Layanan</th>
                     <th>Dasar</th>
-                    <th>Tarif</th>
+                    {t.side === "BUY" && <th>Satuan</th>}
+                    <th>{t.side === "BUY" ? "Tarif awal" : "Tarif"}</th>
+                    {t.side === "BUY" && <th>Margin</th>}
+                    {t.side === "BUY" && <th>Tarif dasar (otomatis)</th>}
                     <th>Minimum</th>
                     {canManage && draft && <th>Aksi</th>}
                   </tr>
@@ -617,7 +690,41 @@ export function TariffDetailPage() {
                       <td>{String(l.carrier_type_label ?? "Semua")}</td>
                       <td>{String(l.service_label ?? "Semua")}</td>
                       <td>{BASES[l.basis]}</td>
+                      {t.side === "BUY" && (
+                        <td>{String(l.unit_label ?? "—")}</td>
+                      )}
                       <td>{rupiah(l.unit_price_minor)}</td>
+                      {t.side === "BUY" && (
+                        <td>
+                          {marginLabel(l.margin_mode, l.margin_value)}
+                          {(l.margins ?? []).map((m) => (
+                            <div key={m.id}>
+                              <small>
+                                {m.project_label ?? m.customer_label}:{" "}
+                                {marginLabel(m.margin_mode, m.margin_value)}
+                              </small>
+                              {canManage && draft && (
+                                <button
+                                  aria-label={`Hapus margin ${m.project_label ?? m.customer_label}`}
+                                  onClick={() =>
+                                    void act(
+                                      `tariffs/${t.id}/lines/${l.id}/margins/${m.id}`,
+                                      "DELETE",
+                                    )
+                                  }
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </td>
+                      )}
+                      {t.side === "BUY" && (
+                        <td>
+                          <strong>{rupiah(l.sell_unit_price_minor)}</strong>
+                        </td>
+                      )}
                       <td>
                         {l.min_charge_minor ? rupiah(l.min_charge_minor) : "—"}
                       </td>
@@ -627,6 +734,11 @@ export function TariffDetailPage() {
                             <button onClick={() => setDialog({ line: l })}>
                               Ubah
                             </button>
+                            {t.side === "BUY" && (
+                              <button onClick={() => setMarginFor(l)}>
+                                Margin pelanggan
+                              </button>
+                            )}
                             <button
                               onClick={() =>
                                 void act(
@@ -668,9 +780,11 @@ export function TariffDetailPage() {
               fields={lineFields(
                 options,
                 typeof dialog === "object" ? dialog.line : undefined,
+                t.side,
               )}
               onClose={() => setDialog(null)}
-              onSubmit={async (body, key) => {
+              onSubmit={async (raw, key) => {
+                const body = t.side === "BUY" ? marginBody(raw) : raw;
                 if (typeof dialog === "object" && dialog !== null)
                   await submitRecord(
                     `tariffs/${t.id}/lines/${dialog.line.id}`,
@@ -681,6 +795,38 @@ export function TariffDetailPage() {
                   );
                 else await submitRecord(`tariffs/${t.id}/lines`, body, key);
                 setDialog(null);
+                state.refresh();
+              }}
+            />
+          )}
+          {marginFor && (
+            <EditorDialog
+              title={`Margin pelanggan untuk ${String(marginFor.charge_code_label)}`}
+              fields={[
+                {
+                  name: "customer_id",
+                  label: "Pelanggan",
+                  kind: "select",
+                  options: options.customers ?? [],
+                  value: "",
+                },
+                optional({
+                  name: "project_id",
+                  label: "Proyek (kosong = semua proyek pelanggan)",
+                  kind: "select",
+                  options: options.customer_projects ?? [],
+                  value: "",
+                }),
+                ...marginFields(),
+              ]}
+              onClose={() => setMarginFor(null)}
+              onSubmit={async (raw, key) => {
+                await submitRecord(
+                  `tariffs/${t.id}/lines/${marginFor.id}/margins`,
+                  marginBody(raw),
+                  key,
+                );
+                setMarginFor(null);
                 state.refresh();
               }}
             />

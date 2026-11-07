@@ -28,6 +28,26 @@ export type Item = {
   height_mm: number;
   stackable: boolean;
   hazmat_class?: string | null;
+  unit_id?: string | null;
+  manual_price_minor?: number | null;
+};
+export type PriceLine = {
+  index: number;
+  description: string | null;
+  unit_id: string;
+  quantity: number;
+  priced: boolean;
+  amount_minor: number | null;
+  unit_price_minor?: number | null;
+  source?: string;
+  scope?: string | null;
+};
+export type PricePreview = {
+  items: PriceLine[];
+  total_minor: number;
+  unpriced: number[];
+  warnings: string[];
+  carrier_type_id: string;
 };
 export type Order = {
   id: string;
@@ -53,6 +73,17 @@ export type Order = {
   accessorial_minor: number;
   sell_minor: number;
   status: string;
+  transporter_vendor_id?: string | null;
+  transporter_vendor_id_label?: string | null;
+  carrier_type_id_label?: string | null;
+  vehicle_id?: string | null;
+  vehicle_label?: string | null;
+  price_source?: "MANUAL" | "MAPPING" | "APPROVAL";
+  price_status?: "FIXED" | "PENDING" | "APPROVED" | "REJECTED";
+  price_reason?: string | null;
+  price_requested_by?: number | null;
+  price_decision_note?: string | null;
+  pricing_snapshot?: { items: PriceLine[]; total_minor: number } | null;
   created_at: string;
   items?: Item[];
   plans?: Plan[];

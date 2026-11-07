@@ -1,5 +1,5 @@
 import { OrderSpmSection } from "./Spm";
-import { canOperate } from "./opsTypes";
+import { can, canOperate } from "./opsTypes";
 import { newId } from "./uuid";
 import { useEffect, useState } from "react";
 import {
@@ -21,7 +21,7 @@ import {
   Pagination,
 } from "./components";
 import { dateTime, minor, money } from "./commercial";
-import type { Item, Order, Page } from "./types";
+import type { Item, Order, Page, PricePreview } from "./types";
 import { stages } from "./types";
 import { Select } from "./Select";
 export function OrderList() {
@@ -152,7 +152,19 @@ const MASTER_PICKS = [
   "customer_projects",
   "services",
   "locations",
+  "units",
+  "carrier_types",
 ];
+type FleetVehicle = {
+  id: string;
+  plate: string;
+  vendor_id: string | null;
+  carrier_type_id: string | null;
+  carrier_type_label: string | null;
+  active?: boolean;
+  verification_status?: string;
+};
+type VendorOption = { id: string; code: string; name: string };
 export function OrderCreate() {
   const navigate = useNavigate();
   const session = useSession();
@@ -184,6 +196,32 @@ export function OrderCreate() {
   }, []);
   const pick = (resource: string, id: string) =>
     masters[resource]?.find((o) => o.id === id);
+  // Price from the transporter price mapping (read-only), or typed by hand for the old way of ordering.
+  const [auto, setAuto] = useState(true);
+  const [transporterId, setTransporterId] = useState("");
+  const [vehicleId, setVehicleId] = useState("");
+  const [carrierTypeId, setCarrierTypeId] = useState("");
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
+  const [preview, setPreview] = useState<PricePreview>();
+  const [previewError, setPreviewError] = useState<string>();
+  const [manualPrices, setManualPrices] = useState<Record<number, string>>({});
+  const [priceReason, setPriceReason] = useState("");
+  useEffect(() => {
+    api<{ data: VendorOption[] }>("vendors")
+      .then((r) => setVendors(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setVendors([]));
+    api<{ data: { vehicles: FleetVehicle[] } }>("fleet")
+      .then((r) => setVehicles(r.data?.vehicles ?? []))
+      .catch(() => setVehicles([]));
+  }, []);
+  const ownVehicles = vehicles.filter(
+    (v) =>
+      (v.vendor_id ?? "") === transporterId &&
+      v.active !== false &&
+      (v.verification_status ?? "VERIFIED") === "VERIFIED" &&
+      v.carrier_type_id,
+  );
   const [reference, setReference] = useState("");
   const [stage, setStage] = useState("FIRST_MILE");
   const [origin, setOrigin] = useState("");
@@ -208,6 +246,71 @@ export function OrderCreate() {
   } catch {
     /* Preview remains empty until values are valid. */
   }
+  const ready =
+    auto &&
+    !!customerId &&
+    !!originId &&
+    !!destinationId &&
+    (!!vehicleId || !!carrierTypeId) &&
+    items.every((i) => i.unit_id && i.quantity >= 1);
+  const previewKey = JSON.stringify([
+    ready,
+    customerId,
+    projectId,
+    originId,
+    destinationId,
+    transporterId,
+    vehicleId,
+    carrierTypeId,
+    items.map((i) => [i.description, i.quantity, i.unit_id]),
+  ]);
+  useEffect(() => {
+    if (!ready) {
+      setPreview(undefined);
+      setPreviewError(undefined);
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      api<{ data: PricePreview }>(
+        "orders/price-preview",
+        "POST",
+        {
+          customer_id: customerId,
+          project_id: projectId || null,
+          origin_location_id: originId,
+          destination_location_id: destinationId,
+          transporter_vendor_id: transporterId || null,
+          vehicle_id: vehicleId || null,
+          carrier_type_id: vehicleId ? null : carrierTypeId || null,
+          items: items.map((i) => ({
+            description: i.description || null,
+            quantity: i.quantity,
+            unit_id: i.unit_id,
+          })),
+        },
+        newId(),
+      )
+        .then((r) => {
+          if (!live) return;
+          setPreview(r.data);
+          setPreviewError(undefined);
+        })
+        .catch((e: unknown) => {
+          if (!live) return;
+          setPreview(undefined);
+          setPreviewError(
+            e instanceof Error ? e.message : "Harga tidak dapat dihitung.",
+          );
+        });
+    }, 400);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+    // The key stands for every input of the preview.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewKey]);
   if (!canOperate(session))
     return <ErrorBox error="Akun Anda memiliki akses hanya baca." />;
   return (
@@ -225,7 +328,17 @@ export function OrderCreate() {
       <Form
         label="Simpan draft order"
         onSubmit={async () => {
+          if (auto && !ready)
+            throw new Error(
+              "Pilih pelanggan, lokasi asal dan tujuan dari master, kendaraan atau tipe armada, dan satuan setiap barang.",
+            );
+          const unpriced = preview?.unpriced ?? [];
           const data = {
+            price_mode: auto ? "MAPPING" : "MANUAL",
+            transporter_vendor_id: auto ? transporterId || null : undefined,
+            vehicle_id: auto ? vehicleId || null : undefined,
+            carrier_type_id: auto && !vehicleId ? carrierTypeId : undefined,
+            price_reason: auto && unpriced.length ? priceReason : undefined,
             customer_name: customer,
             customer_id: customerId || null,
             project_id: projectId || null,
@@ -237,10 +350,17 @@ export function OrderCreate() {
             origin,
             destination,
             currency: "IDR",
-            base_price_minor: minor(base),
-            surcharge_minor: minor(surcharge),
-            accessorial_minor: minor(accessorial),
-            items,
+            base_price_minor: auto ? undefined : minor(base),
+            surcharge_minor: auto ? undefined : minor(surcharge),
+            accessorial_minor: auto ? undefined : minor(accessorial),
+            items: items.map((item, index) => ({
+              ...item,
+              unit_id: item.unit_id || undefined,
+              manual_price_minor:
+                auto && unpriced.includes(index)
+                  ? minor(manualPrices[index] ?? "")
+                  : undefined,
+            })),
           };
           const result = await api<{ data: Order }>(
             "orders",
@@ -413,6 +533,70 @@ export function OrderCreate() {
                 </Field>
               </div>
             </section>
+            {auto && (
+              <section className="card">
+                <h2>Transporter dan armada</h2>
+                <p className="muted">
+                  Harga dihitung dari matriks harga transporter menurut tipe
+                  armada, rute, dan satuan muatan.
+                </p>
+                <div className="form-grid">
+                  <Field label="Transporter">
+                    <Select
+                      value={transporterId}
+                      onChange={(e) => {
+                        setTransporterId(e.target.value);
+                        setVehicleId("");
+                        setKey(newId());
+                      }}
+                    >
+                      <option value="">
+                        {session.tenant.name} (armada sendiri)
+                      </option>
+                      {vendors.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.code} · {v.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Kendaraan">
+                    <Select
+                      value={vehicleId}
+                      onChange={(e) => {
+                        setVehicleId(e.target.value);
+                        setKey(newId());
+                      }}
+                    >
+                      <option value="">Pilih tipe armada saja</option>
+                      {ownVehicles.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.plate} · {v.carrier_type_label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  {!vehicleId && (
+                    <Field label="Tipe armada">
+                      <Select
+                        value={carrierTypeId}
+                        onChange={(e) => {
+                          setCarrierTypeId(e.target.value);
+                          setKey(newId());
+                        }}
+                      >
+                        <option value="">Pilih tipe armada</option>
+                        {masters.carrier_types?.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.code} · {o.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  )}
+                </div>
+              </section>
+            )}
             <section className="card">
               <div className="section-heading">
                 <h2>Rincian muatan</h2>
@@ -446,6 +630,24 @@ export function OrderCreate() {
                         }
                       />
                     </Field>
+                    {auto && (
+                      <Field label="Satuan muatan">
+                        <Select
+                          required
+                          value={item.unit_id ?? ""}
+                          onChange={(e) =>
+                            update(index, "unit_id", e.target.value)
+                          }
+                        >
+                          <option value="">Pilih satuan</option>
+                          {masters.units?.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.code} · {o.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    )}
                     <Field label="Jumlah unit">
                       <input
                         type="number"
@@ -521,48 +723,144 @@ export function OrderCreate() {
           <aside className="card costing">
             <span className="eyebrow">KOMERSIAL</span>
             <h2>Harga jual pelanggan</h2>
-            <Field label="Tarif dasar (Rp)">
+            <label className="check">
               <input
-                required
-                inputMode="decimal"
-                placeholder="0,00"
-                value={base}
+                type="checkbox"
+                checked={!auto}
                 onChange={(e) => {
-                  setBase(e.target.value);
+                  setAuto(!e.target.checked);
                   setKey(newId());
                 }}
-              />
-            </Field>
-            <Field label="Surcharge fuel / tol (Rp)">
-              <input
-                required
-                inputMode="decimal"
-                value={surcharge}
-                onChange={(e) => {
-                  setSurcharge(e.target.value);
-                  setKey(newId());
-                }}
-              />
-            </Field>
-            <Field label="Aksesorial pelanggan (Rp)">
-              <input
-                required
-                inputMode="decimal"
-                value={accessorial}
-                onChange={(e) => {
-                  setAccessorial(e.target.value);
-                  setKey(newId());
-                }}
-              />
-            </Field>
-            <div className="cost-total">
-              <span>Total harga jual</span>
-              <strong>{total ? money(total) : "—"}</strong>
-            </div>
-            <p className="muted">
-              Harga dimasukkan sesuai kesepakatan pelanggan. Biaya vendor dan
-              persetujuan margin ditentukan pada rencana dispatch.
-            </p>
+              />{" "}
+              Harga manual tanpa matriks
+            </label>
+            {auto ? (
+              <>
+                <ErrorBox error={previewError} />
+                {!ready && (
+                  <p className="muted">
+                    Lengkapi pelanggan, lokasi, kendaraan atau tipe armada, dan
+                    satuan muatan untuk melihat tarif dasar.
+                  </p>
+                )}
+                {preview?.items.map((line) => (
+                  <div className="cost-line" key={line.index}>
+                    <span>
+                      {line.description || `Barang ${line.index + 1}`} ·{" "}
+                      {line.quantity} unit
+                    </span>
+                    {line.priced ? (
+                      <strong>{money(line.amount_minor ?? 0)}</strong>
+                    ) : (
+                      <Field
+                        label={`Harga manual barang ${line.index + 1} (Rp)`}
+                      >
+                        <input
+                          required
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          value={manualPrices[line.index] ?? ""}
+                          onChange={(e) => {
+                            setManualPrices((v) => ({
+                              ...v,
+                              [line.index]: e.target.value,
+                            }));
+                            setKey(newId());
+                          }}
+                        />
+                      </Field>
+                    )}
+                  </div>
+                ))}
+                {!!preview?.unpriced.length && (
+                  <>
+                    <div className="alert">
+                      Tidak ada tarif untuk barang yang ditandai. Isi harga
+                      manual dan alasannya; order menunggu persetujuan orang
+                      lain sebelum dapat dikonfirmasi.
+                    </div>
+                    <Field label="Alasan harga manual">
+                      <textarea
+                        required
+                        maxLength={1000}
+                        value={priceReason}
+                        onChange={(e) => {
+                          setPriceReason(e.target.value);
+                          setKey(newId());
+                        }}
+                      />
+                    </Field>
+                  </>
+                )}
+                <div className="cost-total">
+                  <span>Tarif dasar (otomatis)</span>
+                  <strong>
+                    {preview
+                      ? money(
+                          preview.total_minor +
+                            preview.unpriced.reduce((sum, i) => {
+                              try {
+                                return sum + minor(manualPrices[i] ?? "");
+                              } catch {
+                                return sum;
+                              }
+                            }, 0),
+                        )
+                      : "—"}
+                  </strong>
+                </div>
+                <p className="muted">
+                  Tarif dasar tidak dapat diubah di sini. Biaya tambahan seperti
+                  BBM, uang jalan, dan menginap dicatat pada SPM selama
+                  pengiriman berjalan.
+                </p>
+              </>
+            ) : (
+              <>
+                <Field label="Tarif dasar (Rp)">
+                  <input
+                    required
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={base}
+                    onChange={(e) => {
+                      setBase(e.target.value);
+                      setKey(newId());
+                    }}
+                  />
+                </Field>
+                <Field label="Surcharge fuel / tol (Rp)">
+                  <input
+                    required
+                    inputMode="decimal"
+                    value={surcharge}
+                    onChange={(e) => {
+                      setSurcharge(e.target.value);
+                      setKey(newId());
+                    }}
+                  />
+                </Field>
+                <Field label="Aksesorial pelanggan (Rp)">
+                  <input
+                    required
+                    inputMode="decimal"
+                    value={accessorial}
+                    onChange={(e) => {
+                      setAccessorial(e.target.value);
+                      setKey(newId());
+                    }}
+                  />
+                </Field>
+                <div className="cost-total">
+                  <span>Total harga jual</span>
+                  <strong>{total ? money(total) : "—"}</strong>
+                </div>
+                <p className="muted">
+                  Harga dimasukkan sesuai kesepakatan pelanggan. Biaya vendor
+                  dan persetujuan margin ditentukan pada rencana dispatch.
+                </p>
+              </>
+            )}
             <div className="alert info">
               Draft tidak mengalokasikan kendaraan atau pengemudi.
             </div>
@@ -577,6 +875,8 @@ export function OrderDetail() {
   const state = useData<{ data: Order }>(`orders/${id}`);
   const session = useSession();
   const [action, setAction] = useState<"confirm" | "cancel">();
+  const [decision, setDecision] = useState<"approve" | "reject">();
+  const [note, setNote] = useState("");
   if (state.loading) return <Loading />;
   if (state.error)
     return (
@@ -628,12 +928,47 @@ export function OrderDetail() {
             <dd>{o.destination}</dd>
             <dt>Dibuat</dt>
             <dd>{dateTime(o.created_at)}</dd>
+            {o.price_source && o.price_source !== "MANUAL" && (
+              <>
+                <dt>Transporter</dt>
+                <dd>
+                  {o.transporter_vendor_id_label ?? "Armada sendiri"}
+                  {o.vehicle_label && ` · ${o.vehicle_label}`}
+                  {o.carrier_type_id_label && ` · ${o.carrier_type_id_label}`}
+                </dd>
+                <dt>Sumber harga</dt>
+                <dd>
+                  {o.price_source === "MAPPING"
+                    ? "Matriks harga transporter"
+                    : "Harga manual dengan persetujuan"}
+                  {o.price_status === "PENDING" && " · menunggu persetujuan"}
+                  {o.price_status === "APPROVED" && " · disetujui"}
+                  {o.price_status === "REJECTED" && " · ditolak"}
+                </dd>
+                {o.price_reason && (
+                  <>
+                    <dt>Alasan harga manual</dt>
+                    <dd>{o.price_reason}</dd>
+                  </>
+                )}
+                {o.price_decision_note && (
+                  <>
+                    <dt>Catatan keputusan</dt>
+                    <dd>{o.price_decision_note}</dd>
+                  </>
+                )}
+              </>
+            )}
             <dt>Tarif dasar</dt>
             <dd>{money(o.base_price_minor)}</dd>
-            <dt>Surcharge</dt>
-            <dd>{money(o.surcharge_minor)}</dd>
-            <dt>Aksesorial pelanggan</dt>
-            <dd>{money(o.accessorial_minor)}</dd>
+            {o.price_source !== "MAPPING" && o.price_source !== "APPROVAL" && (
+              <>
+                <dt>Surcharge</dt>
+                <dd>{money(o.surcharge_minor)}</dd>
+                <dt>Aksesorial pelanggan</dt>
+                <dd>{money(o.accessorial_minor)}</dd>
+              </>
+            )}
             <dt>Harga jual total</dt>
             <dd>
               <strong>{money(o.sell_minor)}</strong>
@@ -651,11 +986,51 @@ export function OrderDetail() {
               {o.status === "DRAFT" && (
                 <button
                   className="primary"
+                  disabled={["PENDING", "REJECTED"].includes(
+                    o.price_status ?? "",
+                  )}
+                  title={
+                    o.price_status === "PENDING"
+                      ? "Harga manual menunggu persetujuan."
+                      : o.price_status === "REJECTED"
+                        ? "Harga manual ditolak."
+                        : undefined
+                  }
                   onClick={() => setAction("confirm")}
                 >
                   Konfirmasi order
                 </button>
               )}
+              {o.status === "DRAFT" &&
+                o.price_status === "PENDING" &&
+                can(session, "rate.approve") && (
+                  <>
+                    <button
+                      className="primary"
+                      disabled={o.price_requested_by === session.id}
+                      title={
+                        o.price_requested_by === session.id
+                          ? "Harga harus disetujui oleh orang lain."
+                          : undefined
+                      }
+                      onClick={() => {
+                        setNote("");
+                        setDecision("approve");
+                      }}
+                    >
+                      Setujui harga manual
+                    </button>
+                    <button
+                      disabled={o.price_requested_by === session.id}
+                      onClick={() => {
+                        setNote("");
+                        setDecision("reject");
+                      }}
+                    >
+                      Tolak harga manual
+                    </button>
+                  </>
+                )}
               {o.status === "CONFIRMED" && (
                 <Link className="button primary" to={`/dispatch?order=${o.id}`}>
                   Buat rencana dispatch
@@ -709,6 +1084,40 @@ export function OrderDetail() {
         </div>
       </section>
       <OrderSpmSection orderId={o.id} status={o.status} />
+      {decision && (
+        <Confirm
+          title={
+            decision === "approve"
+              ? "Setujui harga manual?"
+              : "Tolak harga manual?"
+          }
+          onClose={() => setDecision(undefined)}
+          onConfirm={async () => {
+            await api(`orders/${id}/price-decision`, "POST", {
+              decision,
+              note: note || undefined,
+            });
+            state.refresh();
+          }}
+        >
+          <p>
+            Harga {money(o.sell_minor)} diajukan dengan alasan:{" "}
+            {o.price_reason ?? "—"}
+          </p>
+          <Field
+            label={
+              decision === "reject" ? "Alasan penolakan" : "Catatan (opsional)"
+            }
+          >
+            <textarea
+              required={decision === "reject"}
+              maxLength={1000}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </Field>
+        </Confirm>
+      )}
       {action && (
         <Confirm
           title={action === "confirm" ? "Konfirmasi order?" : "Batalkan order?"}

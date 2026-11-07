@@ -115,6 +115,7 @@ describe("Order form with master data", () => {
         .readOnly,
     ).toBe(true);
 
+    await userEvent.click(screen.getByLabelText("Harga manual tanpa matriks"));
     await userEvent.type(screen.getByLabelText("Tarif dasar (Rp)"), "1000000");
     fireEvent.submit(
       screen

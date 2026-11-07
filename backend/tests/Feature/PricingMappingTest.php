@@ -227,24 +227,43 @@ class PricingMappingTest extends TestCase
         $this->assertStringNotContainsString('1000000', json_encode($hidden));
     }
 
-    public function test_a_table_with_a_margin_below_the_tenant_minimum_is_not_approved(): void
+    public function test_a_margin_below_the_tenant_minimum_needs_an_approver_with_enough_margin_level(): void
     {
         DB::table('tenants')->where('id', $this->tenant)->update(['minimum_margin_bps' => 1500]);
-        $t = $this->buyTable();
-        $row = $this->row($t['id'], ['margin_value' => 1000])->assertCreated()->json('data'); // 10% on cost = 9.09% of the base tariff
-        $this->as($this->checker)->postJson("/api/v1/tariffs/{$t['id']}/approve")->assertUnprocessable()->assertJsonValidationErrors('margin');
+        $head = User::factory()->create();
+        DB::table('memberships')->insert(['tenant_id' => $this->tenant, 'user_id' => $head->id, 'role' => 'head_of_logistics', 'active' => true]);
+        $cfo = User::factory()->create();
+        DB::table('memberships')->insert(['tenant_id' => $this->tenant, 'user_id' => $cfo->id, 'role' => 'cfo', 'active' => true]);
+        $approve = fn (User $u, string $id) => $this->as($u)->postJson("/api/v1/tariffs/{$id}/approve");
 
+        $t = $this->buyTable();
+        $row = $this->row($t['id'], ['margin_value' => 1000])->assertCreated()->json('data'); // 10% on cost = 9.09% of the base tariff: level 2
+        $approve($this->checker, $t['id'])->assertForbidden()->assertJsonPath('message', fn ($m) => str_contains($m, 'level 2') && str_contains($m, 'level Anda: 1'));
+        $this->assertSame('DRAFT', DB::table('rate_tables')->where('id', $t['id'])->value('status'));
+
+        // A thinner customer margin (4.76%, level 3) raises the bar for the whole table.
         $this->as($this->maker)->putJson("/api/v1/tariffs/{$t['id']}/lines/{$row['id']}", [
             'charge_code_id' => $this->m['FREIGHT'], 'origin_city_id' => $this->m['jkt'], 'destination_city_id' => $this->m['bdg'], 'carrier_type_id' => $this->m['cde'],
             'basis' => 'UNIT', 'unit_id' => $this->m['PALLET'], 'unit_price_minor' => 1_000_000_00, 'margin_mode' => 'PERCENT', 'margin_value' => 2000,
         ])->assertOk();
         $this->as($this->maker)->postJson("/api/v1/tariffs/{$t['id']}/lines/{$row['id']}/margins", ['customer_id' => $this->m['cust'], 'margin_mode' => 'AMOUNT', 'margin_value' => 50_000_00])->assertOk();
-        $this->as($this->checker)->postJson("/api/v1/tariffs/{$t['id']}/approve")->assertUnprocessable();
-        $this->assertStringContainsString('pelanggan CUST', $this->as($this->checker)->postJson("/api/v1/tariffs/{$t['id']}/approve")->json('errors.margin.0'));
+        $approve($this->checker, $t['id'])->assertForbidden();
+        $refused = $approve($head, $t['id'])->assertForbidden()->json('message');
+        $this->assertStringContainsString('level 3', $refused);
+        $this->assertStringContainsString('pelanggan CUST', $refused);
 
-        $this->row($t['id'], ['carrier_type_id' => $this->m['cdd'], 'margin_mode' => null, 'margin_value' => null])->assertCreated();
-        $this->as($this->maker)->postJson("/api/v1/tariffs/{$t['id']}/lines/{$row['id']}/margins", ['customer_id' => $this->m['cust'], 'margin_mode' => 'PERCENT', 'margin_value' => 1900])->assertOk();
-        $this->as($this->checker)->postJson("/api/v1/tariffs/{$t['id']}/approve")->assertOk()->assertJsonPath('data.status', 'APPROVED');
+        // Fix the customer margin: nothing is below the minimum any more and an ordinary approver is enough.
+        $margin = DB::table('rate_line_margins')->where('rate_line_id', $row['id'])->first();
+        $this->as($this->maker)->deleteJson("/api/v1/tariffs/{$t['id']}/lines/{$row['id']}/margins/{$margin->id}")->assertNoContent();
+        $approve($this->checker, $t['id'])->assertOk()->assertJsonPath('data.status', 'APPROVED');
+
+        $u = $this->buyTable(['code' => 'MAP2']);
+        $this->row($u['id'], ['margin_value' => 1000])->assertCreated();
+        $approve($head, $u['id'])->assertOk()->assertJsonPath('data.status', 'APPROVED');
+        $w = $this->buyTable(['code' => 'MAP3']);
+        $this->row($w['id'], ['margin_value' => 100])->assertCreated();
+        $approve($head, $w['id'])->assertForbidden();
+        $approve($cfo, $w['id'])->assertOk();
     }
 
     public function test_mapping_rows_are_imported_with_unit_and_margin(): void

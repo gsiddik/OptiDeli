@@ -106,7 +106,7 @@ class TariffController extends Controller
 
     public function approve(Request $r, string $id)
     {
-        return response()->json(['data' => $this->approver($r)->approve($id)]);
+        return response()->json(['data' => $this->approver($r)->approve($id, Access::approvalLevel($r))]);
     }
 
     public function retire(Request $r, string $id)

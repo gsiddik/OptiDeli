@@ -2,6 +2,7 @@
 
 namespace App\Domain\Tariff;
 
+use App\Domain\Commercial\Margin;
 use App\Domain\Shared\TenantStore;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -399,9 +400,10 @@ final class TariffService
 
     /**
      * A mapping row sells below the tenant's minimum margin (share of the base tariff, as the dispatch plan measures it) when its
-     * own margin, or the margin given to one customer or project, is too thin: the table is then not approved.
+     * own margin, or the margin given to one customer or project, is too thin. Like a dispatch plan, the table then needs an
+     * approver whose margin level (dispatch.approve.level1..3) covers the thinnest margin in it.
      */
-    private function assertMinimumMargin(object $table): void
+    private function assertMinimumMargin(object $table, int $approvalLevel): void
     {
         if ($table->side !== 'BUY') {
             return;
@@ -411,6 +413,7 @@ final class TariffService
         $margins = $this->store->query('rate_line_margins')->whereIn('rate_line_id', $lines->pluck('id'))->get()->groupBy('rate_line_id');
         $names = fn (?string $customer, ?string $project) => $customer === null ? 'baris' : ('pelanggan '.($this->store->query('customers')->where('id', $customer)->value('code') ?? '?').($project ? ' / proyek '.($this->store->query('customer_projects')->where('id', $project)->value('code') ?? '?') : ''));
         $below = [];
+        $needed = 0;
         foreach ($lines as $line) {
             $cases = [[null, null, $line->margin_mode, $line->margin_value]];
             foreach ($margins[$line->id] ?? [] as $m) {
@@ -422,26 +425,30 @@ final class TariffService
                 }
                 $sell = BaseTariff::price((int) $line->unit_price_minor, $mode, (int) $value);
                 $bps = (int) round(($sell - (int) $line->unit_price_minor) * 10000 / $sell);
-                if ($bps < $minimum) {
+                try {
+                    $level = Margin::requiredLevel($sell, (int) $line->unit_price_minor, $minimum);
+                } catch (\InvalidArgumentException) {
+                    $level = 3; // an amount out of range is never waved through
+                }
+                if ($level > 0) {
+                    $needed = max($needed, $level);
                     $below[] = sprintf('%s %s: %.2f%% < %.2f%%', $this->store->query('charge_codes')->where('id', $line->charge_code_id)->value('code'), $names($customer, $project), $bps / 100, $minimum / 100);
                 }
             }
         }
-        if ($below !== []) {
-            throw ValidationException::withMessages(['margin' => 'Margin di bawah minimum tenant, tarif tidak dapat disetujui: '.implode('; ', array_slice($below, 0, 5)).(count($below) > 5 ? '; dan '.(count($below) - 5).' lainnya.' : '.')]);
-        }
+        abort_if($approvalLevel < $needed, 403, "Margin di bawah minimum tenant: tarif ini perlu disetujui pengguna dengan otorisasi margin level {$needed} (level Anda: {$approvalLevel}). ".implode('; ', array_slice($below, 0, 5)).(count($below) > 5 ? '; dan '.(count($below) - 5).' lainnya.' : '.'));
     }
 
     /** Approves a draft. The approver is never its author; an earlier approved version of the tariff ends the day before this one starts. */
-    public function approve(string $id): object
+    public function approve(string $id, int $approvalLevel = 0): object
     {
-        return DB::transaction(function () use ($id) {
+        return DB::transaction(function () use ($id, $approvalLevel) {
             DB::table('tenants')->where('id', $this->store->tenantId)->lockForUpdate()->firstOrFail();
             $table = $this->draft($id, true);
             abort_if($table->created_by === $this->store->actorId, 403, 'Tarif harus disetujui oleh orang lain, bukan penyusunnya.');
             abort_if($table->proposed_by_vendor && $table->submitted_at === null, 409, 'Vendor belum mengajukan tarif ini.');
             abort_unless($this->store->query('rate_lines')->where('rate_table_id', $id)->exists(), 422, 'Tarif belum memiliki baris.');
-            $this->assertMinimumMargin($table);
+            $this->assertMinimumMargin($table, $approvalLevel);
             $others = $this->store->query('rate_tables')->where('code', $table->code)->where('status', 'APPROVED')->where('id', '!=', $id)->get();
             $from = Carbon::parse($table->valid_from);
             foreach ($others as $o) {

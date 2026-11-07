@@ -28,7 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - run: docker build -t optideli-dev-php -f docker/php.Dockerfile docker
-      - run: ./scripts/composer install --no-interaction --prefer-dist
+      - name: composer install (retries when GitHub answers 5xx while downloading packages)
+        run: |
+          for attempt in 1 2 3 4; do
+            ./scripts/composer install --no-interaction --prefer-dist && exit 0
+            echo "composer install failed (attempt $attempt); retrying in $((attempt * 20))s"
+            sleep $((attempt * 20))
+          done
+          exit 1
       - run: ./scripts/composer validate --strict
       - run: ./scripts/php vendor/bin/pint --test
       - run: ./scripts/php vendor/bin/phpunit

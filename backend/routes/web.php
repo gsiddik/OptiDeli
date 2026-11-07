@@ -56,6 +56,8 @@ Route::middleware(['auth', 'tenant', 'throttle:120,1'])->prefix('api/v1')->group
         Route::get('dashboard', [FleetController::class, 'summary']);
         Route::get('orders', [OrderController::class, 'index']);
         Route::post('orders', [OrderController::class, 'create']);
+        Route::post('orders/price-preview', [OrderController::class, 'pricePreview']);
+        Route::post('orders/{id}/price-decision', [OrderController::class, 'priceDecision'])->whereUuid('id');
         Route::get('orders/{id}', [OrderController::class, 'show'])->whereUuid('id');
         Route::post('orders/{id}/transition', [OrderController::class, 'transition'])->whereUuid('id');
         Route::get('dispatch/plans', [DispatchController::class, 'index']);

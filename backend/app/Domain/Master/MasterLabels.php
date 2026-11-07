@@ -11,6 +11,7 @@ final class MasterLabels
     public const ORDER = [
         'customer_id' => 'customers', 'project_id' => 'customer_projects', 'service_id' => 'services',
         'origin_location_id' => 'locations', 'destination_location_id' => 'locations',
+        'transporter_vendor_id' => 'vendors', 'carrier_type_id' => 'carrier_types',
     ];
 
     /**
